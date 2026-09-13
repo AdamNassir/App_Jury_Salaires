@@ -1,0 +1,127 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Information about a user and their role in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "roles": { "type": "array", "items": { "type": "string" } },
+        "team": { "type": "string" },
+        "position": { "type": "string" },
+        "matricule": { "type": "string" },
+        "experienceYears": { "type": "integer" },
+        "entryDate": { "type": "string", "format": "date" },
+        "expertGradeDate": { "type": "string", "format": "date" },
+        "currentGrade": { "type": "string" },
+        "currentSalary": { "type": "number" },
+        "currentTJM": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "roles"]
+    },
+    "Dossier": {
+      "title": "Dossier",
+      "description": "The candidate's annual evaluation dossier.",
+      "type": "object",
+      "properties": {
+        "candidateId": { "type": "string" },
+        "candidateName": { "type": "string" },
+        "candidateEmail": { "type": "string" },
+        "campaignYear": { "type": "integer" },
+        "status": { "type": "string", "enum": ["OUVERT", "COMPLET", "VALIDE"] },
+        "annualReport": {
+          "type": "object",
+          "properties": {
+            "synthesis": { "type": "string" },
+            "objectivesReached": { "type": "string" },
+            "commercialActivities": { "type": "string" },
+            "lifeLogiclever": { "type": "string" },
+            "knowHow": { "type": "string" },
+            "missionAutonomy": { "type": "string" },
+            "careerGoals": { "type": "string" },
+            "salaryExpectations": { "type": "string" },
+            "wishedGrade": { "type": "string" },
+            "wishedSalary": { "type": "number" },
+            "currentTJM": { "type": "number" },
+            "targetTJM": { "type": "number" }
+          }
+        },
+        "clientFeedbacks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "client": { "type": "string" },
+              "mission": { "type": "string" },
+              "satisfactionItems": { "type": "string" },
+              "improvementAxes": { "type": "string" },
+              "perspectives": { "type": "string" },
+              "recommendation": { "type": "string" },
+              "clientVision": { "type": "string" },
+              "consultantVision": { "type": "string" }
+            }
+          }
+        },
+        "assignedConsultantIds": { "type": "array", "items": { "type": "string" } },
+        "consultantFeedbacks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "consultantId": { "type": "string" },
+              "consultantName": { "type": "string" },
+              "type": { "type": "string" },
+              "targetTJMin": { "type": "number" },
+              "targetTJMax": { "type": "number" },
+              "justification": { "type": "string" },
+              "improvementAxes": { "type": "string" },
+              "confidenceIndex": { "type": "integer" },
+              "validated": { "type": "boolean" },
+              "updatedAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "juryDecision": {
+          "type": "object",
+          "properties": {
+            "verdict": { "type": "string" },
+            "amount": { "type": "number" },
+            "percentage": { "type": "number" },
+            "advice": { "type": "string" },
+            "conclusion": { "type": "string" },
+            "date": { "type": "string", "format": "date-time" },
+            "referentJury": { "type": "string" },
+            "investment": { "type": "string" },
+            "mission": { "type": "string" },
+            "whyThisSalary": { "type": "string" },
+            "whatToDoMore": { "type": "string" },
+            "participatesInternalImprovement": { "type": "boolean" },
+            "developsLogicleverClient": { "type": "boolean" },
+            "developsLogicleverRecruitment": { "type": "boolean" },
+            "knowsOthers": { "type": "boolean" },
+            "daysWorkedYear": { "type": "integer" },
+            "daysLogicleverInternal": { "type": "integer" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["candidateId", "campaignYear", "status"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of users and their roles."
+    },
+    "dossiers": {
+      "schema": "Dossier",
+      "description": "Collection of evaluation dossiers for each candidate and campaign."
+    }
+  }
+}

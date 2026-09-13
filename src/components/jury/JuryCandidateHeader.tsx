@@ -1,0 +1,166 @@
+import React from 'react';
+import { Dossier, UserProfile } from '../../types';
+import { Award, Mail, TrendingUp, Banknote, Clock } from 'lucide-react';
+import { formatCurrency } from '../../lib/utils';
+import { calculateYears } from '../../lib/salaryUtils';
+import { StatusPill } from './JuryUI';
+
+interface JuryCandidateHeaderProps {
+  dossier: Dossier;
+  candidate: UserProfile | null;
+  calculateAverageTargetTJM: (dossier: Dossier) => number | null;
+}
+
+export function JuryCandidateHeader({
+  dossier,
+  candidate,
+  calculateAverageTargetTJM
+}: JuryCandidateHeaderProps) {
+  return (
+    <>
+      <div className="flex justify-between items-start mb-12 pb-10 border-b border-accent/10 relative">
+        <div className="flex items-center gap-6">
+          <div className="w-20 h-20 bg-accent/5 rounded-2xl flex items-center justify-center text-accent/20 border border-accent/10">
+            <Award className="w-10 h-10" />
+          </div>
+          <div>
+            <h2 className="text-secondary mb-2 leading-none">{dossier.candidateName}</h2>
+            <div className="flex items-center gap-4 text-accent/40">
+              <Mail className="w-4 h-4" />
+              <span className="text-lg font-light italic">{dossier.candidateEmail}</span>
+              {candidate?.matricule && (
+                <>
+                  <span className="w-1 h-1 bg-accent/20 rounded-full" />
+                  <span className="text-xs font-black uppercase tracking-widest">{candidate.matricule}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-3">Statut Dossier</div>
+          <StatusPill status={dossier.status} />
+        </div>
+      </div>
+
+      {/* Summary Profiles & Wishes - 4 paired blocks */}
+      <div className="flex flex-col gap-4 mb-12">
+        {/* Block 1: TJM Actuel et TJM Cible */}
+        <div className="p-6 rounded-xl border border-accent/10 bg-white hover:shadow-lg transition-all shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 rounded-lg text-primary">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">TJM Actuel & TJM Cible</h4>
+              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Tarif Journalier Moyen</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-6 sm:gap-12">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Actuel :</span>
+              <span className="text-base font-bold text-accent">
+                {candidate?.currentTJM ? `${candidate.currentTJM}€ / j` : 'N/A'}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-accent/10 hidden sm:block" />
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-primary">Cible :</span>
+              <span className="text-base font-bold text-primary">
+                {dossier.annualReport?.targetTJM 
+                  ? `${dossier.annualReport.targetTJM}€ / j` 
+                  : calculateAverageTargetTJM(dossier) 
+                    ? `${calculateAverageTargetTJM(dossier)}€ / j (Moy)` 
+                    : 'N/A'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Block 2: Grade Actuel et Grade Souhaité */}
+        <div className="p-6 rounded-xl border border-accent/10 bg-white hover:shadow-lg transition-all shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-accent/5 rounded-lg text-accent border border-accent/10">
+              <Award className="w-5 h-5 text-accent opacity-80" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">Grade Actuel & Grade Souhaité</h4>
+              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Séniorité & Rôle</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-6 sm:gap-12">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Actuel :</span>
+              <span className="text-base font-bold text-accent">
+                {candidate?.currentGrade || 'Junior'}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-accent/10 hidden sm:block" />
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-secondary">Souhaité :</span>
+              <span className="text-base font-bold text-secondary uppercase">
+                {dossier.annualReport?.wishedGrade || 'N/A'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Block 3: Salaire Actuel et Salaire Souhaité */}
+        <div className="p-6 rounded-xl border border-accent/10 bg-white hover:shadow-lg transition-all shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-50 rounded-lg text-emerald-600 border border-emerald-100">
+              <Banknote className="w-5 h-5 text-emerald-600 opacity-80" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">Salaire Actuel & Salaire Souhaité</h4>
+              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Rémunération Annuelle Brute</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-6 sm:gap-12">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Actuel :</span>
+              <span className="text-base font-bold text-accent">
+                {candidate?.currentSalary ? formatCurrency(candidate.currentSalary) : 'N/A'}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-accent/10 hidden sm:block" />
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Souhaité :</span>
+              <span className="text-base font-bold text-emerald-600">
+                {dossier.annualReport?.wishedSalary ? formatCurrency(dossier.annualReport.wishedSalary) : 'N/A'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Block 4: Années d’expérience & Ancienneté chez LL */}
+        <div className="p-6 rounded-xl border border-accent/10 bg-white hover:shadow-lg transition-all shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-50 rounded-lg text-indigo-600 border border-indigo-100">
+              <Clock className="w-5 h-5 text-indigo-600 opacity-80" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">Années d’expérience & Ancienneté chez LL</h4>
+              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Parcours & Fidélité</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-6 sm:gap-12">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Total XP :</span>
+              <span className="text-base font-bold text-accent">
+                {candidate?.experienceYears ? `${candidate.experienceYears} ans` : 'N/A'}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-accent/10 hidden sm:block" />
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Chez LL :</span>
+              <span className="text-base font-bold text-indigo-600" title={candidate?.entryDate ? `Arrivé le ${new Date(candidate.entryDate).toLocaleDateString()}` : undefined}>
+                {candidate?.entryDate ? `${(candidate.seniorityYears ?? Number.NaN)} ans` : 'N/A'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

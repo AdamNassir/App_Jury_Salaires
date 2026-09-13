@@ -1,0 +1,28 @@
+Colors
+Primary:
+#FF5D25
+Secondary:
+#0D66C2
+Accent:
+#2D3748
+Background:
+#FFFFFF
+Text Primary:
+#2D3748
+Link:
+#2D3748
+Fonts
+Lexend(body)
+Typography
+primary: Lexend
+heading: Lexend
+h1: 16px
+h2: 64px
+body: 20px
+Spacing
+Base Unit:4
+Border Radius:4px
+Personality
+Tone: modern
+Energy: medium
+Audience: tech-savvy professionals

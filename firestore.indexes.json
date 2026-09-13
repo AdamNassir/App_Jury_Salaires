@@ -1,0 +1,7 @@
+{
+  "indexes": [
+    { "collectionGroup": "dossiers", "queryScope": "COLLECTION", "fields": [{"fieldPath":"campaignYear","order":"ASCENDING"},{"fieldPath":"candidateId","order":"ASCENDING"}] },
+    { "collectionGroup": "evaluations", "queryScope": "COLLECTION", "fields": [{"fieldPath":"campaignYear","order":"ASCENDING"},{"fieldPath":"consultantId","order":"ASCENDING"}] }
+  ],
+  "fieldOverrides": []
+}

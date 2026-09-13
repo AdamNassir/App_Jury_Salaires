@@ -1,0 +1,77 @@
+{
+  "$schema_version": "1.0",
+  "_comment": "Modèle d'exemple pour configurer plusieurs classeurs Google Sheets (chacun avec son propre spreadsheetId, ses onglets, le rôle de chaque onglet et l'explication des colonnes). Copiez ces structures dans google-sheets-config.json selon vos besoins.",
+  "defaultSpreadsheetId": "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk",
+  "spreadsheets": {
+    "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk": {
+      "name": "RH & Annuaire Collaborateurs",
+      "spreadsheetId": "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk",
+      "description": "Classeur principal pour les comptes et la grille de salaires",
+      "tabs": {
+        "Comptes": {
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Importation des collaborateurs",
+          "headerRow": 1,
+          "columns": {
+            "matricule": { "header": "Matricule", "explanation": "ID RH unique" },
+            "displayName": { "header": "Nom", "explanation": "Nom et prénom" },
+            "email": { "header": "Email", "explanation": "Email Google Workspace pour la connexion" },
+            "currentGrade": { "header": "Grade", "explanation": "Junior, Confirmé, Senior, Lead, Expert" },
+            "currentSalary": { "header": "Salaire Actuel", "explanation": "Salaire brut annuel en euros" },
+            "currentTJM": { "header": "TJ Vendu", "explanation": "TJM vendu au client en euros" }
+          }
+        },
+        "Délibérations_Jury": {
+          "purpose": "EXPORT_SALARY_DELIBERATIONS",
+          "description": "Export des décisions salariales",
+          "headerRow": 1,
+          "columns": {
+            "matricule": { "header": "Matricule", "explanation": "Numéro matricule" },
+            "candidateName": { "header": "Collaborateur", "explanation": "Nom et prénom" },
+            "deliberationStatus": { "header": "Statut Jury", "explanation": "Statut de la décision" },
+            "finalSalary": { "header": "Salaire Final Jury (€)", "explanation": "Montant validé par le jury" },
+            "finalGrade": { "header": "Grade Final Jury", "explanation": "Grade validé par le jury" }
+          }
+        }
+      }
+    },
+    "EXEMPLE_SPREADSHEET_ID_EVALUATIONS": {
+      "name": "Évaluations & Météos Client 2025",
+      "spreadsheetId": "EXEMPLE_SPREADSHEET_ID_EVALUATIONS",
+      "description": "Deuxième classeur dédié aux retours clients et météos de mission",
+      "tabs": {
+        "Météos_Q4": {
+          "purpose": "IMPORT_CLIENT_FEEDBACK",
+          "description": "Feedbacks trimestriels des managers et clients",
+          "headerRow": 1,
+          "columns": {
+            "candidateEmail": { "header": "Email Consultant", "explanation": "Email pour réassigner le feedback au bon collaborateur" },
+            "clientName": { "header": "Nom Entreprise", "explanation": "Nom du client final ou compte" },
+            "missionTitle": { "header": "Mission", "explanation": "Intitulé du projet ou de la mission" },
+            "rating": { "header": "Note (1-5)", "explanation": "Score de satisfaction globale sur 5" },
+            "comment": { "header": "Commentaire Client", "explanation": "Remarques et appréciations textuelles du client" }
+          }
+        }
+      }
+    },
+    "EXEMPLE_SPREADSHEET_ID_OBJECTIFS": {
+      "name": "Objectifs Annuels & KPI 2025",
+      "spreadsheetId": "EXEMPLE_SPREADSHEET_ID_OBJECTIFS",
+      "description": "Troisième classeur contenant les feuilles d'objectifs annuels",
+      "tabs": {
+        "Objectifs_2024_2025": {
+          "purpose": "IMPORT_OBJECTIVES",
+          "description": "Objectifs fixés lors du cycle précédent",
+          "headerRow": 1,
+          "columns": {
+            "candidateEmail": { "header": "Email Consultant", "explanation": "Email du consultant" },
+            "objectiveTitle": { "header": "Titre Objectif", "explanation": "Titre court de l'objectif" },
+            "category": { "header": "Catégorie", "explanation": "Technique, Management, Vente, etc." },
+            "targetValue": { "header": "Cible Attendue", "explanation": "Indicateur de succès fixé" },
+            "achievementStatus": { "header": "Statut Réalisation", "explanation": "Atteint, Partiellement atteint, Non atteint" }
+          }
+        }
+      }
+    }
+  }
+}

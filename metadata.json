@@ -1,0 +1,8 @@
+{
+  "name": "Remix Jury des Salaires LL",
+  "description": "Application interne de gestion du jury annuel des salaires : constitution des dossiers, avis pairs et délibérations du jury.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

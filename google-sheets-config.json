@@ -1,0 +1,1374 @@
+{
+  "$schema_version": "1.0",
+  "defaultSpreadsheetId": "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk",
+  "spreadsheets": {
+    "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk": {
+      "name": "smallest_test_bdd",
+      "spreadsheetId": "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk",
+      "description": "Classeur principal pour la gestion des comptes salariés et l'export des délibérations de salaires du jury.",
+      "tabs": {
+        "Comptes": {
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Importation de l'annuaire des collaborateurs, des grades actuels, salaires et TJM.",
+          "headerRow": 1,
+          "columns": {
+            "matricule": {
+              "header": "Matricule",
+              "explanation": "Identifiant RH unique du salarié (ex: MAT001)",
+              "required": false
+            },
+            "displayName": {
+              "header": "Nom",
+              "explanation": "Nom et prénom du collaborateur",
+              "required": true
+            },
+            "email": {
+              "header": "Email",
+              "explanation": "Adresse email professionnelle servant d'identifiant de connexion",
+              "required": true
+            },
+            "currentGrade": {
+              "header": "Grade",
+              "explanation": "Niveau ou séniorité actuelle (ex: Junior, Confirmé, Senior, Lead, Expert)",
+              "required": false
+            },
+            "currentSalary": {
+              "header": "Salaire Actuel",
+              "explanation": "Rémunération brute annuelle en euros",
+              "required": false
+            },
+            "currentTJM": {
+              "header": "TJ Vendu",
+              "explanation": "Taux Journalier Moyen actuel facturé au client",
+              "required": false
+            },
+            "entryDate": {
+              "header": "Date Entrée",
+              "explanation": "Date d'arrivée dans l'entreprise",
+              "required": false
+            },
+            "targetGrade": {
+              "header": "Grade Cible",
+              "explanation": "Grade visé pour la promotion",
+              "required": false
+            },
+            "targetSalary": {
+              "header": "Salaire Cible",
+              "explanation": "Salaire cible souhaité",
+              "required": false
+            }
+          }
+        },
+        "Délibérations_Jury": {
+          "purpose": "EXPORT_SALARY_DELIBERATIONS",
+          "description": "Export des décisions finales du jury, nouveaux salaires et augmentations.",
+          "headerRow": 1,
+          "columns": {
+            "matricule": {
+              "header": "Matricule",
+              "explanation": "Identifiant RH unique"
+            },
+            "candidateName": {
+              "header": "Collaborateur",
+              "explanation": "Nom complet du collaborateur"
+            },
+            "currentGrade": {
+              "header": "Grade Actuel",
+              "explanation": "Grade avant la campagne"
+            },
+            "proposedGrade": {
+              "header": "Grade Proposé",
+              "explanation": "Grade proposé par le candidat ou son manager"
+            },
+            "currentSalary": {
+              "header": "Salaire Actuel (€)",
+              "explanation": "Salaire fixe actuel"
+            },
+            "proposedSalary": {
+              "header": "Salaire Proposé (€)",
+              "explanation": "Salaire demandé"
+            },
+            "deliberationStatus": {
+              "header": "Statut Jury",
+              "explanation": "Validé, Refusé, En attente"
+            },
+            "finalSalary": {
+              "header": "Salaire Final Jury (€)",
+              "explanation": "Nouveau salaire validé par le jury"
+            },
+            "finalGrade": {
+              "header": "Grade Final Jury",
+              "explanation": "Nouveau grade validé"
+            },
+            "feedback": {
+              "header": "Commentaire Jury",
+              "explanation": "Synthèse des délibérations"
+            },
+            "exportDate": {
+              "header": "Date Export",
+              "explanation": "Horodatage de l'export"
+            }
+          }
+        }
+      }
+    },
+    "14SL3Yp-M-1RehhQQsr5yda1_aBdScLyLbQBA0_nqzdY": {
+      "name": "Rapport_SUIVI_RH_test",
+      "spreadsheetId": "14SL3Yp-M-1RehhQQsr5yda1_aBdScLyLbQBA0_nqzdY",
+      "tabs": {
+        "RH_Now": {
+          "title": "RH_Now",
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Suivi RH des consultants salariés actuellement présents chez LogicLever.",
+          "headerRow": 3,
+          "dataStartRow": 4,
+          "columns": {
+            "Consultant": {
+              "name": "Consultant",
+              "description": "Nom complet du consultant"
+            },
+            "Trigramme": {
+              "name": "Trigramme",
+              "description": "Trigramme ou matricule court du consultant"
+            },
+            "Grade": {
+              "name": "Grade",
+              "description": "Grade actuel (Junior, Confirmé, Senior, Expert...)"
+            },
+            "Experience": {
+              "name": "Experience",
+              "description": "Années d'expérience globale"
+            },
+            "Salaire brut annuel": {
+              "name": "Salaire brut annuel",
+              "description": "Salaire brut annuel fixe en euros"
+            },
+            "TJ SALAIRE": {
+              "name": "TJ SALAIRE",
+              "description": "Tarif journalier correspondant au salaire"
+            },
+            "TJ Vendu": {
+              "name": "TJ Vendu",
+              "description": "Tarif journalier vendu au client"
+            },
+            "DELTA TJ Vendu vs TJ Salaire": {
+              "name": "DELTA TJ Vendu vs TJ Salaire",
+              "description": "Écart entre TJ vendu et TJ salaire"
+            },
+            "TJ_Cible": {
+              "name": "TJ_Cible",
+              "description": "TJ cible visé"
+            },
+            "Salaire_Max": {
+              "name": "Salaire_Max",
+              "description": "Salaire maximum admissible"
+            },
+            "Ancienneté LL": {
+              "name": "Ancienneté LL",
+              "description": "Ancienneté au sein de LogicLever en années"
+            },
+            "Ancienneté Expert": {
+              "name": "Ancienneté Expert",
+              "description": "Ancienneté en tant qu'expert si applicable"
+            },
+            "Date de fin de contrat LL": {
+              "name": "Date de fin de contrat LL",
+              "description": "Date prévisionnelle ou effective de fin de contrat"
+            },
+            "Coach": {
+              "name": "Coach",
+              "description": "Coach RH ou technique référent"
+            },
+            "Encadrant": {
+              "name": "Encadrant",
+              "description": "Manager ou encadrant direct"
+            },
+            "Parrain": {
+              "name": "Parrain",
+              "description": "Parrain d'intégration"
+            },
+            "Charges LOGICLEVER": {
+              "name": "Charges LOGICLEVER",
+              "description": "Montant des charges supportées par LogicLever"
+            }
+          }
+        },
+        "RH_Arrivees": {
+          "title": "RH_Arrivees",
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Suivi RH des consultants salariés arrivants ou en cours d'intégration.",
+          "headerRow": 3,
+          "dataStartRow": 4,
+          "columns": {
+            "Consultant": {
+              "name": "Consultant",
+              "description": "Nom complet de la recrue"
+            },
+            "Trigramme": {
+              "name": "Trigramme",
+              "description": "Trigramme attribué"
+            },
+            "Grade": {
+              "name": "Grade",
+              "description": "Grade d'entrée"
+            },
+            "Experience": {
+              "name": "Experience",
+              "description": "Années d'expérience globale"
+            },
+            "Salaire brut annuel": {
+              "name": "Salaire brut annuel",
+              "description": "Salaire brut annuel d'embauche"
+            },
+            "TJ SALAIRE": {
+              "name": "TJ SALAIRE",
+              "description": "TJ équivalent au salaire d'embauche"
+            },
+            "Parrain": {
+              "name": "Parrain",
+              "description": "Parrain d'accueil"
+            },
+            "Charges LOGICLEVER": {
+              "name": "Charges LOGICLEVER",
+              "description": "Charges LogicLever prévisionnelles"
+            },
+            "Date arrivée": {
+              "name": "Date arrivée",
+              "description": "Date effective ou planifiée d'arrivée"
+            }
+          }
+        },
+        "RH_Anciens": {
+          "title": "RH_Anciens",
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Historique des anciens consultants salariés ayant quitté LogicLever.",
+          "headerRow": 3,
+          "dataStartRow": 4,
+          "columns": {
+            "Consultant": {
+              "name": "Consultant",
+              "description": "Nom complet de l'ancien consultant"
+            },
+            "Trigramme": {
+              "name": "Trigramme",
+              "description": "Trigramme de l'ancien consultant"
+            },
+            "Grade": {
+              "name": "Grade",
+              "description": "Dernier grade occupé"
+            },
+            "Experience": {
+              "name": "Experience",
+              "description": "Années d'expérience au départ"
+            },
+            "Salaire brut annuel": {
+              "name": "Salaire brut annuel",
+              "description": "Dernier salaire brut annuel"
+            },
+            "TJ Vendu": {
+              "name": "TJ Vendu",
+              "description": "Dernier TJ vendu"
+            },
+            "Date de début LL": {
+              "name": "Date de début LL",
+              "description": "Date d'entrée initiale chez LogicLever"
+            },
+            "Date de fin": {
+              "name": "Date de fin",
+              "description": "Date de fin de contrat / départ"
+            },
+            "Motif départ": {
+              "name": "Motif départ",
+              "description": "Raison ou motif du départ"
+            }
+          }
+        },
+        "Grille_Salaire": {
+          "title": "Grille_Salaire",
+          "purpose": "REFERENCE_DATA",
+          "description": "Grille de référence salariale selon les grades et TJ associés.",
+          "headerRow": 3,
+          "dataStartRow": 4,
+          "columns": {
+            "Salaire brut annuel": {
+              "name": "Salaire brut annuel",
+              "description": "Palier de salaire brut annuel"
+            },
+            "Grade": {
+              "name": "Grade",
+              "description": "Grade correspondant (Junior, Confirmé, Senior, Expert...)"
+            },
+            "TJ_Salaire": {
+              "name": "TJ_Salaire",
+              "description": "TJ de référence adossé au salaire"
+            },
+            "Prime_vacance": {
+              "name": "Prime_vacance",
+              "description": "Montant de la prime de vacances"
+            },
+            "Charge_patronale": {
+              "name": "Charge_patronale",
+              "description": "Montant des charges patronales"
+            },
+            "Autres_charges": {
+              "name": "Autres_charges",
+              "description": "Autres charges associées"
+            },
+            "Charges_LL": {
+              "name": "Charges_LL",
+              "description": "Total des charges LogicLever"
+            },
+            "Salaire_annuel_net": {
+              "name": "Salaire_annuel_net",
+              "description": "Salaire net annuel estimé"
+            },
+            "Cout_revient": {
+              "name": "Cout_revient",
+              "description": "Coût de revient total annuel"
+            },
+            "Calcul_Marge_Expert": {
+              "name": "Calcul_Marge_Expert",
+              "description": "Marge calculée pour grade Expert"
+            },
+            "Titre_Profil_Auto": {
+              "name": "Titre_Profil_Auto",
+              "description": "Titre profil standard généré"
+            }
+          }
+        },
+        "RH_Calcul_Prime": {
+          "title": "RH_Calcul_Prime",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calculs des primes pour les salariés actuellement en poste.",
+          "headerRow": 3,
+          "dataStartRow": 4,
+          "columns": {
+            "Consultant": {
+              "name": "Consultant",
+              "description": "Nom complet du consultant"
+            },
+            "Trigramme": {
+              "name": "Trigramme",
+              "description": "Trigramme du consultant"
+            },
+            "Grade": {
+              "name": "Grade",
+              "description": "Grade actuel"
+            },
+            "Charges LOGICLEVER": {
+              "name": "Charges LOGICLEVER",
+              "description": "Charges LogicLever"
+            },
+            "Coût de revient (193 jours facturés)": {
+              "name": "Coût de revient (193 jours facturés)",
+              "description": "Coût de revient sur la base de 193 jours facturés"
+            },
+            "TJ SALAIRE": {
+              "name": "TJ SALAIRE",
+              "description": "TJ de référence salaire"
+            },
+            "TJ Vendu": {
+              "name": "TJ Vendu",
+              "description": "TJ effectif vendu au client"
+            },
+            "DELTA TJ_Vendu vs TJ_Salaire": {
+              "name": "DELTA TJ_Vendu vs TJ_Salaire",
+              "description": "Delta entre TJ vendu et TJ salaire"
+            },
+            "Marge pour Logiclever": {
+              "name": "Marge pour Logiclever",
+              "description": "Marge générée pour LogicLever"
+            }
+          }
+        },
+        "RH_Moyennes": {
+          "title": "RH_Moyennes",
+          "purpose": "REFERENCE_DATA",
+          "description": "Statistiques et moyennes consolidées sur les consultants salariés en poste.",
+          "headerRow": 3,
+          "dataStartRow": 4,
+          "columns": {
+            "Expérience moyenne en tant que consultant IT": {
+              "name": "Expérience moyenne en tant que consultant IT",
+              "description": "Moyenne des années d'expérience IT"
+            },
+            "Salaire brut annuel moyen": {
+              "name": "Salaire brut annuel moyen",
+              "description": "Salaire moyen brut annuel"
+            },
+            "Moyenne charges LOGICLEVER": {
+              "name": "Moyenne charges LOGICLEVER",
+              "description": "Moyenne des charges LogicLever"
+            },
+            "Coût de revient moyen (193 jours facturés)": {
+              "name": "Coût de revient moyen (193 jours facturés)",
+              "description": "Coût de revient moyen sur 193 jours facturés"
+            },
+            "TJ SALAIRE moyen": {
+              "name": "TJ SALAIRE moyen",
+              "description": "TJ moyen salaire"
+            },
+            "TJ Vendu moyen": {
+              "name": "TJ Vendu moyen",
+              "description": "TJ moyen vendu"
+            },
+            "DELTA moyen TJ_Vendu vs TJ_Salaire": {
+              "name": "DELTA moyen TJ_Vendu vs TJ_Salaire",
+              "description": "Écart moyen TJ vendu vs TJ salaire"
+            },
+            "Moyenne prime Marketing théorique (coût LL)": {
+              "name": "Moyenne prime Marketing théorique (coût LL)",
+              "description": "Moyenne prime marketing théorique"
+            },
+            "Marge moyenne pour Logiclever": {
+              "name": "Marge moyenne pour Logiclever",
+              "description": "Marge moyenne LogicLever"
+            }
+          }
+        }
+      },
+      "description": "Rapport de suivi RH consolidé (effectif actuel, arrivées, anciens, calculs primes, grille salaire)."
+    },
+    "1eHVDi-EwenSQiVT9A06MBhb2RvdcGgGR4LG-JhJRws4": {
+      "name": "2026_Prime_Freelances et Salariés_test",
+      "spreadsheetId": "1eHVDi-EwenSQiVT9A06MBhb2RvdcGgGR4LG-JhJRws4",
+      "tabs": {
+        "Prime Freelance T1 2026": {
+          "title": "Prime Freelance T1 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes freelances pour le 1er trimestre 2026.",
+          "headerRow": 41,
+          "dataStartRow": 42,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule de la personne percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime (cooptation, apport d'affaire, etc.)"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Cout_LL": {
+              "name": "Montant_Journalier_Cout_LL",
+              "description": "Montant journalier du coût supporté par LogicLever"
+            },
+            "Montant_Mensuel_Cout_LL": {
+              "name": "Montant_Mensuel_Cout_LL",
+              "description": "Montant mensuel total coût LogicLever"
+            }
+          }
+        },
+        "Prime Freelance T2 2026": {
+          "title": "Prime Freelance T2 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes freelances pour le 2ème trimestre 2026.",
+          "headerRow": 38,
+          "dataStartRow": 39,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule de la personne percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime (cooptation, apport d'affaire, etc.)"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Cout_LL": {
+              "name": "Montant_Journalier_Cout_LL",
+              "description": "Montant journalier du coût supporté par LogicLever"
+            },
+            "Montant_Mensuel_Cout_LL": {
+              "name": "Montant_Mensuel_Cout_LL",
+              "description": "Montant mensuel total coût LogicLever"
+            }
+          }
+        },
+        "Prime Freelance T3 2026": {
+          "title": "Prime Freelance T3 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes freelances pour le 3ème trimestre 2026.",
+          "headerRow": 36,
+          "dataStartRow": 37,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule de la personne percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime (cooptation, apport d'affaire, etc.)"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Cout_LL": {
+              "name": "Montant_Journalier_Cout_LL",
+              "description": "Montant journalier du coût supporté par LogicLever"
+            },
+            "Montant_Mensuel_Cout_LL": {
+              "name": "Montant_Mensuel_Cout_LL",
+              "description": "Montant mensuel total coût LogicLever"
+            }
+          }
+        },
+        "Prime Freelance T4 2026": {
+          "title": "Prime Freelance T4 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes freelances pour le 4ème trimestre 2026.",
+          "headerRow": 34,
+          "dataStartRow": 35,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule de la personne percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime (cooptation, apport d'affaire, etc.)"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Cout_LL": {
+              "name": "Montant_Journalier_Cout_LL",
+              "description": "Montant journalier du coût supporté par LogicLever"
+            },
+            "Montant_Mensuel_Cout_LL": {
+              "name": "Montant_Mensuel_Cout_LL",
+              "description": "Montant mensuel total coût LogicLever"
+            }
+          }
+        },
+        "Prime Salariés T1 2026": {
+          "title": "Prime Salariés T1 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes salariés pour le 1er trimestre 2026.",
+          "headerRow": 32,
+          "dataStartRow": 33,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule du salarié percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Brut_Salarie": {
+              "name": "Montant_Journalier_Brut_Salarie",
+              "description": "Montant journalier brut versé au salarié"
+            },
+            "Montant_Mensuel_Brut_Salarie": {
+              "name": "Montant_Mensuel_Brut_Salarie",
+              "description": "Montant mensuel brut total pour le salarié"
+            }
+          }
+        },
+        "Prime Salariés T2 2026": {
+          "title": "Prime Salariés T2 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes salariés pour le 2ème trimestre 2026.",
+          "headerRow": 29,
+          "dataStartRow": 30,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule du salarié percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Brut_Salarie": {
+              "name": "Montant_Journalier_Brut_Salarie",
+              "description": "Montant journalier brut versé au salarié"
+            },
+            "Montant_Mensuel_Brut_Salarie": {
+              "name": "Montant_Mensuel_Brut_Salarie",
+              "description": "Montant mensuel brut total pour le salarié"
+            }
+          }
+        },
+        "Prime Salariés T3 2026": {
+          "title": "Prime Salariés T3 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes salariés pour le 3ème trimestre 2026.",
+          "headerRow": 29,
+          "dataStartRow": 30,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule du salarié percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Brut_Salarie": {
+              "name": "Montant_Journalier_Brut_Salarie",
+              "description": "Montant journalier brut versé au salarié"
+            },
+            "Montant_Mensuel_Brut_Salarie": {
+              "name": "Montant_Mensuel_Brut_Salarie",
+              "description": "Montant mensuel brut total pour le salarié"
+            }
+          }
+        },
+        "Prime Salariés T4 2026": {
+          "title": "Prime Salariés T4 2026",
+          "purpose": "IMPORT_COMPENSATION",
+          "description": "Calcul du détail des primes salariés pour le 4ème trimestre 2026.",
+          "headerRow": 32,
+          "dataStartRow": 33,
+          "columns": {
+            "Annee": {
+              "name": "Annee",
+              "description": "Année de calcul de la prime"
+            },
+            "Mois": {
+              "name": "Mois",
+              "description": "Mois concerné"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Code ou libellé du projet"
+            },
+            "Matricule_Consultant_Place": {
+              "name": "Matricule_Consultant_Place",
+              "description": "Matricule du consultant placé"
+            },
+            "Matricule_Percoit_Prime": {
+              "name": "Matricule_Percoit_Prime",
+              "description": "Matricule du salarié percevant la prime"
+            },
+            "Type_Prime": {
+              "name": "Type_Prime",
+              "description": "Typologie de prime"
+            },
+            "Nb_Jour": {
+              "name": "Nb_Jour",
+              "description": "Nombre de jours facturés ou éligibles"
+            },
+            "Montant_Journalier_Brut_Salarie": {
+              "name": "Montant_Journalier_Brut_Salarie",
+              "description": "Montant journalier brut versé au salarié"
+            },
+            "Montant_Mensuel_Brut_Salarie": {
+              "name": "Montant_Mensuel_Brut_Salarie",
+              "description": "Montant mensuel brut total pour le salarié"
+            }
+          }
+        }
+      },
+      "description": "Calcul et récapitulatif des primes trimestrielles et annuelles pour les freelances et les salariés."
+    },
+    "1U80TyieZ3whgwBijLabbqzn10v-w6SsEqlmgT9wfbaE": {
+      "name": "BDD_LL_NEW_DRIVE_test",
+      "spreadsheetId": "1U80TyieZ3whgwBijLabbqzn10v-w6SsEqlmgT9wfbaE",
+      "tabs": {
+        "Profil": {
+          "title": "Profil",
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Table Profil de la BDD LogicLever.",
+          "columns": {
+            "Id_Profil": {
+              "name": "Id_Profil",
+              "description": "Champ Id_Profil"
+            },
+            "Nom_Profil": {
+              "name": "Nom_Profil",
+              "description": "Champ Nom_Profil"
+            },
+            "Prenom_Profil": {
+              "name": "Prenom_Profil",
+              "description": "Champ Prenom_Profil"
+            },
+            "Email_Profil": {
+              "name": "Email_Profil",
+              "description": "Champ Email_Profil"
+            },
+            "Telephone_Profil": {
+              "name": "Telephone_Profil",
+              "description": "Champ Telephone_Profil"
+            },
+            "Type_Profil": {
+              "name": "Type_Profil",
+              "description": "Champ Type_Profil"
+            },
+            "Titre_Profil": {
+              "name": "Titre_Profil",
+              "description": "Champ Titre_Profil"
+            },
+            "Matricule_Profil": {
+              "name": "Matricule_Profil",
+              "description": "Champ Matricule_Profil"
+            },
+            "Id_Source_Recrutement": {
+              "name": "Id_Source_Recrutement",
+              "description": "Champ Id_Source_Recrutement"
+            },
+            "Type_Source_Recrutement": {
+              "name": "Type_Source_Recrutement",
+              "description": "Champ Type_Source_Recrutement"
+            },
+            "Motif_Sortie": {
+              "name": "Motif_Sortie",
+              "description": "Champ Motif_Sortie"
+            },
+            "Date_Fin_CDI": {
+              "name": "Date_Fin_CDI",
+              "description": "Champ Date_Fin_CDI"
+            },
+            "Id_Profil_Boond": {
+              "name": "Id_Profil_Boond",
+              "description": "Champ Id_Profil_Boond"
+            },
+            "Date_Embauche": {
+              "name": "Date_Embauche",
+              "description": "Champ Date_Embauche"
+            },
+            "Civilite_Profil": {
+              "name": "Civilite_Profil",
+              "description": "Champ Civilite_Profil"
+            },
+            "Email_Profil_Boond": {
+              "name": "Email_Profil_Boond",
+              "description": "Champ Email_Profil_Boond"
+            },
+            "Id_Source_Cabinet": {
+              "name": "Id_Source_Cabinet",
+              "description": "Champ Id_Source_Cabinet"
+            },
+            "Type_Profil_Auto": {
+              "name": "Type_Profil_Auto",
+              "description": "Champ Type_Profil_Auto"
+            },
+            "Date_Expert": {
+              "name": "Date_Expert",
+              "description": "Champ Date_Expert"
+            },
+            "Recruteur_Referent": {
+              "name": "Recruteur_Referent",
+              "description": "Champ Recruteur_Referent"
+            },
+            "Desir_Coach": {
+              "name": "Desir_Coach",
+              "description": "Champ Desir_Coach"
+            }
+          },
+          "headerRow": 1,
+          "dataStartRow": 2
+        }
+      },
+      "description": "Base de données relationnelle opérationnelle LogicLever (Profils, Missions, Météos clients, Candidatures, etc.)."
+    },
+    "1Dy9YCaPJaJu0LHUXUVtiA5Uj4VhCX1PY1dmMzAyM3yQ": {
+      "name": "BDD_API_BOOND_NEW_DRIVE_test",
+      "spreadsheetId": "1Dy9YCaPJaJu0LHUXUVtiA5Uj4VhCX1PY1dmMzAyM3yQ",
+      "tabs": {
+        "Boond_Liste_Valeur": {
+          "title": "Boond_Liste_Valeur",
+          "purpose": "REFERENCE_DATA",
+          "description": "Table d'export BoondManager Boond_Liste_Valeur.",
+          "columns": {
+            "Id_Valeur": {
+              "name": "Id_Valeur",
+              "description": "Attribut BoondManager Id_Valeur"
+            },
+            "Nom_Valeur": {
+              "name": "Nom_Valeur",
+              "description": "Attribut BoondManager Nom_Valeur"
+            },
+            "ID_Boond": {
+              "name": "ID_Boond",
+              "description": "Attribut BoondManager ID_Boond"
+            },
+            "Libelle_Valeur": {
+              "name": "Libelle_Valeur",
+              "description": "Attribut BoondManager Libelle_Valeur"
+            },
+            "Valeur_Active": {
+              "name": "Valeur_Active",
+              "description": "Attribut BoondManager Valeur_Active"
+            }
+          }
+        },
+        "Boond_Ressources": {
+          "title": "Boond_Ressources",
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Table d'export BoondManager Boond_Ressources.",
+          "columns": {
+            "Id_Ressource": {
+              "name": "Id_Ressource",
+              "description": "Attribut BoondManager Id_Ressource"
+            },
+            "Civility_Ressource": {
+              "name": "Civility_Ressource",
+              "description": "Attribut BoondManager Civility_Ressource"
+            },
+            "Prenom_Ressource": {
+              "name": "Prenom_Ressource",
+              "description": "Attribut BoondManager Prenom_Ressource"
+            },
+            "Nom_Ressource": {
+              "name": "Nom_Ressource",
+              "description": "Attribut BoondManager Nom_Ressource"
+            },
+            "Matricule_Ressource": {
+              "name": "Matricule_Ressource",
+              "description": "Attribut BoondManager Matricule_Ressource"
+            },
+            "Type_Ressource": {
+              "name": "Type_Ressource",
+              "description": "Attribut BoondManager Type_Ressource"
+            },
+            "Etat_Ressource": {
+              "name": "Etat_Ressource",
+              "description": "Attribut BoondManager Etat_Ressource"
+            },
+            "Titre_Ressource": {
+              "name": "Titre_Ressource",
+              "description": "Attribut BoondManager Titre_Ressource"
+            },
+            "Competence_Ressource": {
+              "name": "Competence_Ressource",
+              "description": "Attribut BoondManager Competence_Ressource"
+            },
+            "Email1_Ressource": {
+              "name": "Email1_Ressource",
+              "description": "Attribut BoondManager Email1_Ressource"
+            },
+            "Email2_Ressource": {
+              "name": "Email2_Ressource",
+              "description": "Attribut BoondManager Email2_Ressource"
+            },
+            "Tel1_Ressource": {
+              "name": "Tel1_Ressource",
+              "description": "Attribut BoondManager Tel1_Ressource"
+            },
+            "Id_Annees_Experience_A_Embauche": {
+              "name": "Id_Annees_Experience_A_Embauche",
+              "description": "Attribut BoondManager Id_Annees_Experience_A_Embauche"
+            }
+          }
+        }
+      },
+      "description": "Synchronisation des tables de référence de l'ERP BoondManager (Ressources, Contrats, Prestations, Projets, Clients, Temps)."
+    },
+    "1nskdSbdD0IMBXbnFR39CGI6jkbGESohR4lWx-ohpBfk": {
+      "name": "test_bdd",
+      "spreadsheetId": "1nskdSbdD0IMBXbnFR39CGI6jkbGESohR4lWx-ohpBfk",
+      "tabs": {
+        "Profil": {
+          "title": "Profil",
+          "purpose": "IMPORT_ACCOUNTS",
+          "description": "Table de test Profil.",
+          "columns": {
+            "Id_Profil": {
+              "name": "Id_Profil",
+              "description": "Champ Id_Profil"
+            },
+            "Nom_Profil": {
+              "name": "Nom_Profil",
+              "description": "Champ Nom_Profil"
+            },
+            "Prenom_Profil": {
+              "name": "Prenom_Profil",
+              "description": "Champ Prenom_Profil"
+            },
+            "Email_Profil": {
+              "name": "Email_Profil",
+              "description": "Champ Email_Profil"
+            },
+            "Telephone_Profil": {
+              "name": "Telephone_Profil",
+              "description": "Champ Telephone_Profil"
+            },
+            "Type_Profil": {
+              "name": "Type_Profil",
+              "description": "Champ Type_Profil"
+            },
+            "Titre_Profil": {
+              "name": "Titre_Profil",
+              "description": "Champ Titre_Profil"
+            },
+            "Matricule_Profil": {
+              "name": "Matricule_Profil",
+              "description": "Champ Matricule_Profil"
+            },
+            "Id_Source_Recrutement": {
+              "name": "Id_Source_Recrutement",
+              "description": "Champ Id_Source_Recrutement"
+            },
+            "Type_Source_Recrutement": {
+              "name": "Type_Source_Recrutement",
+              "description": "Champ Type_Source_Recrutement"
+            },
+            "Motif_Sortie": {
+              "name": "Motif_Sortie",
+              "description": "Champ Motif_Sortie"
+            },
+            "Date_Fin_CDI": {
+              "name": "Date_Fin_CDI",
+              "description": "Champ Date_Fin_CDI"
+            },
+            "Id_Profil_Boond": {
+              "name": "Id_Profil_Boond",
+              "description": "Champ Id_Profil_Boond"
+            },
+            "Date_Embauche": {
+              "name": "Date_Embauche",
+              "description": "Champ Date_Embauche"
+            },
+            "Civilite_Profil": {
+              "name": "Civilite_Profil",
+              "description": "Champ Civilite_Profil"
+            },
+            "Email_Profil_Boond": {
+              "name": "Email_Profil_Boond",
+              "description": "Champ Email_Profil_Boond"
+            },
+            "Id_Source_Cabinet": {
+              "name": "Id_Source_Cabinet",
+              "description": "Champ Id_Source_Cabinet"
+            },
+            "Type_Profil_Auto": {
+              "name": "Type_Profil_Auto",
+              "description": "Champ Type_Profil_Auto"
+            },
+            "Date_Expert": {
+              "name": "Date_Expert",
+              "description": "Champ Date_Expert"
+            },
+            "Recruteur_Referent": {
+              "name": "Recruteur_Referent",
+              "description": "Champ Recruteur_Referent"
+            },
+            "Desir_Coach": {
+              "name": "Desir_Coach",
+              "description": "Champ Desir_Coach"
+            }
+          }
+        }
+      },
+      "description": "Base de données test miroir de BDD_LL (Profils, Suivis météos, Missions, Évaluations)."
+    },
+    "1XDBkLQXcenu1hRePVo5khTPzibI1xtem-amwu3Pbb2g": {
+      "name": "Analyse_Jury_Salaire_2026_test",
+      "spreadsheetId": "1XDBkLQXcenu1hRePVo5khTPzibI1xtem-amwu3Pbb2g",
+      "tabs": {
+        "Analyse_Jury": {
+          "title": "Analyse_Jury",
+          "purpose": "EXPORT_SALARY_DELIBERATIONS",
+          "description": "Table principale d'analyse et d'arbitrage des délibérations du jury des salaires.",
+          "headerRow": 2,
+          "dataStartRow": 3,
+          "columns": {
+            "Matricule": {
+              "name": "Matricule",
+              "description": "Champ Matricule de la grille d'arbitrage du jury des salaires"
+            },
+            "Prénom": {
+              "name": "Prénom",
+              "description": "Champ Prénom de la grille d'arbitrage du jury des salaires"
+            },
+            "Nom": {
+              "name": "Nom",
+              "description": "Champ Nom de la grille d'arbitrage du jury des salaires"
+            },
+            "Exp.": {
+              "name": "Exp.",
+              "description": "Champ Exp. de la grille d'arbitrage du jury des salaires"
+            },
+            "Date entrée LL": {
+              "name": "Date entrée LL",
+              "description": "Champ Date entrée LL de la grille d'arbitrage du jury des salaires"
+            },
+            "Date de passage au grade expert (si concerné)": {
+              "name": "Date de passage au grade expert (si concerné)",
+              "description": "Champ Date de passage au grade expert (si concerné) de la grille d'arbitrage du jury des salaires"
+            },
+            "Ancienneté chez LL": {
+              "name": "Ancienneté chez LL",
+              "description": "Champ Ancienneté chez LL de la grille d'arbitrage du jury des salaires"
+            },
+            "Année en tant qu'expert": {
+              "name": "Année en tant qu'expert",
+              "description": "Champ Année en tant qu'expert de la grille d'arbitrage du jury des salaires"
+            },
+            "Nouveau Titre": {
+              "name": "Nouveau Titre",
+              "description": "Champ Nouveau Titre de la grille d'arbitrage du jury des salaires"
+            },
+            "TJ vendu (01/07)": {
+              "name": "TJ vendu (01/07)",
+              "description": "Champ TJ vendu (01/07) de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire_vendu": {
+              "name": "Salaire_vendu",
+              "description": "Champ Salaire_vendu de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire_vendu et 100% invest.": {
+              "name": "Salaire_vendu et 100% invest.",
+              "description": "Champ Salaire_vendu et 100% invest. de la grille d'arbitrage du jury des salaires"
+            },
+            "TJ  Cible": {
+              "name": "TJ  Cible",
+              "description": "Champ TJ  Cible de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire_cible": {
+              "name": "Salaire_cible",
+              "description": "Champ Salaire_cible de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire_cible et 100% invest.": {
+              "name": "Salaire_cible et 100% invest.",
+              "description": "Champ Salaire_cible et 100% invest. de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire au 30/06/2025 (TJ salaire)": {
+              "name": "Salaire au 30/06/2025 (TJ salaire)",
+              "description": "Champ Salaire au 30/06/2025 (TJ salaire) de la grille d'arbitrage du jury des salaires"
+            },
+            "Marge mission (19,5 à 29% attendu)": {
+              "name": "Marge mission (19,5 à 29% attendu)",
+              "description": "Champ Marge mission (19,5 à 29% attendu) de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire souhaité au 01/07/2026": {
+              "name": "Salaire souhaité au 01/07/2026",
+              "description": "Champ Salaire souhaité au 01/07/2026 de la grille d'arbitrage du jury des salaires"
+            },
+            "Changement de grade": {
+              "name": "Changement de grade",
+              "description": "Champ Changement de grade de la grille d'arbitrage du jury des salaires"
+            },
+            "% Investissement (moyenne attendue à 60)": {
+              "name": "% Investissement (moyenne attendue à 60)",
+              "description": "Champ % Investissement (moyenne attendue à 60) de la grille d'arbitrage du jury des salaires"
+            },
+            "% Mission (Moyenne attendue à 98%)": {
+              "name": "% Mission (Moyenne attendue à 98%)",
+              "description": "Champ % Mission (Moyenne attendue à 98%) de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire proposé au 01/07": {
+              "name": "Salaire proposé au 01/07",
+              "description": "Champ Salaire proposé au 01/07 de la grille d'arbitrage du jury des salaires"
+            },
+            "Prime bureautique ancienneté (avant jury)": {
+              "name": "Prime bureautique ancienneté (avant jury)",
+              "description": "Champ Prime bureautique ancienneté (avant jury) de la grille d'arbitrage du jury des salaires"
+            },
+            "Prime bureautique ancienneté (après jury)": {
+              "name": "Prime bureautique ancienneté (après jury)",
+              "description": "Champ Prime bureautique ancienneté (après jury) de la grille d'arbitrage du jury des salaires"
+            },
+            "% augmentation": {
+              "name": "% augmentation",
+              "description": "Champ % augmentation de la grille d'arbitrage du jury des salaires"
+            },
+            "Différence Salaire proposé VS résultat du calcul": {
+              "name": "Différence Salaire proposé VS résultat du calcul",
+              "description": "Champ Différence Salaire proposé VS résultat du calcul de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire proposé au 1er juillet (formule)": {
+              "name": "Salaire proposé au 1er juillet (formule)",
+              "description": "Champ Salaire proposé au 1er juillet (formule) de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire MAX proposé si TJ augmente": {
+              "name": "Salaire MAX proposé si TJ augmente",
+              "description": "Champ Salaire MAX proposé si TJ augmente de la grille d'arbitrage du jury des salaires"
+            },
+            "Salaire MAX proposé si TJ vendu augmenté en cours d'année": {
+              "name": "Salaire MAX proposé si TJ vendu augmenté en cours d'année",
+              "description": "Champ Salaire MAX proposé si TJ vendu augmenté en cours d'année de la grille d'arbitrage du jury des salaires"
+            },
+            "Pourquoi ce salaire proposé": {
+              "name": "Pourquoi ce salaire proposé",
+              "description": "Champ Pourquoi ce salaire proposé de la grille d'arbitrage du jury des salaires"
+            },
+            "Ce qu'il faut faire pour avoir plus": {
+              "name": "Ce qu'il faut faire pour avoir plus",
+              "description": "Champ Ce qu'il faut faire pour avoir plus de la grille d'arbitrage du jury des salaires"
+            },
+            "Référent Jury de salaire": {
+              "name": "Référent Jury de salaire",
+              "description": "Champ Référent Jury de salaire de la grille d'arbitrage du jury des salaires"
+            },
+            "Ressenti consultant": {
+              "name": "Ressenti consultant",
+              "description": "Champ Ressenti consultant de la grille d'arbitrage du jury des salaires"
+            },
+            "Retour Second tour": {
+              "name": "Retour Second tour",
+              "description": "Champ Retour Second tour de la grille d'arbitrage du jury des salaires"
+            }
+          }
+        },
+        "TJ Cible": {
+          "title": "TJ Cible",
+          "purpose": "REFERENCE_DATA",
+          "description": "Synthèse et détails des évaluations multi-parties pour le calcul du TJ cible.",
+          "headerRow": 1,
+          "dataStartRow": 2,
+          "columns": {
+            "Matricule": {
+              "name": "Matricule",
+              "description": "Champ Matricule d'évaluation du TJ cible"
+            },
+            "Exp": {
+              "name": "Exp",
+              "description": "Champ Exp d'évaluation du TJ cible"
+            },
+            "TJ_Vendu (01/07)": {
+              "name": "TJ_Vendu (01/07)",
+              "description": "Champ TJ_Vendu (01/07) d'évaluation du TJ cible"
+            },
+            "Prénom": {
+              "name": "Prénom",
+              "description": "Champ Prénom d'évaluation du TJ cible"
+            },
+            "Nom": {
+              "name": "Nom",
+              "description": "Champ Nom d'évaluation du TJ cible"
+            },
+            "Grade": {
+              "name": "Grade",
+              "description": "Champ Grade d'évaluation du TJ cible"
+            },
+            "Client": {
+              "name": "Client",
+              "description": "Champ Client d'évaluation du TJ cible"
+            },
+            "Projet": {
+              "name": "Projet",
+              "description": "Champ Projet d'évaluation du TJ cible"
+            },
+            "Evaluateur": {
+              "name": "Evaluateur",
+              "description": "Champ Evaluateur d'évaluation du TJ cible"
+            },
+            "Auto_Evaluation": {
+              "name": "Auto_Evaluation",
+              "description": "Champ Auto_Evaluation d'évaluation du TJ cible"
+            },
+            "Commerciale": {
+              "name": "Commerciale",
+              "description": "Champ Commerciale d'évaluation du TJ cible"
+            },
+            "Encadrement": {
+              "name": "Encadrement",
+              "description": "Champ Encadrement d'évaluation du TJ cible"
+            },
+            "Meteo_Client": {
+              "name": "Meteo_Client",
+              "description": "Champ Meteo_Client d'évaluation du TJ cible"
+            },
+            "Coach": {
+              "name": "Coach",
+              "description": "Champ Coach d'évaluation du TJ cible"
+            },
+            "Logiclever": {
+              "name": "Logiclever",
+              "description": "Champ Logiclever d'évaluation du TJ cible"
+            },
+            "Collégue_Mission": {
+              "name": "Collégue_Mission",
+              "description": "Champ Collégue_Mission d'évaluation du TJ cible"
+            },
+            "Delta TJ Cible vs TJ Vendu": {
+              "name": "Delta TJ Cible vs TJ Vendu",
+              "description": "Champ Delta TJ Cible vs TJ Vendu d'évaluation du TJ cible"
+            },
+            "Moy. TJ Cible": {
+              "name": "Moy. TJ Cible",
+              "description": "Champ Moy. TJ Cible d'évaluation du TJ cible"
+            },
+            "TJ Cible Min": {
+              "name": "TJ Cible Min",
+              "description": "Champ TJ Cible Min d'évaluation du TJ cible"
+            },
+            "TJ Cible Max": {
+              "name": "TJ Cible Max",
+              "description": "Champ TJ Cible Max d'évaluation du TJ cible"
+            },
+            "Justication TJ Cible": {
+              "name": "Justication TJ Cible",
+              "description": "Champ Justication TJ Cible d'évaluation du TJ cible"
+            },
+            "Axes pour augmenter le TJ": {
+              "name": "Axes pour augmenter le TJ",
+              "description": "Champ Axes pour augmenter le TJ d'évaluation du TJ cible"
+            },
+            "Indice de confiance": {
+              "name": "Indice de confiance",
+              "description": "Champ Indice de confiance d'évaluation du TJ cible"
+            }
+          }
+        }
+      },
+      "description": "Classeur officiel d'analyse et d'arbitrage du jury des salaires 2026 (grilles, souhaits consultants, calculs augmentations et délibérations)."
+    }
+  },
+  "campaignImports": {
+    "description": "Sources de campagne : Profil APP_LL pour les identités, Ressources Boond et liste de valeurs pour l’expérience, Analyse_Jury pour les participants et les données annuelles. Les relations d’évaluation sont saisies dans l’application.",
+    "sheetKinds": {
+      "Profil": "profiles",
+      "Boond_Ressources": "resources",
+      "Boond_Liste_Valeur": "values",
+      "Boons_Liste_Valeur": "values",
+      "Analyse_Jury": "rh",
+      "Deliberation": "rh",
+      "Evaluation campagne": "evaluations",
+      "Autoevaluations": "documents",
+      "Meteo": "meteos"
+    },
+    "identityField": "Id_Profil",
+    "boondProfileField": "Id_Profil_Boond",
+    "boondResourceField": "Id_Ressource",
+    "experienceValueField": "Id_Annees_Experience_A_Embauche",
+    "lookupKey": "ID_Boond",
+    "lookupValue": "Libelle_Valeur",
+    "evaluationTypes": [
+      "Auto_Evaluation",
+      "Commerciale",
+      "Encadrement",
+      "Meteo_Client",
+      "Coach Logiclever",
+      "Collègue_Mission"
+    ],
+    "lookupFamilyField": "Nom_Valeur",
+    "lookupFamily": "Annees_Experience_A_Embauche"
+  }
+}

@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function account() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function member() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && account().get('accessVersion', 0) == 2 && account().get('roles', []).hasAny(['ADMIN', 'JURY', 'EVALUATOR']) && account().get('profileId', '') != ''; }
+    function staff() { return member() && account().get('roles', []).hasAny(['ADMIN', 'JURY']); }
+    function admin() { return member() && account().get('roles', []).hasAny(['ADMIN']); }
+    function openCampaign(data) {
+      let campaign = get(/databases/$(database)/documents/campaigns/$("campaign_" + string(data.campaignYear))).data;
+      return campaign.status == 'OUVERTE' && campaign.get('importState', 'READY') == 'READY';
+    }
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || admin());
+      allow write: if false;
+    }
+    match /profiles/{id} {
+      allow read: if member();
+      allow write: if false;
+    }
+    match /campaigns/{id} {
+      allow read: if member();
+      allow write: if false;
+    }
+    match /participants/{id} {
+      allow read: if member();
+      allow update: if staff() && openCampaign(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['OUVERT', 'COMPLET', 'VALIDE'];
+      allow create, delete: if false;
+    }
+    match /dossiers/{id} {
+      allow read: if member() && (staff() || resource.data.candidateId == account().profileId);
+      allow create, delete: if false;
+      allow update: if member() && openCampaign(resource.data) && resource.data.status != 'VALIDE' && (
+        (staff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['annualReport', 'clientFeedbacks', 'documents', 'juryDecision', 'status', 'updatedAt'])
+          && request.resource.data.status in ['OUVERT', 'COMPLET', 'VALIDE']) ||
+        (resource.data.candidateId == account().profileId && resource.data.status == 'OUVERT'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['annualReport', 'clientFeedbacks', 'documents', 'status', 'updatedAt'])
+          && request.resource.data.status in ['OUVERT', 'COMPLET'])
+      );
+    }
+    match /evaluations/{id} {
+      allow read: if member() && (staff() || resource.data.consultantId == account().profileId);
+      allow write: if false;
+    }
+    match /importRuns/{id} {
+      allow read: if admin();
+      allow write: if false;
+      match /before/{backupId} { allow read: if admin(); allow write: if false; }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
