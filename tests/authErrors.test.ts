@@ -12,6 +12,22 @@ test('authentication error notice includes the exact code and provider message',
   assert.match(markup, /auth\/unauthorized-domain/);
   assert.match(markup, /This domain is not authorized\./);
   assert.doesNotMatch(markup, /must-not-be-displayed/);
+  assert.match(markup, /console\.firebase\.google\.com\/project\/gen-lang-client-0443495057\/authentication\/settings/);
+  assert.match(markup, /Domaines autorisés/);
+});
+
+test('unauthorized domain guidance uses the preview hostname, not the editor address', () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { location: { hostname: 'preview.example.test' } } });
+  try {
+    const markup = renderToStaticMarkup(React.createElement(AuthErrorNotice, { title: 'Error', message: 'auth/unauthorized-domain' }));
+    assert.match(markup, /preview\.example\.test/);
+    const other = renderToStaticMarkup(React.createElement(AuthErrorNotice, { title: 'Error', message: 'auth/network-request-failed' }));
+    assert.doesNotMatch(other, /Domaines autorisés/);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'window', previous);
+    else Reflect.deleteProperty(globalThis, 'window');
+  }
 });
 
 test('existing Firebase messages do not repeat the code', () => {

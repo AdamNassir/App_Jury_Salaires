@@ -46,6 +46,14 @@ beforeEach(() => {
   storage.writes = 0;
 });
 
+test('fresh local directory retains both template administrators and Guillaume Gmail', () => {
+  for (const email of ['adam.nassir@logiclever.com', 'guillaume.best@logiclever.com', 'guillaumebestece@gmail.com']) {
+    const user = UserDirectoryService.getUserByEmail(email);
+    assert.ok(user, `Missing template account: ${email}`);
+    assert.ok(user.roles.includes('ADMIN'), `Missing administrator role: ${email}`);
+  }
+});
+
 test('seeds and legacy local records migrate once, and deletions survive a reload', async () => {
   storage.setItem('app_local_dossiers_v1', JSON.stringify([{ id: 'legacy', candidateId: 'legacy-person', status: 'OUVERT' }]));
   assert.equal(LocalDatabaseService.getDossierById('legacy')?.candidateId, 'legacy-person');
