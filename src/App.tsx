@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, signInWithGoogle, logout } from './lib/firebase';
+import { auth, signInWithGoogle, logout, googleRedirectError } from './lib/firebase';
+import { describeAuthError } from './lib/authErrors';
+import { AuthErrorNotice } from './components/AuthErrorNotice';
 import { UserProfile, UserRole, Dossier } from './types';
 import { UserDirectoryService } from './services/userDirectoryService';
 import { LocalDatabaseService } from './services/localDatabaseService';
@@ -26,6 +28,39 @@ export default function App() {
   const [activeView, setActiveView] = useState<ActiveViewType | null>(null);
   const [candidateProfiles, setCandidateProfiles] = useState<UserProfile[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [profileRetry, setProfileRetry] = useState(0);
+  const signInPending = useRef(false);
+  const hasAttemptedSignIn = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    void googleRedirectError.then(error => {
+      if (active && error && !hasAttemptedSignIn.current) {
+        setSignInError(describeAuthError(error));
+        setLoading(false);
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
+  const handleSignIn = async () => {
+    if (signInPending.current) return;
+    signInPending.current = true;
+    hasAttemptedSignIn.current = true;
+    setIsSigningIn(true);
+    setSignInError(null);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setSignInError(describeAuthError(error));
+    } finally {
+      signInPending.current = false;
+      setIsSigningIn(false);
+    }
+  };
 
   useEffect(() => {
     if (profile && !selectedCandidateId) {
@@ -50,13 +85,21 @@ export default function App() {
   useEffect(() => {
     let unsubUserDoc: (() => void) | null = null;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+    const failProfile = (error: unknown) => {
+      console.error('Local profile loading failed:', error);
+      setProfile(null);
+      setProfileError(describeAuthError(error));
+      setLoading(false);
+    };
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (unsubUserDoc) {
         unsubUserDoc();
         unsubUserDoc = null;
       }
 
       setUser(firebaseUser);
+      setProfileError(null);
 
       if (!firebaseUser) {
         setProfile(null);
@@ -66,60 +109,73 @@ export default function App() {
         return;
       }
 
-      const isMaster =
-        firebaseUser.email?.toLowerCase() === 'guillaumebestece@gmail.com' ||
-        firebaseUser.email?.toLowerCase() === 'guillaume.best@logiclever.com' ||
-        firebaseUser.email?.toLowerCase() === 'adam.nassir@logiclever.com';
+      setSignInError(null);
+      try {
+        const isMaster =
+          firebaseUser.email?.toLowerCase() === 'guillaumebestece@gmail.com' ||
+          firebaseUser.email?.toLowerCase() === 'guillaume.best@logiclever.com' ||
+          firebaseUser.email?.toLowerCase() === 'adam.nassir@logiclever.com';
 
-      // Résolution immédiate via le répertoire d'utilisateurs local / JSON
-      const directoryUser = UserDirectoryService.getUserByEmail(firebaseUser.email);
+        // Résolution immédiate via le répertoire d'utilisateurs local / JSON
+        const directoryUser = UserDirectoryService.getUserByEmail(firebaseUser.email);
 
-      const resolvedRoles: UserRole[] = isMaster
-        ? ['CANDIDATE', 'JURY', 'ADMIN']
-        : (directoryUser?.roles && directoryUser.roles.length > 0 ? directoryUser.roles : ['CANDIDATE']);
+        const resolvedRoles: UserRole[] = isMaster
+          ? ['CANDIDATE', 'JURY', 'ADMIN']
+          : (directoryUser?.roles && directoryUser.roles.length > 0 ? directoryUser.roles : ['CANDIDATE']);
 
-      const instantProfile: UserProfile = {
-        id: firebaseUser.uid,
-        idProfil: directoryUser?.idProfil || firebaseUser.uid,
-        matricule: directoryUser?.matricule || '',
-        email: firebaseUser.email || '',
-        displayName: directoryUser?.displayName || firebaseUser.displayName || 'Utilisateur',
-        roles: resolvedRoles,
-        team: directoryUser?.team || 'Logic Clever',
-        position: directoryUser?.position || '',
-        currentGrade: directoryUser?.currentGrade,
-        currentSalary: directoryUser?.currentSalary,
-        currentTJM: directoryUser?.currentTJM,
-        entryDate: directoryUser?.entryDate,
-        experienceYears: directoryUser?.experienceYears,
-        assignedCandidateIds: directoryUser?.assignedCandidateIds || [],
-        createdAt: new Date(),
-      };
+        const instantProfile: UserProfile = {
+          id: firebaseUser.uid,
+          idProfil: directoryUser?.idProfil || firebaseUser.uid,
+          matricule: directoryUser?.matricule || '',
+          email: firebaseUser.email || '',
+          displayName: directoryUser?.displayName || firebaseUser.displayName || 'Utilisateur',
+          roles: resolvedRoles,
+          team: directoryUser?.team || 'Logic Clever',
+          position: directoryUser?.position || '',
+          currentGrade: directoryUser?.currentGrade,
+          currentSalary: directoryUser?.currentSalary,
+          currentTJM: directoryUser?.currentTJM,
+          entryDate: directoryUser?.entryDate,
+          experienceYears: directoryUser?.experienceYears,
+          assignedCandidateIds: directoryUser?.assignedCandidateIds || [],
+          createdAt: new Date(),
+        };
 
-      // Mettre à jour immédiatement l'état utilisateur pour rendre l'interface ultra-réactive
-      setProfile(instantProfile);
-      setLoading(false);
+        // Mettre à jour immédiatement l'état utilisateur pour rendre l'interface ultra-réactive
+        setProfile(instantProfile);
+        setLoading(false);
 
-      if (instantProfile.roles.length === 1 && !activeView) {
-        setActiveView(instantProfile.roles[0]);
-        setShowRoleSelection(false);
-      } else if (!activeView) {
-        setShowRoleSelection(true);
+        if (instantProfile.roles.length === 1 && !activeView) {
+          setActiveView(instantProfile.roles[0]);
+          setShowRoleSelection(false);
+        } else if (!activeView) {
+          setShowRoleSelection(true);
+        }
+
+        const syncProfile = () => {
+          try {
+            const local = UserDirectoryService.getUserByEmail(firebaseUser.email);
+            if (local) setProfile({ ...instantProfile, ...local, id: firebaseUser.uid });
+          } catch (error) {
+            failProfile(error);
+          }
+        };
+        unsubUserDoc = UserDirectoryService.subscribe(syncProfile);
+      } catch (error) {
+        failProfile(error);
+      } finally {
+        setLoading(false);
       }
-
-      const syncProfile = () => {
-        const local = UserDirectoryService.getUserByEmail(firebaseUser.email);
-        if (local) setProfile({ ...instantProfile, ...local, id: firebaseUser.uid });
-      };
-      unsubUserDoc = UserDirectoryService.subscribe(syncProfile);
-
+    }, (error) => {
+      setSignInError(describeAuthError(error));
+      setLoading(false);
     });
 
     return () => {
       unsubscribeAuth();
       if (unsubUserDoc) unsubUserDoc();
     };
-  }, []);
+  }, [profileRetry]);
 
   useEffect(() => {
     if (!profile || showRoleSelection || !activeView) {
@@ -152,9 +208,16 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await logout();
-    setShowRoleSelection(false);
-    setActiveView(null);
+    try {
+      await logout();
+      setShowRoleSelection(false);
+      setActiveView(null);
+      setProfileError(null);
+      setSignInError(null);
+      setSelectedCandidateId('');
+    } catch (error) {
+      setSignInError(describeAuthError(error));
+    }
   };
 
   const goHome = () => {
@@ -183,18 +246,49 @@ export default function App() {
           <h2 className="text-secondary mb-4">Jury des Salaires</h2>
           <p className="text-accent/60 mb-10 text-xl font-light">Connectez-vous pour accéder à votre espace campagne annuelle.</p>
           <button 
-            onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-4 bg-primary text-white py-5 rounded-base font-bold text-lg hover:brightness-110 transition-all shadow-md active:scale-[0.98]"
+            onClick={handleSignIn}
+            disabled={isSigningIn}
+            aria-busy={isSigningIn}
+            className="w-full flex items-center justify-center gap-4 bg-primary text-white py-5 rounded-base font-bold text-lg hover:brightness-110 transition-all shadow-md active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait"
           >
-            <LogIn className="w-6 h-6" />
-            Se connecter avec Google
+            {isSigningIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <LogIn className="w-6 h-6" />}
+            {isSigningIn ? 'Connexion en cours…' : 'Se connecter avec Google'}
           </button>
+          {signInError && (
+            <div className="mt-5">
+              <AuthErrorNotice title="Connexion Google impossible" message={signInError} />
+            </div>
+          )}
         </motion.div>
       </div>
     );
   }
 
   if (!profile) {
+    if (profileError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-white px-4 font-sans">
+          <div className="w-full max-w-md space-y-5">
+            <AuthErrorNotice title="Impossible de charger votre profil local" message={profileError} />
+            <p className="text-sm text-accent/60">La connexion Google a réussi, mais les données locales n’ont pas pu être chargées.</p>
+            <button
+              onClick={() => {
+                setProfileError(null);
+                setLoading(true);
+                setProfileRetry(value => value + 1);
+              }}
+              className="w-full bg-primary text-white py-3 rounded-xl font-bold"
+            >
+              Réessayer le chargement
+            </button>
+            <button onClick={handleLogout} className="w-full text-accent py-3 rounded-xl border border-accent/20">
+              Se déconnecter
+            </button>
+            {signInError && <AuthErrorNotice title="Déconnexion impossible" message={signInError} />}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-white flex-col gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />

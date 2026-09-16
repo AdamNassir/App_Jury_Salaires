@@ -23,25 +23,35 @@ let inMemoryToken: string | null = null;
 
 export const getGoogleAccessToken = (): string | null => {
   if (inMemoryToken) return inMemoryToken;
-  const stored = sessionStorage.getItem('g_sheets_token');
-  if (stored) {
-    inMemoryToken = stored;
-    return stored;
+  try {
+    const stored = sessionStorage.getItem('g_sheets_token');
+    if (stored) {
+      inMemoryToken = stored;
+      return stored;
+    }
+  } catch (error) {
+    console.warn('Google token session cache unavailable:', error);
   }
   return null;
 };
 
 export const setGoogleAccessToken = (token: string | null) => {
   inMemoryToken = token;
-  if (token) {
-    sessionStorage.setItem('g_sheets_token', token);
-  } else {
-    sessionStorage.removeItem('g_sheets_token');
+  try {
+    if (token) {
+      sessionStorage.setItem('g_sheets_token', token);
+    } else {
+      sessionStorage.removeItem('g_sheets_token');
+    }
+  } catch (error) {
+    // The optional cache must not turn a successful Google login into a failure.
+    console.warn('Google token session cache unavailable; using memory:', error);
   }
 };
 
-// Check for redirect result on load
-getRedirectResult(auth)
+// Retain redirect failures until the login screen mounts (including StrictMode remounts).
+// Resolve with the error rather than leaving an unhandled rejection at module load.
+export const googleRedirectError: Promise<unknown | null> = getRedirectResult(auth)
   .then((result) => {
     if (result) {
       const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -49,9 +59,11 @@ getRedirectResult(auth)
         setGoogleAccessToken(credential.accessToken);
       }
     }
+    return null;
   })
   .catch((err) => {
     console.warn("Redirect auth check:", err);
+    return err;
   });
 
 export const signInWithGoogle = async () => {

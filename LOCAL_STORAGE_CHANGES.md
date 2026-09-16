@@ -63,3 +63,31 @@ The tests execute the real persistence and campaign initialization code with an 
 Final results: TypeScript check passed; all 12 regression tests passed; production build passed. Validation installed `node_modules/` and generated the compiled frontend/server in `dist/`; both directories are already ignored by the project.
 
 The existing `package-lock.json` does not match the declared dependencies, so `npm ci` fails before installation. Dependencies for validation were installed with `npm install --no-package-lock --no-audit --no-fund`; package manifests and lockfiles were not changed. The production build emits a large-chunk advisory.
+
+## Follow-up: visible Google sign-in errors — 2026-09-16
+
+After transferring the app to a new AI Studio instance, the Google popup briefly appeared and closed without an explanation on the login screen. The exact provider failure in that instance is still unconfirmed. The following changes expose the real error and separate authentication failures from local profile-loading failures.
+
+| File | Change |
+| --- | --- |
+| `src/App.tsx` | Catches sign-in errors and displays the original code/message below the button; shows a pending state and prevents repeated clicks; displays redirect failures; catches local profile-loading failures with retry and sign-out actions. |
+| `src/lib/firebase.ts` | Retains redirect errors for the UI instead of only logging them; makes the optional Google token session cache tolerate denied browser storage, using its existing memory cache. Firebase Authentication and the existing Google/Sheets scopes remain in use. |
+| `src/lib/authErrors.ts` (new) | Formats provider/storage error codes and messages without displaying credential/custom-data objects. |
+| `src/components/AuthErrorNotice.tsx` (new) | Shared accessible error notice; displays diagnostic text safely as text. |
+| `tests/authErrors.test.ts` (new) | Verifies original error details, readable fallbacks, and safe error rendering. |
+| `tests/auth.browser.test.ts` (new) | Runs the actual App in isolated headless Chromium with a simulated Firebase provider; verifies pending state, popup and redirect errors, denied storage, profile retry, sign-out, and absence of unhandled promise rejections. |
+| `LOCAL_STORAGE_CHANGES.md` | Records this follow-up and its verification. |
+
+To transfer this fix, include **all four runtime files** listed above, including both new files. Updating only `App.tsx` or `firebase.ts` leaves missing imports. No Firebase project settings, authorized domains, authentication providers, or production data were changed.
+
+Verification: all 18 tests passed, including the browser test; TypeScript and the production build passed. The build retains its large-chunk advisory. The browser test uses a simulated provider and does not confirm that real Google sign-in works in the user's AI Studio instance.
+
+```powershell
+# Set this to an installed Chromium/Chrome executable to include the browser test.
+$env:AUTH_TEST_BROWSER = 'C:\path\to\chrome.exe'
+node --import tsx --test tests/authErrors.test.ts tests/auth.browser.test.ts tests/localDatabase.test.ts
+npm run lint
+npm run build
+```
+
+Without `AUTH_TEST_BROWSER`, the browser test is skipped. It uses a temporary browser profile and does not access an existing Google session. After transferring the runtime changes, retry Google sign-in and use the newly visible error code/message to identify the environment-specific fix.
