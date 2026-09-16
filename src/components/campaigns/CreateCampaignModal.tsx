@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
@@ -53,6 +53,9 @@ export function CreateCampaignModal({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [preview, setPreview] = useState<CampaignInitPreview | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitting = useRef(false);
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [keepSourceFiles, setKeepSourceFiles] = useState(true);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [showEvaluatorsTable, setShowEvaluatorsTable] = useState(false);
 
@@ -153,28 +156,37 @@ export function CreateCampaignModal({
 
   // Exécution finale et idempotente
   const handleConfirmAndInitialize = async () => {
-    if (!preview || !preview.canProceed) return;
+    if (submitting.current) return;
+    if (!preview || !preview.canProceed) {
+      setLaunchError('Corrigez les erreurs de l’aperçu avant de lancer la campagne.');
+      return;
+    }
 
+    submitting.current = true;
+    setLaunchError(null);
     setIsSubmitting(true);
     try {
       // 1. Sauvegarder les fichiers dans la structure de campagne
       const rhCampaignFiles: CampaignFile[] = [];
       const pairsCampaignFiles: CampaignFile[] = [];
-      const otherCampaignFiles = [...otherFiles];
+      const otherCampaignFiles = keepSourceFiles ? [...otherFiles] : [];
 
       const filePromises = [
         { file: analyseJuryFile, cat: 'RH_EFFECTIFS' as const },
         { file: profilFile, cat: 'AUTRE' as const },
         { file: boondFile, cat: 'AUTRE' as const },
         { file: primesFile, cat: 'PAIRS' as const }
-      ].filter(item => !!item.file).map(async ({ file, cat }) => {
+      ].filter(item => keepSourceFiles && !!item.file).map(async ({ file, cat }) => {
+        // Generate the id before entering the FileReader callback so errors reject
+        // the promise instead of leaving launch permanently pending.
+        const id = uuidv4();
         return new Promise<CampaignFile>((resolve, reject) => {
           const reader = new FileReader();
           reader.onerror = () => reject(new Error(`Lecture impossible : ${file!.name}`));
           reader.onabort = () => reject(new Error(`Lecture annulée : ${file!.name}`));
           reader.onload = () => {
             resolve({
-              id: uuidv4(),
+              id,
               name: file!.name,
               category: cat === 'PAIRS' ? 'AUTRE' : cat,
               url: reader.result as string,
@@ -213,8 +225,10 @@ export function CreateCampaignModal({
       onClose();
     } catch (err: any) {
       console.error("Initialization error:", err);
+      setLaunchError(`Échec de l’initialisation : ${err.message || String(err)}`);
       onShowToast('error', `Échec de l'initialisation : ${err.message || String(err)}`);
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
       setImportProgress(null);
     }
@@ -246,6 +260,7 @@ export function CreateCampaignModal({
             </div>
           </div>
           <button
+            disabled={isSubmitting}
             onClick={onClose}
             className="p-2 text-accent/40 hover:text-accent rounded-lg hover:bg-white/50 transition-colors cursor-pointer"
           >
@@ -787,6 +802,21 @@ export function CreateCampaignModal({
                   </div>
                 )}
 
+                <label className="flex items-start gap-3 rounded-xl border border-accent/20 p-4 text-sm">
+                  <input type="checkbox" checked={keepSourceFiles} disabled={isSubmitting}
+                    onChange={event => setKeepSourceFiles(event.target.checked)} className="mt-1" />
+                  <span>
+                    <span className="font-semibold">Conserver les fichiers sources dans la campagne</span>
+                    <span className="block text-xs text-accent/70 mt-1">Si l’espace local est insuffisant, décochez cette option puis relancez. Les utilisateurs, leurs rôles, les affectations et les dossiers seront importés ; les copies des fichiers joints ne seront pas conservées.</span>
+                  </span>
+                </label>
+
+                {launchError && (
+                  <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 whitespace-pre-wrap break-words">
+                    {launchError}
+                  </div>
+                )}
+
                 {/* Actions de navigation */}
                 <div className="flex items-center justify-between pt-2">
                   <button
@@ -801,6 +831,7 @@ export function CreateCampaignModal({
                   <button
                     type="button"
                     disabled={isSubmitting || !preview?.canProceed}
+                    aria-busy={isSubmitting}
                     onClick={handleConfirmAndInitialize}
                     className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-md hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer"
                   >

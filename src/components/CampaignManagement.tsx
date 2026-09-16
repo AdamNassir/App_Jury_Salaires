@@ -93,7 +93,7 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className={cn(
-              "fixed top-24 right-8 z-50 p-4 rounded-xl shadow-2xl border flex items-center gap-3 text-sm font-bold max-w-md",
+              "fixed top-24 right-8 z-[60] p-4 rounded-xl shadow-2xl border flex items-center gap-3 text-sm font-bold max-w-md",
               notification.type === 'success' && "bg-emerald-50 text-emerald-800 border-emerald-200",
               notification.type === 'error' && "bg-rose-50 text-rose-800 border-rose-200",
               notification.type === 'info' && "bg-sky-50 text-sky-800 border-sky-200"
