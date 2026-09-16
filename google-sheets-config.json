@@ -900,7 +900,7 @@
       "name": "BDD_API_BOOND_NEW_DRIVE_test",
       "spreadsheetId": "1Dy9YCaPJaJu0LHUXUVtiA5Uj4VhCX1PY1dmMzAyM3yQ",
       "tabs": {
-        "Boond_Liste_Valeur": {
+                "Boond_Liste_Valeur": {
           "title": "Boond_Liste_Valeur",
           "purpose": "REFERENCE_DATA",
           "description": "Table d'export BoondManager Boond_Liste_Valeur.",
@@ -993,7 +993,7 @@
       "name": "test_bdd",
       "spreadsheetId": "1nskdSbdD0IMBXbnFR39CGI6jkbGESohR4lWx-ohpBfk",
       "tabs": {
-        "Profil": {
+                "Profil": {
           "title": "Profil",
           "purpose": "IMPORT_ACCOUNTS",
           "description": "Table de test Profil.",
@@ -1110,9 +1110,9 @@
               "name": "Nom",
               "description": "Champ Nom de la grille d'arbitrage du jury des salaires"
             },
-            "Exp.": {
-              "name": "Exp.",
-              "description": "Champ Exp. de la grille d'arbitrage du jury des salaires"
+            "Exp.(année pleine)": {
+              "name": "Exp.(année pleine)",
+              "description": "Champ Exp.(année pleine) de la grille d'arbitrage du jury des salaires"
             },
             "Date entrée LL": {
               "name": "Date entrée LL",
@@ -1340,35 +1340,5 @@
       },
       "description": "Classeur officiel d'analyse et d'arbitrage du jury des salaires 2026 (grilles, souhaits consultants, calculs augmentations et délibérations)."
     }
-  },
-  "campaignImports": {
-    "description": "Sources de campagne : Profil APP_LL pour les identités, Ressources Boond et liste de valeurs pour l’expérience, Analyse_Jury pour les participants et les données annuelles. Les relations d’évaluation sont saisies dans l’application.",
-    "sheetKinds": {
-      "Profil": "profiles",
-      "Boond_Ressources": "resources",
-      "Boond_Liste_Valeur": "values",
-      "Boons_Liste_Valeur": "values",
-      "Analyse_Jury": "rh",
-      "Deliberation": "rh",
-      "Evaluation campagne": "evaluations",
-      "Autoevaluations": "documents",
-      "Meteo": "meteos"
-    },
-    "identityField": "Id_Profil",
-    "boondProfileField": "Id_Profil_Boond",
-    "boondResourceField": "Id_Ressource",
-    "experienceValueField": "Id_Annees_Experience_A_Embauche",
-    "lookupKey": "ID_Boond",
-    "lookupValue": "Libelle_Valeur",
-    "evaluationTypes": [
-      "Auto_Evaluation",
-      "Commerciale",
-      "Encadrement",
-      "Meteo_Client",
-      "Coach Logiclever",
-      "Collègue_Mission"
-    ],
-    "lookupFamilyField": "Nom_Valeur",
-    "lookupFamily": "Annees_Experience_A_Embauche"
   }
 }

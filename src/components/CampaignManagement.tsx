@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, doc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, updateDoc } from '../lib/localDatabase';
+import { db } from '../lib/localDatabase';
 import { Campaign, CampaignFile, UserProfile } from '../types';
+import { LocalDatabaseService } from '../services/localDatabaseService';
 import { 
   FolderKanban, 
   Plus, 
@@ -9,7 +10,8 @@ import {
   Lock, 
   FileText, 
   AlertTriangle, 
-  Info
+  Info,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -19,6 +21,8 @@ import { CampaignCard } from './campaigns/CampaignCard';
 import { CreateCampaignModal } from './campaigns/CreateCampaignModal';
 import { CloseCampaignModal } from './campaigns/CloseCampaignModal';
 import { CampaignDocsModal } from './campaigns/CampaignDocsModal';
+import { CatchupCampaignModal } from './campaigns/CatchupCampaignModal';
+import { History } from 'lucide-react';
 
 interface CampaignManagementProps {
   currentUser?: UserProfile | null;
@@ -34,6 +38,7 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCatchupModalOpen, setIsCatchupModalOpen] = useState(false);
   const [campaignToClose, setCampaignToClose] = useState<Campaign | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [selectedCampaignForDocs, setSelectedCampaignForDocs] = useState<Campaign | null>(null);
@@ -43,77 +48,14 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  // Realtime subscription to campaigns collection
   useEffect(() => {
-    const q = query(collection(db, 'campaigns'));
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Campaign));
-      
-      // Sort by year descending
-      docs.sort((a, b) => (b.year || 0) - (a.year || 0));
-
-      if (docs.length === 0) {
-        // Auto-seed default 2025 campaign if collection is completely empty
-        const default2025: Campaign = {
-          id: 'campaign_2025',
-          year: 2025,
-          title: 'Campagne Annuelle 2025',
-          description: 'Campagne officielle de revalorisation et de bilan des salaires 2025.',
-          status: 'OUVERTE',
-          rhDocuments: [],
-          pairsDocuments: [],
-          otherDocuments: [],
-          createdBy: 'Système',
-          createdAt: new Date().toISOString(),
-        };
-        try {
-          await setDoc(doc(db, 'campaigns', 'campaign_2025'), default2025);
-        } catch (e) {
-          console.error("Error auto-seeding 2025 campaign:", e);
-        }
-      } else {
-        setCampaigns(docs);
-      }
+    const syncLocal = () => {
+      setCampaigns(LocalDatabaseService.getCampaigns());
       setLoading(false);
-    }, (err) => {
-      console.error("Error fetching campaigns:", err);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleCreateCampaign = async (campaignData: {
-    year: number;
-    title: string;
-    description: string;
-    rhDocuments: CampaignFile[];
-    pairsDocuments: CampaignFile[];
-    otherDocuments: CampaignFile[];
-  }) => {
-    const campaignId = `campaign_${campaignData.year}`;
-    const newCampaign: Campaign = {
-      id: campaignId,
-      year: campaignData.year,
-      title: campaignData.title,
-      description: campaignData.description,
-      status: 'OUVERTE',
-      rhDocuments: campaignData.rhDocuments,
-      pairsDocuments: campaignData.pairsDocuments,
-      otherDocuments: campaignData.otherDocuments,
-      createdBy: currentUser?.displayName || currentUser?.email || 'Administrateur',
-      createdAt: new Date().toISOString(),
     };
-
-    try {
-      await setDoc(doc(db, 'campaigns', campaignId), newCampaign);
-      showToast('success', `La campagne ${campaignData.year} a été créée et initialisée avec succès !`);
-    } catch (error: any) {
-      console.error("Error creating campaign:", error);
-      showToast('error', `Erreur lors de la création de la campagne: ${error.message || String(error)}`);
-      throw error;
-    }
-  };
+    syncLocal();
+    return LocalDatabaseService.subscribeCampaigns(syncLocal);
+  }, []);
 
   const handleConfirmCloseCampaign = async () => {
     if (!campaignToClose) return;
@@ -125,6 +67,7 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
         closedBy: currentUser?.displayName || currentUser?.email || 'Administrateur',
         updatedAt: new Date().toISOString()
       });
+
       showToast('success', `La campagne "${campaignToClose.title}" a été clôturée avec succès.`);
       setCampaignToClose(null);
     } catch (error: any) {
@@ -179,13 +122,47 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="px-6 py-4 rounded-xl bg-primary text-white font-bold text-base hover:brightness-110 transition-all flex items-center gap-3 shadow-lg shadow-primary/20 cursor-pointer active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          Créer une nouvelle campagne
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              LocalDatabaseService.downloadDossiersJson();
+              showToast('success', "Le fichier dossiers.json a été téléchargé avec succès !");
+            }}
+            className="px-4 py-3.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer active:scale-95"
+            title="Télécharger l'intégralité des dossiers au format JSON"
+          >
+            <Download className="w-4 h-4 text-purple-600" />
+            Exporter dossiers.json
+          </button>
+
+          <button
+            onClick={() => {
+              LocalDatabaseService.downloadCampaignsJson();
+              showToast('success', "Le fichier campaigns.json a été téléchargé avec succès !");
+            }}
+            className="px-4 py-3.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer active:scale-95"
+            title="Télécharger les campagnes au format JSON"
+          >
+            <Download className="w-4 h-4 text-blue-600" />
+            Exporter campaigns.json
+          </button>
+
+          <button
+            onClick={() => setIsCatchupModalOpen(true)}
+            className="px-5 py-4 rounded-xl bg-white border border-accent/20 text-accent font-bold text-sm hover:bg-accent/5 hover:border-accent/30 transition-all flex items-center gap-2.5 shadow-sm cursor-pointer active:scale-95"
+          >
+            <History className="w-5 h-5 text-primary" />
+            Rattrapage / Compléter une campagne
+          </button>
+
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-6 py-4 rounded-xl bg-primary text-white font-bold text-base hover:brightness-110 transition-all flex items-center gap-3 shadow-lg shadow-primary/20 cursor-pointer active:scale-95"
+          >
+            <Plus className="w-5 h-5" />
+            Créer une nouvelle campagne
+          </button>
+        </div>
       </div>
 
       {/* Metrics Row */}
@@ -284,8 +261,19 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
             isOpen={isCreateModalOpen}
             onClose={() => setIsCreateModalOpen(false)}
             existingYears={campaigns.map(c => c.year)}
-            onCreateCampaign={handleCreateCampaign}
             onShowToast={showToast}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isCatchupModalOpen && (
+          <CatchupCampaignModal
+            isOpen={isCatchupModalOpen}
+            onClose={() => setIsCatchupModalOpen(false)}
+            existingCampaigns={campaigns}
+            currentUser={currentUser}
+            onSuccess={(msg) => showToast('success', msg)}
           />
         )}
       </AnimatePresence>

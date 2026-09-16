@@ -9,13 +9,16 @@ interface JuryCandidateHeaderProps {
   dossier: Dossier;
   candidate: UserProfile | null;
   calculateAverageTargetTJM: (dossier: Dossier) => number | null;
+  referenceDate?: string | Date | null;
 }
 
 export function JuryCandidateHeader({
   dossier,
   candidate,
-  calculateAverageTargetTJM
+  calculateAverageTargetTJM,
+  referenceDate
 }: JuryCandidateHeaderProps) {
+  const yearsLL = candidate?.entryDate ? calculateYears(candidate.entryDate, referenceDate) : null;
   return (
     <>
       <div className="flex justify-between items-start mb-12 pb-10 border-b border-accent/10 relative">
@@ -148,14 +151,14 @@ export function JuryCandidateHeader({
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Total XP :</span>
               <span className="text-base font-bold text-accent">
-                {candidate?.experienceYears ? `${candidate.experienceYears} ans` : 'N/A'}
+                {candidate?.experienceYears !== undefined && candidate?.experienceYears !== null ? `${candidate.experienceYears} ans` : 'N/A'}
               </span>
             </div>
             <div className="h-4 w-px bg-accent/10 hidden sm:block" />
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Chez LL :</span>
               <span className="text-base font-bold text-indigo-600" title={candidate?.entryDate ? `Arrivé le ${new Date(candidate.entryDate).toLocaleDateString()}` : undefined}>
-                {candidate?.entryDate ? `${(candidate.seniorityYears ?? Number.NaN)} ans` : 'N/A'}
+                {yearsLL !== null ? `${yearsLL} ans` : 'N/A'}
               </span>
             </div>
           </div>

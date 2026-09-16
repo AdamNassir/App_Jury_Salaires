@@ -1,7 +1,7 @@
 import rawConfig from '../../google-sheets-config.json';
 import { GoogleSheetsConfigFile, SpreadsheetDefinition, TabConfig } from '../types/googleSheetsConfig';
 
-const config: GoogleSheetsConfigFile = rawConfig as GoogleSheetsConfigFile;
+const config: GoogleSheetsConfigFile = (rawConfig as unknown) as GoogleSheetsConfigFile;
 
 export class GoogleSheetsConfigService {
   /**
@@ -68,7 +68,8 @@ export class GoogleSheetsConfigService {
   static getColumnHeader(spreadsheetId: string, tabName: string, fieldKey: string): string | undefined {
     const sheet = this.getSpreadsheet(spreadsheetId);
     if (!sheet?.tabs?.[tabName]?.columns?.[fieldKey]) return undefined;
-    return sheet.tabs[tabName].columns[fieldKey].header || sheet.tabs[tabName].columns[fieldKey].name;
+    const col = sheet.tabs[tabName].columns[fieldKey];
+    return col.header || col.name;
   }
 
   /**
@@ -81,9 +82,9 @@ export class GoogleSheetsConfigService {
     if (!columns) return map;
 
     for (const [fieldKey, colDef] of Object.entries(columns)) {
-      const header = colDef.header || colDef.name;
-      if (header) {
-        map.set(header.trim().toLowerCase(), fieldKey);
+      const headerName = colDef.header || colDef.name;
+      if (headerName) {
+        map.set(headerName.trim().toLowerCase(), fieldKey);
       }
     }
     return map;

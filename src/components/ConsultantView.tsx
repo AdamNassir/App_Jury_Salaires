@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { updateDoc, doc, serverTimestamp, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { UserProfile, Dossier, ConsultantFeedback, ConsultationType } from '../types';
-import { User, MessageSquare, Target, Save, CheckCircle2, Search, Filter } from 'lucide-react';
+import { collection, query, onSnapshot } from '../lib/localDatabase';
+import { db } from '../lib/localDatabase';
+import { UserProfile, Dossier, ConsultantFeedback, ConsultationType, EvaluationRelationType, Campaign } from '../types';
+import { UserDirectoryService } from '../services/userDirectoryService';
+import { LocalDatabaseService } from '../services/localDatabaseService';
+import { User, MessageSquare, CheckCircle2, Search, AlertCircle, Building2, Briefcase, Plus, ShieldCheck, History, Clock, FileEdit, Check, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ConsultantViewProps {
@@ -10,142 +12,325 @@ interface ConsultantViewProps {
   profile: UserProfile;
 }
 
-export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
-  const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'TO_TREAT'>('TO_TREAT');
-  const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
+const RELATION_TYPES: EvaluationRelationType[] = [
+  'Auto_Evaluation',
+  'Commerciale',
+  'Encadrement',
+  'Meteo_Client',
+  'Coach Logiclever',
+  'Collègue_Mission'
+];
 
+export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('ALL');
+  const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
+  const [selectedEvaluationKey, setSelectedEvaluationKey] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ASSIGNED' | 'TO_TREAT'>('ALL');
+  const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
+  const [isCreatingNewEvaluation, setIsCreatingNewEvaluation] = useState(false);
+
+  // Load campaigns from LocalStorage
   useEffect(() => {
-    const q = query(collection(db, 'users'), where('roles', 'array-contains', 'CANDIDATE'));
+    const q = query(collection(db, 'campaigns'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const users: Record<string, UserProfile> = {};
-      snapshot.docs.forEach(doc => {
-        users[doc.id] = { id: doc.id, ...doc.data() } as UserProfile;
-      });
-      setCandidates(users);
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Campaign));
+      docs.sort((a, b) => (b.year || 0) - (a.year || 0));
+      setCampaigns(docs);
+
+      // Default to the first active/open campaign if not set
+      if (docs.length > 0 && selectedCampaignId === 'ALL') {
+        const active = docs.find(c => c.status === 'OUVERTE') || docs[0];
+        setSelectedCampaignId(active.id);
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // Filter based on assignments and status
-  const filteredDossiers = dossiers.filter(d => {
-    // Cannot evaluate own dossier
-    if (d.candidateId === profile.id) return false;
+  // Load candidate profiles
+  useEffect(() => {
+    const syncCandidates = () => {
+      const all = UserDirectoryService.getCandidates();
+      const users: Record<string, UserProfile> = {};
+      all.forEach(u => {
+        users[u.id] = u;
+        if (u.idProfil) users[u.idProfil] = u;
+      });
+      setCandidates(users);
+    };
+    syncCandidates();
+    return UserDirectoryService.subscribe(syncCandidates);
+  }, []);
 
-    const isJury = profile.roles?.includes('JURY') || profile.roles?.includes('ADMIN');
-    const isAssigned = d.assignedConsultantIds?.includes(profile.id);
-    const hasAssignments = (profile.assignedCandidateIds && profile.assignedCandidateIds.length > 0);
-    
-    // If specific assignments exist, filter to them; otherwise show all peer dossiers for review
-    if (!isJury && hasAssignments && !isAssigned) return false;
-    
-    if (filterStatus === 'TO_TREAT') {
-      const myFeedback = d.consultantFeedbacks?.[profile.id];
-      // "A traiter" = Not yet validated OR missing justification, and dossier not yet finalized
-      const isComplete = myFeedback?.validated && (myFeedback?.justification?.length || 0) > 10;
-      return d.status !== 'VALIDE' && !isComplete;
+  const activeCampaign = campaigns.find(c => c.id === selectedCampaignId) || null;
+  const isCampaignClosed = activeCampaign?.status === 'CLÔTURÉE';
+
+  // Filter dossiers based on selected campaign and role rules
+  const campaignDossiers = dossiers.filter(d => {
+    if (selectedCampaignId !== 'ALL' && d.campaignId && d.campaignId !== selectedCampaignId) {
+      return false;
     }
-    // "Tous" = All assigned dossiers
+    return true;
+  });
+
+  // Filter based on "ASSIGNED", "TO_TREAT" vs "ALL"
+  const filteredDossiers = campaignDossiers.filter(d => {
+    const isAssigned = (d.assignedConsultantIds || []).some(id => 
+      id === profile.id || (profile.idProfil && id === profile.idProfil)
+    );
+    const myFeedbacks = Object.entries(d.consultantFeedbacks || {}).filter(([_, f]) => {
+      return f.evaluatorUid === profile.id || f.consultantId === profile.id || (profile.idProfil && (f.evaluatorUid === profile.idProfil || f.consultantId === profile.idProfil));
+    });
+
+    if (filterStatus === 'ASSIGNED') {
+      return isAssigned;
+    }
+
+    if (filterStatus === 'TO_TREAT') {
+      if (d.status === 'VALIDE') return false;
+      const hasValidatedFeedback = myFeedbacks.some(([_, f]) => f.status === 'VALIDE' || f.validated);
+      return !hasValidatedFeedback;
+    }
     return true;
   });
 
   const selectedDossier = dossiers.find(d => d.id === selectedDossierId) || null;
 
+  // Auto-select first dossier if none selected
+  useEffect(() => {
+    if (!selectedDossierId && filteredDossiers.length > 0) {
+      setSelectedDossierId(filteredDossiers[0].id);
+    }
+  }, [filteredDossiers, selectedDossierId]);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <div className="lg:col-span-4 space-y-6">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-secondary tracking-tight">Vos Dossiers</h2>
-          <div className="flex bg-accent/5 rounded-base p-1 border border-accent/10">
-            <button 
-              onClick={() => setFilterStatus('TO_TREAT')}
-              className={cn("px-4 py-2 rounded-base text-[10px] font-black uppercase transition-all tracking-widest", filterStatus === 'TO_TREAT' ? "bg-primary text-white shadow-sm" : "text-accent/40 hover:bg-accent/10")}
-            >
-              À traiter
-            </button>
-            <button 
-              onClick={() => setFilterStatus('ALL')}
-              className={cn("px-4 py-2 rounded-base text-[10px] font-black uppercase transition-all tracking-widest", filterStatus === 'ALL' ? "bg-primary text-white shadow-sm" : "text-accent/40 hover:bg-accent/10")}
-            >
-              Tous
-            </button>
+    <div className="space-y-6">
+      {/* 1. Barreau de sélection de Campagne */}
+      <div className="bg-white p-6 rounded-xl border border-accent/10 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+            <Briefcase className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[10px] font-black uppercase text-accent/40 tracking-widest">Campagne de Référence</div>
+            <div className="text-lg font-bold text-accent">Sélectionnez la campagne d'évaluation</div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          {filteredDossiers.map(d => (
-            <button
-              key={d.id}
-              onClick={() => setSelectedDossierId(d.id)}
-              className={cn(
-                "w-full p-8 rounded-xl border transition-all text-left group shadow-sm",
-                selectedDossierId === d.id 
-                  ? "bg-accent border-accent text-white ring-2 ring-primary ring-offset-2" 
-                  : "bg-white border-accent/10 hover:border-secondary text-accent"
-              )}
-            >
-              <div className="flex items-center gap-6">
-                <div className={cn(
-                  "w-14 h-14 rounded-base flex items-center justify-center shrink-0 shadow-inner transition-colors",
-                  selectedDossierId === d.id ? "bg-white/10" : "bg-accent/5"
-                )}>
-                  <User className="w-7 h-7" />
-                </div>
-                <div className="overflow-hidden">
-                  <div className="font-bold text-xl truncate mb-1">{d.candidateName}</div>
-                  <div className={cn(
-                    "text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2",
-                    selectedDossierId === d.id ? "text-white/40" : "text-accent/30"
-                  )}>
-                    {d.status === 'OUVERT' ? 'En attente' : d.status === 'COMPLET' ? 'Dossier Complet' : 'Dossier Validé'}
-                    {d.consultantFeedbacks?.[profile.id]?.validated && (
-                      <span className="flex items-center gap-2 text-green-400 font-black">
-                        <CheckCircle2 className="w-4 h-4" /> PRÊT
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </button>
-          ))}
-          {filteredDossiers.length === 0 && (
-            <div className="p-16 text-center bg-accent/5 border border-dashed border-accent/20 rounded-xl text-accent/20 italic text-lg font-light">
-              Aucun dossier à traiter pour le moment.
-            </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedCampaignId}
+            onChange={(e) => {
+              setSelectedCampaignId(e.target.value);
+              setSelectedEvaluationKey(null);
+              setIsCreatingNewEvaluation(false);
+            }}
+            className="px-4 py-2.5 bg-accent/5 border border-accent/15 rounded-xl text-sm font-bold text-accent outline-none focus:border-primary transition-all cursor-pointer"
+          >
+            <option value="ALL">Toutes les campagnes</option>
+            {campaigns.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.title} ({c.year}) {c.status === 'CLÔTURÉE' ? '— Clôturée' : '— Ouverte'}
+              </option>
+            ))}
+          </select>
+
+          {isCampaignClosed && (
+            <span className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-lg flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Campagne Clôturée (Lecture seule)
+            </span>
           )}
         </div>
       </div>
 
-      <div className="lg:col-span-8">
-        {selectedDossier ? (
-          <div className="space-y-8">
-            <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 -mr-16 -mt-16 rounded-full" />
-              <div className="flex items-center justify-between mb-12 pb-10 border-b border-accent/10 relative">
-                <div>
-                  <h2 className="text-accent mb-2">{selectedDossier.candidateName}</h2>
-                  <p className="text-accent/40 text-lg font-light italic">Dossier de candidature 2025</p>
-                </div>
-                <StatusBadge status={selectedDossier.status} />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <DossierSection title="Grade actuel" content={candidates[selectedDossier.candidateId]?.currentGrade || selectedDossier.annualReport?.currentGrade} />
-                <DossierSection title="TJM actuel" content={candidates[selectedDossier.candidateId] ? `${candidates[selectedDossier.candidateId]?.currentTJM}€` : (selectedDossier.annualReport?.currentTJM ? `${selectedDossier.annualReport.currentTJM}€` : undefined)} />
+      {/* 2. Colonne de gauche (Sélection Candidat) + Colonne de droite (Formulaire Évaluation) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-4 space-y-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-secondary font-bold text-xl tracking-tight">Candidats de la Campagne</h2>
+              <div className="text-xs text-accent/50 font-light">
+                {filteredDossiers.length} dossier{filteredDossiers.length > 1 ? 's' : ''} éligible{filteredDossiers.length > 1 ? 's' : ''}
               </div>
             </div>
+            <div className="flex bg-accent/5 rounded-base p-1 border border-accent/10">
+              <button 
+                onClick={() => setFilterStatus('ASSIGNED')}
+                className={cn(
+                  "px-2.5 py-1.5 rounded-base text-[10px] font-black uppercase transition-all tracking-wider cursor-pointer",
+                  filterStatus === 'ASSIGNED' ? "bg-purple-600 text-white shadow-sm" : "text-accent/40 hover:bg-accent/10"
+                )}
+              >
+                Assignés
+              </button>
+              <button 
+                onClick={() => setFilterStatus('TO_TREAT')}
+                className={cn(
+                  "px-2.5 py-1.5 rounded-base text-[10px] font-black uppercase transition-all tracking-wider cursor-pointer",
+                  filterStatus === 'TO_TREAT' ? "bg-primary text-white shadow-sm" : "text-accent/40 hover:bg-accent/10"
+                )}
+              >
+                À traiter
+              </button>
+              <button 
+                onClick={() => setFilterStatus('ALL')}
+                className={cn(
+                  "px-2.5 py-1.5 rounded-base text-[10px] font-black uppercase transition-all tracking-wider cursor-pointer",
+                  filterStatus === 'ALL' ? "bg-primary text-white shadow-sm" : "text-accent/40 hover:bg-accent/10"
+                )}
+              >
+                Tous
+              </button>
+            </div>
+          </div>
 
-            <ConsultantFeedbackForm 
-              dossier={selectedDossier} 
-              consultant={profile} 
-            />
+          <div className="space-y-3 max-h-[750px] overflow-y-auto pr-1">
+            {filteredDossiers.map(d => {
+              const isAssigned = (d.assignedConsultantIds || []).some(id => 
+                id === profile.id || (profile.idProfil && id === profile.idProfil)
+              );
+              const myFeedbacks = Object.entries(d.consultantFeedbacks || {}).filter(([_, f]) => {
+                return f.evaluatorUid === profile.id || f.consultantId === profile.id || (profile.idProfil && (f.evaluatorUid === profile.idProfil || f.consultantId === profile.idProfil));
+              });
+              const isOwnDossier = d.candidateId === profile.id || (profile.idProfil && d.idProfil === profile.idProfil);
+              const isSelected = selectedDossierId === d.id;
+
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => {
+                    setSelectedDossierId(d.id);
+                    setSelectedEvaluationKey(null);
+                    setIsCreatingNewEvaluation(false);
+                  }}
+                  className={cn(
+                    "w-full p-5 rounded-xl border transition-all text-left group shadow-sm cursor-pointer",
+                    isSelected 
+                      ? "bg-accent border-accent text-white ring-2 ring-primary ring-offset-2" 
+                      : "bg-white border-accent/10 hover:border-secondary text-accent"
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-12 h-12 rounded-lg flex items-center justify-center shrink-0 shadow-inner transition-colors",
+                      isSelected ? "bg-white/10" : "bg-accent/5"
+                    )}>
+                      <User className="w-6 h-6" />
+                    </div>
+                    <div className="overflow-hidden flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-bold text-base truncate">{d.candidateName}</span>
+                        {isAssigned && (
+                          <span className={cn(
+                            "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded",
+                            isSelected ? "bg-purple-500 text-white" : "bg-purple-100 text-purple-800"
+                          )}>
+                            Assigné (Primes)
+                          </span>
+                        )}
+                        {isOwnDossier && (
+                          <span className={cn(
+                            "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded",
+                            isSelected ? "bg-primary text-white" : "bg-primary/10 text-primary"
+                          )}>
+                            Vous
+                          </span>
+                        )}
+                      </div>
+                      <div className={cn(
+                        "text-[10px] font-black uppercase tracking-wider flex items-center justify-between gap-2",
+                        isSelected ? "text-white/60" : "text-accent/40"
+                      )}>
+                        <span>
+                          {d.annualReport?.currentGrade || candidates[d.candidateId]?.currentGrade || 'Collaborateur'}
+                        </span>
+                        {myFeedbacks.length > 0 && (
+                          <span className={cn(
+                            "flex items-center gap-1 font-bold",
+                            isSelected ? "text-green-300" : "text-green-600"
+                          )}>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {myFeedbacks.length} avis
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+
+            {filteredDossiers.length === 0 && (
+              <div className="p-12 text-center bg-accent/5 border border-dashed border-accent/20 rounded-xl text-accent/40 text-sm font-light">
+                Aucun candidat à évaluer pour cette sélection.
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="h-full min-h-[600px] flex flex-col items-center justify-center bg-white border border-dashed border-accent/10 rounded-xl text-accent/10">
-            <Search className="w-24 h-24 mb-6 opacity-5" />
-            <p className="text-3xl font-light italic text-accent/20">Sélectionnez un dossier à évaluer</p>
-          </div>
-        )}
+        </div>
+
+        {/* Colonne droite : Formulaire d'évaluation */}
+        <div className="lg:col-span-8">
+          {selectedDossier ? (
+            <div className="space-y-6">
+              {/* Entête du candidat sélectionné */}
+              <div className="bg-white p-8 rounded-xl border border-accent/10 shadow-sm relative overflow-hidden">
+                <div className="flex items-start justify-between pb-6 border-b border-accent/10">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">
+                      Dossier Candidat {selectedDossier.campaignYear || ''}
+                    </div>
+                    <h2 className="text-2xl font-bold text-accent">{selectedDossier.candidateName}</h2>
+                    <p className="text-accent/50 text-sm font-light mt-0.5">
+                      {selectedDossier.candidateEmail || 'Email non renseigné'} • Grade : {candidates[selectedDossier.candidateId]?.currentGrade || selectedDossier.annualReport?.currentGrade || 'Non spécifié'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={selectedDossier.status} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 text-sm">
+                  <div>
+                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">TJM Actuel</div>
+                    <div className="font-bold text-accent text-lg">
+                      {candidates[selectedDossier.candidateId]?.currentTJM || selectedDossier.annualReport?.currentTJM ? `${candidates[selectedDossier.candidateId]?.currentTJM || selectedDossier.annualReport?.currentTJM}€` : 'Non renseigné'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">TJM Cible Souhaité</div>
+                    <div className="font-bold text-primary text-lg">
+                      {selectedDossier.annualReport?.targetTJM ? `${selectedDossier.annualReport.targetTJM}€` : 'Non renseigné'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">Grade Souhaité</div>
+                    <div className="font-bold text-secondary text-lg">
+                      {selectedDossier.annualReport?.wishedGrade || 'Maintien'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Formulaire d'évaluation multi-avis */}
+              <ConsultantFeedbackForm 
+                dossier={selectedDossier} 
+                consultant={profile}
+                selectedCampaign={activeCampaign}
+                isCampaignClosed={isCampaignClosed}
+                selectedEvaluationKey={selectedEvaluationKey}
+                setSelectedEvaluationKey={setSelectedEvaluationKey}
+                isCreatingNewEvaluation={isCreatingNewEvaluation}
+                setIsCreatingNewEvaluation={setIsCreatingNewEvaluation}
+              />
+            </div>
+          ) : (
+            <div className="h-full min-h-[500px] flex flex-col items-center justify-center bg-white border border-dashed border-accent/10 rounded-xl text-accent/20 p-8 text-center">
+              <Search className="w-16 h-16 mb-4 opacity-10" />
+              <p className="text-xl font-light italic text-accent/30">Sélectionnez un candidat dans la liste de gauche pour rédiger ou consulter une évaluation.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -158,211 +343,482 @@ function StatusBadge({ status }: { status: Dossier['status'] }) {
     VALIDE: "border-green-200 text-green-600 bg-green-50"
   };
   return (
-    <span className={cn("px-6 py-2 rounded-base text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm", styles[status])}>
-      {status === 'OUVERT' ? 'En cours' : status === 'COMPLET' ? 'Complet' : 'Validé'}
+    <span className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm", styles[status])}>
+      {status === 'OUVERT' ? 'En cours' : status === 'COMPLET' ? 'Dossier Prêt' : 'Dossier Validé'}
     </span>
   );
 }
 
-function DossierSection({ title, content, isFullWidth }: { title: string, content?: string, isFullWidth?: boolean }) {
-  return (
-    <div className={cn(isFullWidth && "md:col-span-2")}>
-      <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">{title}</h4>
-      <div className="bg-accent/5 p-8 rounded-xl text-lg leading-relaxed min-h-[80px] text-accent/80 border border-accent/10 shadow-inner font-light">
-        {content || <span className="italic opacity-30 font-normal">Non renseigné</span>}
-      </div>
-    </div>
-  );
+interface ConsultantFeedbackFormProps {
+  dossier: Dossier;
+  consultant: UserProfile;
+  selectedCampaign: Campaign | null;
+  isCampaignClosed: boolean;
+  selectedEvaluationKey: string | null;
+  setSelectedEvaluationKey: (key: string | null) => void;
+  isCreatingNewEvaluation: boolean;
+  setIsCreatingNewEvaluation: (create: boolean) => void;
 }
 
-function ConsultantFeedbackForm({ dossier, consultant }: { dossier: Dossier, consultant: UserProfile }) {
+function ConsultantFeedbackForm({
+  dossier,
+  consultant,
+  selectedCampaign,
+  isCampaignClosed,
+  selectedEvaluationKey,
+  setSelectedEvaluationKey,
+  isCreatingNewEvaluation,
+  setIsCreatingNewEvaluation
+}: ConsultantFeedbackFormProps) {
   const [loading, setLoading] = useState(false);
-  const isReadOnly = dossier.status === 'VALIDE';
-  const existingFeedback = dossier.consultantFeedbacks?.[consultant.id];
-  
-  const [formData, setFormData] = useState<Partial<ConsultantFeedback>>(
-    existingFeedback || {
-      type: 'Commerciale',
-      targetTJMin: 0,
-      targetTJMax: 0,
-      justification: '',
-      improvementAxes: '',
-      confidenceIndex: 5,
-      validated: false
-    }
-  );
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Update form data if existing feedback changes (e.g. from database update)
+  const isOwnDossier = dossier.candidateId === consultant.id || (consultant.idProfil && dossier.idProfil === consultant.idProfil);
+
+  // Filter feedback items belonging to this consultant
+  // Feedbacks are stored in dossier.consultantFeedbacks as a dictionary.
+  // Each entry can have a unique key (e.g. feedbackId or consultant.id)
+  const allFeedbacksDict = dossier.consultantFeedbacks || {};
+  const myFeedbackEntries = Object.entries(allFeedbacksDict).filter(([key, f]) => {
+    return f.evaluatorUid === consultant.id || f.consultantId === consultant.id;
+  });
+
+  // Effective key selected:
+  const activeKey = selectedEvaluationKey || (myFeedbackEntries.length > 0 && !isCreatingNewEvaluation ? myFeedbackEntries[0][0] : null);
+  const activeFeedback = activeKey ? allFeedbacksDict[activeKey] : null;
+
+  const defaultRelationType: EvaluationRelationType = isOwnDossier ? 'Auto_Evaluation' : 'Collègue_Mission';
+
+  const [formData, setFormData] = useState<Partial<ConsultantFeedback>>({
+    relationType: defaultRelationType,
+    type: defaultRelationType,
+    client: '',
+    project: '',
+    targetTJMin: 0,
+    targetTJMax: 0,
+    justification: '',
+    improvementAxes: '',
+    confidenceIndex: 5,
+    status: 'BROUILLON',
+    validated: false
+  });
+
+  // Synchronize formData when switching selected evaluation or entering creation mode
   useEffect(() => {
-    if (existingFeedback) {
-      setFormData(existingFeedback);
+    if (isCreatingNewEvaluation || !activeFeedback) {
+      setFormData({
+        relationType: defaultRelationType,
+        type: defaultRelationType,
+        client: '',
+        project: '',
+        targetTJMin: 0,
+        targetTJMax: 0,
+        justification: '',
+        improvementAxes: '',
+        confidenceIndex: 5,
+        status: 'BROUILLON',
+        validated: false
+      });
+    } else {
+      // Determine if legacy type
+      const legacyTypes = ['Coach', 'Collègue en mission', 'Météo Client', 'Logiclever', 'COP & Epic'];
+      const rawType = activeFeedback.relationType || activeFeedback.type;
+      const isLegacy = legacyTypes.includes(rawType as string) && !RELATION_TYPES.includes(rawType as EvaluationRelationType);
+
+      setFormData({
+        ...activeFeedback,
+        relationType: (activeFeedback.relationType || activeFeedback.type) as EvaluationRelationType,
+        client: activeFeedback.client || '',
+        project: activeFeedback.project || '',
+        isLegacyType: isLegacy,
+        status: activeFeedback.status || (activeFeedback.validated ? 'VALIDE' : 'BROUILLON')
+      });
     }
-  }, [existingFeedback]);
+  }, [activeKey, isCreatingNewEvaluation, dossier.id]);
 
-  // Auto-save logic
-  React.useEffect(() => {
-    if (isReadOnly) return;
-    const timer = setTimeout(() => {
-      // Only save if something actually changed from the last known state in the dossier
-      const currentFeedback = dossier.consultantFeedbacks?.[consultant.id];
-      const hasChanged = JSON.stringify(formData) !== JSON.stringify(currentFeedback);
-      
-      if (hasChanged && !loading) {
-        handleAutoSave();
-      }
-    }, 1000);
+  const isReadOnly = isCampaignClosed;
 
-    return () => clearTimeout(timer);
-  }, [formData, isReadOnly]);
+  // Save as Draft or Validate
+  const handleSave = async (targetStatus: 'BROUILLON' | 'VALIDE') => {
+    if (isReadOnly) {
+      setToastMessage("La campagne est clôturée : aucune modification possible.");
+      return;
+    }
 
-  const handleAutoSave = async () => {
+    if (!formData.client?.trim()) {
+      setToastMessage("Veuillez renseigner le nom du Client.");
+      return;
+    }
+    if (!formData.project?.trim()) {
+      setToastMessage("Veuillez renseigner le nom du Projet / Mission.");
+      return;
+    }
+    if (targetStatus === 'VALIDE' && (!formData.justification || formData.justification.trim().length < 10)) {
+      setToastMessage("Pour valider, veuillez saisir un argumentaire technique détaillé (minimum 10 caractères).");
+      return;
+    }
+
+    // Auto-evaluation check
+    const finalRelationType = formData.relationType || 'Collègue_Mission';
+    if (finalRelationType === 'Auto_Evaluation' && !isOwnDossier) {
+      setToastMessage("L'auto-évaluation ne peut être réalisée que sur votre propre dossier.");
+      return;
+    }
+    if (isOwnDossier && finalRelationType !== 'Auto_Evaluation') {
+      setToastMessage("Sur votre propre dossier, seul le type 'Auto_Evaluation' est autorisé.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const feedback: ConsultantFeedback = {
-        ...formData as ConsultantFeedback,
+      // Determine evaluation unique ID:
+      // If we are modifying an existing evaluation key, use it; otherwise generate a new unique key
+      const evalId = (!isCreatingNewEvaluation && activeKey) 
+        ? activeKey 
+        : `eval_${consultant.id}_${Date.now()}`;
+
+      const feedbackToSave: ConsultantFeedback = {
+        id: evalId,
+        // Authenticated evaluator fields (strictly derived from session, never manually entered)
         consultantId: consultant.id,
-        consultantName: consultant.displayName,
-        // Automatically consider validated if they are filling it in
-        validated: true,
+        consultantName: consultant.displayName || 'Évaluateur Logiclever',
+        evaluatorUid: consultant.id,
+        evaluatorIdProfil: consultant.idProfil || undefined,
+        // Campaign reference
+        campaignId: selectedCampaign?.id || dossier.campaignId || undefined,
+        // Evaluation metadata
+        client: formData.client.trim(),
+        project: formData.project.trim(),
+        relationType: finalRelationType,
+        type: finalRelationType,
+        // Financial & technical recommendations
+        targetTJMin: Number(formData.targetTJMin) || 0,
+        targetTJMax: Number(formData.targetTJMax) || 0,
+        confidenceIndex: Number(formData.confidenceIndex) || 5,
+        justification: formData.justification?.trim() || '',
+        improvementAxes: formData.improvementAxes?.trim() || '',
+        // Status & timestamps
+        status: targetStatus,
+        validated: targetStatus === 'VALIDE',
+        isLegacyType: false, // Updated to new standard
         updatedAt: new Date().toISOString()
       };
 
       const updatedFeedbacks = {
         ...(dossier.consultantFeedbacks || {}),
-        [consultant.id]: feedback
+        [evalId]: feedbackToSave
       };
 
-      const updates: any = {
+      // 1. Sauvegarde locale instantanée
+      LocalDatabaseService.updateDossier(dossier.id, {
         consultantFeedbacks: updatedFeedbacks,
-        updatedAt: serverTimestamp()
-      };
-
-      // Check if all consultants have validated
-      const allValidated = dossier.assignedConsultantIds.every(id => {
-        if (id === consultant.id) return true;
-        return dossier.consultantFeedbacks?.[id]?.validated === true;
+        updatedAt: new Date().toISOString()
       });
 
-      if (allValidated) {
-        updates.status = 'COMPLET';
-      }
 
-      await updateDoc(doc(db, 'dossiers', dossier.id), updates);
-    } catch (error) {
-      console.error("Auto-save error:", error);
+      setSelectedEvaluationKey(evalId);
+      setIsCreatingNewEvaluation(false);
+      setToastMessage(targetStatus === 'VALIDE' ? "Évaluation validée avec succès !" : "Brouillon enregistré.");
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (error: any) {
+      console.error("Save evaluation error:", error);
+      setToastMessage(`Erreur lors de l'enregistrement : ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-accent p-12 rounded-xl text-white shadow-2xl relative overflow-hidden group border border-accent/20">
-      <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 rounded-full -mr-40 -mt-40 blur-3xl group-hover:bg-primary/15 transition-all" />
-      
-      <div className="flex items-center gap-5 mb-12 relative">
-        <div className="w-16 h-16 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-          <MessageSquare className="w-8 h-8" />
-        </div>
+    <div className="bg-accent p-8 rounded-xl text-white shadow-2xl relative overflow-hidden group border border-accent/20 space-y-8">
+      <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 rounded-full -mr-40 -mt-40 blur-3xl pointer-events-none" />
+
+      {/* Barre supérieure : Mes avis sur ce candidat & bouton Nouvel avis */}
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-white/10 relative">
         <div>
-          <h2 className="text-white mb-1">Avis Évaluateur / Pair</h2>
-          <p className="text-white/40 text-lg font-light">Partagez votre retour d'expérience et recommandation technique.</p>
+          <h3 className="text-white text-xl font-bold flex items-center gap-3">
+            <MessageSquare className="w-6 h-6 text-primary" />
+            Évaluation par les Pairs / Associés
+          </h3>
+          <p className="text-white/50 text-sm font-light mt-0.5">
+            Vous pouvez enregistrer plusieurs évaluations pour ce candidat selon le client, le projet ou le type de relation.
+          </p>
         </div>
-        {loading && (
-          <div className="ml-auto flex items-center gap-2 text-primary text-[10px] font-black uppercase tracking-widest animate-pulse">
-            <span className="w-2 h-2 bg-primary rounded-full" />
-            Synchronisation...
-          </div>
-        )}
+
+        <div className="flex items-center gap-2">
+          {myFeedbackEntries.length > 0 && !isReadOnly && (
+            <button
+              onClick={() => {
+                setIsCreatingNewEvaluation(true);
+                setSelectedEvaluationKey(null);
+              }}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border",
+                isCreatingNewEvaluation 
+                  ? "bg-primary text-white border-primary shadow-lg" 
+                  : "bg-white/5 hover:bg-white/10 text-white border-white/10"
+              )}
+            >
+              <Plus className="w-4 h-4" />
+              Nouvel Avis
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-12 relative">
-        <div>
-          <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-6">Type de consultation</label>
-          <div className="flex flex-wrap gap-3">
-            {(['Commerciale', 'Encadrement', 'Météo Client', 'Coach', 'Logiclever', 'Collègue en mission', 'COP & Epic'] as ConsultationType[]).map(t => (
-              <button
-                key={t}
-                disabled={isReadOnly}
-                onClick={() => setFormData({...formData, type: t})}
-                className={cn(
-                  "px-6 py-3 rounded-xl text-xs font-bold uppercase transition-all border-2",
-                  formData.type === t ? "bg-primary border-primary text-white shadow-lg" : "bg-white/5 border-white/10 hover:bg-white/10 text-white/60",
-                  isReadOnly && "opacity-50 cursor-not-allowed"
-                )}
-              >
-                {t}
-              </button>
-            ))}
+      {/* Sélecteur des avis existants pour ce candidat */}
+      {myFeedbackEntries.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-black uppercase text-white/40 tracking-widest">Vos avis enregistrés sur ce candidat :</div>
+          <div className="flex flex-wrap gap-2">
+            {myFeedbackEntries.map(([key, f]) => {
+              const isSelected = activeKey === key && !isCreatingNewEvaluation;
+              const isValide = f.status === 'VALIDE' || f.validated;
+              const isLegacy = f.isLegacyType || ['Coach', 'Collègue en mission', 'Météo Client', 'Logiclever', 'COP & Epic'].includes((f.relationType || f.type) as string);
+
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setSelectedEvaluationKey(key);
+                    setIsCreatingNewEvaluation(false);
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border text-left cursor-pointer",
+                    isSelected 
+                      ? "bg-primary text-white border-primary shadow-lg" 
+                      : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
+                  )}
+                >
+                  <span>{f.client || 'Client non spécifié'} — {f.project || 'Projet non spécifié'}</span>
+                  <span className={cn(
+                    "text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider",
+                    isValide ? "bg-green-500/20 text-green-300" : "bg-yellow-500/20 text-yellow-300"
+                  )}>
+                    {isValide ? 'Validé' : 'Brouillon'}
+                  </span>
+                  {isLegacy && (
+                    <span className="text-[9px] bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1" title="Ancien type nécessitant rapprochement">
+                      <AlertTriangle className="w-3 h-3" />
+                      Rapprochement
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          <div className="space-y-12">
-            <div className="grid grid-cols-2 gap-8">
-              <NumberInput dark label="TJM Min (€)" value={formData.targetTJMin || 0} onChange={v => setFormData({...formData, targetTJMin: v})} disabled={isReadOnly} />
-              <NumberInput dark label="TJM Max (€)" value={formData.targetTJMax || 0} onChange={v => setFormData({...formData, targetTJMax: v})} disabled={isReadOnly} />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-6">Niveau de Confiance</label>
-              <input 
-                type="range" min="1" max="10" 
-                value={formData.confidenceIndex || 5} 
+      {/* Alerte si ancien type à rapprocher */}
+      {formData.isLegacyType && (
+        <div className="p-4 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center gap-3 text-amber-200 text-sm">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400" />
+          <div>
+            <span className="font-bold">Ancien type détecté :</span> Cette évaluation utilise un type historique ({String(formData.type)}). Veuillez sélectionner l'un des 6 nouveaux types métier ci-dessous pour rapprocher la donnée lors de l'enregistrement.
+          </div>
+        </div>
+      )}
+
+      {/* Formulaire */}
+      <div className="space-y-6">
+        {/* 1. Type de relation */}
+        <div>
+          <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3">
+            Type de Relation Métier *
+          </label>
+          <div className="flex flex-wrap gap-2.5">
+            {RELATION_TYPES.map(rel => {
+              const isSelected = formData.relationType === rel;
+              const isAutoEval = rel === 'Auto_Evaluation';
+              const disabled = isReadOnly || (isAutoEval && !isOwnDossier) || (!isAutoEval && isOwnDossier);
+
+              return (
+                <button
+                  key={rel}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setFormData({ ...formData, relationType: rel, type: rel })}
+                  className={cn(
+                    "px-4 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer",
+                    isSelected 
+                      ? "bg-primary border-primary text-white shadow-lg" 
+                      : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70",
+                    disabled && "opacity-30 cursor-not-allowed hover:bg-white/5"
+                  )}
+                >
+                  {rel.replace('_', ' ')}
+                  {isAutoEval && " (Mon dossier)"}
+                </button>
+              );
+            })}
+          </div>
+          {isOwnDossier && (
+            <p className="text-white/40 text-xs mt-2 italic">
+              Vous évaluez votre propre dossier : seul le type « Auto_Evaluation » est applicable.
+            </p>
+          )}
+        </div>
+
+        {/* 2. Client et Projet */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
+              Client concerné *
+            </label>
+            <div className="relative">
+              <Building2 className="w-4 h-4 text-white/30 absolute left-4 top-3.5" />
+              <input
+                type="text"
                 disabled={isReadOnly}
-                onChange={e => setFormData({...formData, confidenceIndex: parseInt(e.target.value)})}
-                className="w-full accent-primary h-2 bg-white/10 rounded-full appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" 
+                value={formData.client || ''}
+                onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+                placeholder="Ex: BNP Paribas, Décathlon, Total..."
+                className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm outline-none focus:border-primary transition-all disabled:opacity-50"
               />
-              <div className="flex justify-between text-[11px] text-white/30 mt-4 font-black uppercase tracking-widest">
-                <span>Passif</span>
-                <span className="text-primary font-black">Score : {formData.confidenceIndex} / 10</span>
-                <span>Expert</span>
-              </div>
             </div>
           </div>
-          <div className="space-y-10">
-            <TextArea dark label="Argumentaire Technique" value={formData.justification || ''} onChange={v => setFormData({...formData, justification: v})} placeholder="Pourquoi préconisez-vous ce TJM ?" disabled={isReadOnly} />
-            <TextArea dark label="Leviers de valorisation" value={formData.improvementAxes || ''} onChange={v => setFormData({...formData, improvementAxes: v})} placeholder="Formations, certifications, soft skills..." disabled={isReadOnly} />
+
+          <div>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
+              Projet / Mission *
+            </label>
+            <div className="relative">
+              <Briefcase className="w-4 h-4 text-white/30 absolute left-4 top-3.5" />
+              <input
+                type="text"
+                disabled={isReadOnly}
+                value={formData.project || ''}
+                onChange={(e) => setFormData({ ...formData, project: e.target.value })}
+                placeholder="Ex: Migration Cloud, Lead Dev React..."
+                className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm outline-none focus:border-primary transition-all disabled:opacity-50"
+              />
+            </div>
           </div>
+        </div>
+
+        {/* 3. Recommandation TJM et Confiance */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          <div>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
+              TJM Min Préconisé (€)
+            </label>
+            <input
+              type="number"
+              disabled={isReadOnly}
+              value={formData.targetTJMin || ''}
+              onChange={(e) => setFormData({ ...formData, targetTJMin: Number(e.target.value) })}
+              placeholder="Ex: 600"
+              className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
+              TJM Max Préconisé (€)
+            </label>
+            <input
+              type="number"
+              disabled={isReadOnly}
+              value={formData.targetTJMax || ''}
+              onChange={(e) => setFormData({ ...formData, targetTJMax: Number(e.target.value) })}
+              placeholder="Ex: 680"
+              className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">
+                Indice de Confiance
+              </label>
+              <span className="text-primary font-bold text-xs">{formData.confidenceIndex || 5} / 10</span>
+            </div>
+            <input 
+              type="range" 
+              min="1" 
+              max="10" 
+              value={formData.confidenceIndex || 5} 
+              disabled={isReadOnly}
+              onChange={e => setFormData({ ...formData, confidenceIndex: parseInt(e.target.value) })}
+              className="w-full accent-primary h-2 bg-white/10 rounded-full appearance-none cursor-pointer disabled:opacity-50 mt-3" 
+            />
+          </div>
+        </div>
+
+        {/* 4. Argumentaires */}
+        <div className="space-y-4 pt-2">
+          <div>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
+              Argumentaire Technique & Retour d'Expérience *
+            </label>
+            <textarea
+              disabled={isReadOnly}
+              value={formData.justification || ''}
+              onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
+              placeholder="Détaillez vos observations sur les compétences techniques, la posture professionnelle et la valeur apportée..."
+              className="w-full p-4 bg-white/5 border border-white/15 rounded-xl text-white text-sm font-light resize-none h-28 outline-none focus:border-primary transition-all disabled:opacity-50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
+              Leviers de Valorisation & Axes de Progrès
+            </label>
+            <textarea
+              disabled={isReadOnly}
+              value={formData.improvementAxes || ''}
+              onChange={(e) => setFormData({ ...formData, improvementAxes: e.target.value })}
+              placeholder="Suggestions de formations, certifications, leadership..."
+              className="w-full p-4 bg-white/5 border border-white/15 rounded-xl text-white text-sm font-light resize-none h-24 outline-none focus:border-primary transition-all disabled:opacity-50"
+            />
+          </div>
+        </div>
+
+        {/* Toast / Message d'information */}
+        {toastMessage && (
+          <div className="p-4 rounded-xl bg-white/10 border border-white/20 text-white text-sm flex items-center justify-between animate-fadeIn">
+            <span>{toastMessage}</span>
+            <button onClick={() => setToastMessage(null)} className="text-white/50 hover:text-white text-xs font-bold">
+              Fermer
+            </button>
+          </div>
+        )}
+
+        {/* 5. Actions : Enregistrer brouillon & Valider l'évaluation */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/10">
+          <div className="text-xs text-white/40">
+            Auteur authentifié : <span className="text-white font-bold">{consultant.displayName}</span> {consultant.idProfil ? `(Id_Profil: ${consultant.idProfil})` : ''}
+          </div>
+
+          {!isReadOnly ? (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleSave('BROUILLON')}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white transition-all border border-white/15 cursor-pointer flex items-center gap-2"
+              >
+                <FileEdit className="w-4 h-4" />
+                Enregistrer Brouillon
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleSave('VALIDE')}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-primary hover:bg-primary-hover text-white transition-all shadow-lg cursor-pointer flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Valider l'Évaluation
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-red-400 font-bold flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4" /> Campagne clôturée : les évaluations sont figées.
+            </span>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-function TextArea({ label, value, onChange, placeholder, dark, disabled }: { label: string, value: string, onChange: (v: string) => void, placeholder: string, dark?: boolean, disabled?: boolean }) {
-  return (
-    <div className="w-full">
-      <label className={cn("block text-[10px] font-black uppercase tracking-[0.2em] mb-4 px-2", dark ? "text-white/30" : "text-accent/30")}>{label}</label>
-      <textarea
-        value={value}
-        disabled={disabled}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={cn(
-          "w-full p-6 rounded-xl min-h-[120px] text-lg font-light resize-none outline-none transition-all",
-          dark ? "bg-white/5 border border-white/10 text-white focus:bg-white/10" : "bg-accent/5 border border-accent/10 text-accent focus:bg-white shadow-inner",
-          disabled && "opacity-50 cursor-not-allowed"
-        )}
-      />
-    </div>
-  );
-}
-
-function NumberInput({ label, value, onChange, dark, disabled }: { label: string, value: number, onChange: (v: number) => void, dark?: boolean, disabled?: boolean }) {
-  return (
-    <div className="w-full">
-      <label className={cn("block text-[10px] font-black uppercase tracking-[0.2em] mb-4 px-2", dark ? "text-white/30" : "text-accent/30")}>{label}</label>
-      <input
-        type="number"
-        value={value || ''}
-        disabled={disabled}
-        onChange={e => onChange(Number(e.target.value))}
-        className={cn(
-          "w-full p-6 rounded-xl text-xl font-bold tracking-tight outline-none transition-all",
-          dark ? "bg-white/5 border border-white/10 text-white focus:bg-white/10" : "bg-accent/5 border border-accent/10 text-accent focus:bg-white shadow-inner",
-          disabled && "opacity-50 cursor-not-allowed"
-        )}
-      />
-    </div>
-  );
-}
-

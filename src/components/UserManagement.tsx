@@ -1,13 +1,18 @@
+import { defaultReportData } from '../data/defaultAnnualReport';
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, doc, updateDoc, getDoc, getDocs, where, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { collection, query, doc, updateDoc, getDoc, getDocs, where, setDoc, deleteDoc } from '../lib/localDatabase';
+import { db } from '../lib/localDatabase';
 import { UserProfile, UserRole, Grade } from '../types';
-import { Users, User as UserIcon, ChevronDown, Plus, Database, Trash2, Check, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Users, User as UserIcon, ChevronDown, Plus, Database, Trash2, Check, FileSpreadsheet, Loader2, RefreshCw, Download } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { seedMockData } from '../services/mockSeeder';
 import { cleanDatabase } from '../services/dataCleansing';
 import { importAccountsFromGoogleSheet } from '../services/googleSheetsService';
+import { DataReconciliationService, ReconciliationReport } from '../services/dataReconciliationService';
+import { UserDirectoryService } from '../services/userDirectoryService';
+import { LocalDatabaseService } from '../services/localDatabaseService';
+import { Personne, PersonneType } from '../types';
 
 // Subcomponents
 import { RoleBadge } from './users/UserCommonUI';
@@ -15,14 +20,14 @@ import { UserRowDrawer } from './users/UserRowDrawer';
 import { CreateUserModal } from './users/CreateUserModal';
 import { DeleteUserModal } from './users/DeleteUserModal';
 
-const sanitizeForFirestore = (obj: any): any => {
+const sanitizeForStorage = (obj: any): any => {
   if (obj === undefined) return null;
   if (obj === null) return null;
   if (typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+  if (Array.isArray(obj)) return obj.map(sanitizeForStorage);
   const result: any = {};
   for (const [key, value] of Object.entries(obj)) {
-    result[key] = sanitizeForFirestore(value);
+    result[key] = sanitizeForStorage(value);
   }
   return result;
 };
@@ -57,6 +62,24 @@ export function UserManagement({ currentUser }: UserManagementProps) {
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  const handleRunSafeMigration = async () => {
+    setIsMigrating(true);
+    try {
+      const report = await DataReconciliationService.executeSafeMigration();
+      let msg = `Rapprochement terminé : ${report.matchedUsers} compte(s) lié(s), ${report.createdPersonnesCount} profil(s) canonique(s) créé(s).`;
+      if (report.unresolvedUsers.length > 0) {
+        msg += ` ${report.unresolvedUsers.length} compte(s) non rapproché(s) par précaution.`;
+      }
+      showNotification('success', msg);
+    } catch (error: any) {
+      console.error("Migration error:", error);
+      showNotification('error', `Erreur lors du rapprochement : ${error.message || String(error)}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const handleImportFromSheet = async () => {
     setIsImporting(true);
@@ -84,10 +107,60 @@ export function UserManagement({ currentUser }: UserManagementProps) {
         const emailLower = account.email.trim().toLowerCase();
         const existing = existingUsersByEmail.get(emailLower);
 
+        // 1. Déterminer l'Id_Profil canonique APP_LL
+        const idProfil = account.matricule ? `LL_${account.matricule.trim()}` : (existing ? `PERS_${existing.id}` : `PERS_${account.email.replace(/[^a-zA-Z0-9]/g, '_')}`);
+        
+        // 2. Créer ou enrichir l'entité Personne dans le référentiel canonique
+        const nameParts = (account.displayName || account.email).trim().split(' ');
+        const prenom = nameParts[0] || '';
+        const nom = nameParts.slice(1).join(' ') || prenom;
+        const isCollaborateur = account.roles.includes('CANDIDATE');
+        const pType: PersonneType = isCollaborateur ? 'COLLABORATEUR' : 'EXTERNE';
+
+        const personneData: Partial<Personne> = {
+          idProfil,
+          matricule: account.matricule || undefined,
+          nom,
+          prenom,
+          displayName: account.displayName || account.email,
+          email: account.email,
+          statut: 'ACTIF',
+          type: pType,
+          entryDate: account.entryDate,
+          experienceYearsEmbauche: account.experienceYears,
+          updatedAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'personnes', idProfil), sanitizeForStorage(personneData), { merge: true });
+
+        // 3. Créer ou mettre à jour le snapshot figé de la campagne 2025
+        const participantId = `2025_${idProfil}`;
+        const hasCandidateRole = account.roles.includes('CANDIDATE') || (existing && existing.data.roles?.includes('CANDIDATE'));
+        const participantData = {
+          id: participantId,
+          campaignId: '2025',
+          campaignYear: 2025,
+          idProfil,
+          matricule: account.matricule,
+          displayName: account.displayName || (existing ? existing.data.displayName : account.email),
+          email: account.email,
+          team: account.team || 'Logic Clever',
+          grade: account.currentGrade || 'Confirmé',
+          salary: account.currentSalary || 0,
+          tjm: account.currentTJM || 0,
+          entryDate: account.entryDate,
+          totalExperienceYears: account.experienceYears,
+          isCandidate: !!hasCandidateRole,
+          isEvaluator: true,
+          dossierId: hasCandidateRole ? `${idProfil}_2025` : null,
+          updatedAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'campaign_participants', participantId), sanitizeForStorage(participantData), { merge: true });
+
         if (existing) {
           // Update existing user profile
           const userRef = doc(db, 'users', existing.id);
           const updatePayload: any = {
+            idProfil,
             displayName: account.displayName || existing.data.displayName,
             matricule: account.matricule || existing.data.matricule,
             currentGrade: account.currentGrade || existing.data.currentGrade,
@@ -100,7 +173,6 @@ export function UserManagement({ currentUser }: UserManagementProps) {
           };
 
           // If role CANDIDATE is specified and dossier doesn't exist, ensure dossier is created
-          const hasCandidateRole = account.roles.includes('CANDIDATE') || existing.data.roles?.includes('CANDIDATE');
           if (hasCandidateRole) {
             const dossierId = `${existing.id}_2025`;
             const dossierRef = doc(db, 'dossiers', dossierId);
@@ -109,12 +181,15 @@ export function UserManagement({ currentUser }: UserManagementProps) {
               const newDossier = {
                 id: dossierId,
                 candidateId: existing.id,
+                idProfil,
+                campaignId: '2025',
                 candidateName: updatePayload.displayName,
                 candidateEmail: account.email,
                 campaignYear: 2025,
                 status: 'OUVERT',
                 assignedConsultantIds: [],
                 annualReport: {
+                  ...defaultReportData,
                   currentGrade: updatePayload.currentGrade,
                   currentTJM: updatePayload.currentTJM,
                   currentSalary: updatePayload.currentSalary,
@@ -125,11 +200,14 @@ export function UserManagement({ currentUser }: UserManagementProps) {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               };
-              await setDoc(dossierRef, sanitizeForFirestore(newDossier));
+              await setDoc(dossierRef, sanitizeForStorage(newDossier));
+            } else {
+              // Ensure idProfil is present on existing dossier without erasing contents
+              await updateDoc(dossierRef, { idProfil, updatedAt: new Date().toISOString() });
             }
           }
 
-          await updateDoc(userRef, sanitizeForFirestore(updatePayload));
+          await updateDoc(userRef, sanitizeForStorage(updatePayload));
           updatedCount++;
         } else {
           // Create new user
@@ -138,6 +216,7 @@ export function UserManagement({ currentUser }: UserManagementProps) {
 
           const userPayload: Partial<UserProfile> = {
             id: newUserId,
+            idProfil,
             email: account.email,
             displayName: account.displayName,
             roles: account.roles,
@@ -152,7 +231,10 @@ export function UserManagement({ currentUser }: UserManagementProps) {
             updatedAt: new Date().toISOString(),
           };
 
-          await setDoc(newUserRef, sanitizeForFirestore(userPayload));
+          await setDoc(newUserRef, sanitizeForStorage(userPayload));
+
+          // Also link back firebaseUid in Personne
+          await updateDoc(doc(db, 'personnes', idProfil), { firebaseUid: newUserId });
 
           // If CANDIDATE role is assigned, create their evaluation dossier
           if (account.roles.includes('CANDIDATE')) {
@@ -160,12 +242,15 @@ export function UserManagement({ currentUser }: UserManagementProps) {
             const newDossier = {
               id: dossierId,
               candidateId: newUserId,
+              idProfil,
+              campaignId: '2025',
               candidateName: userPayload.displayName,
               candidateEmail: userPayload.email,
               campaignYear: 2025,
               status: 'OUVERT',
               assignedConsultantIds: [],
               annualReport: {
+                ...defaultReportData,
                 currentGrade: userPayload.currentGrade,
                 currentTJM: userPayload.currentTJM,
                 currentSalary: userPayload.currentSalary,
@@ -176,7 +261,7 @@ export function UserManagement({ currentUser }: UserManagementProps) {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             };
-            await setDoc(doc(db, 'dossiers', dossierId), sanitizeForFirestore(newDossier));
+            await setDoc(doc(db, 'dossiers', dossierId), sanitizeForStorage(newDossier));
           }
 
           createdCount++;
@@ -196,33 +281,17 @@ export function UserManagement({ currentUser }: UserManagementProps) {
   };
 
   useEffect(() => {
-    const q = query(collection(db, 'users'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        let roles = data.roles || [];
-        if (roles.length === 0 && data.role) {
-          roles = [data.role];
-        }
-        return { id: doc.id, ...data, roles } as UserProfile;
-      });
-      setUsers(docs);
+    const syncFromDirectory = () => {
+      setUsers(UserDirectoryService.getAllUsers());
       setLoading(false);
-    });
-    return () => unsubscribe();
+    };
+    syncFromDirectory();
+    return UserDirectoryService.subscribe(syncFromDirectory);
   }, []);
 
   useEffect(() => {
-    // Run database cleansing in the background on component mount
-    cleanDatabase()
-      .then((res) => {
-        if (res.deletedOrphans > 0 || res.deletedDuplicates > 0) {
-          showNotification('info', `Nettoyage de la base effectué : ${res.deletedDuplicates} doublon(s) et ${res.deletedOrphans} dossier(s) orphelin(s) supprimé(s).`);
-        }
-      })
-      .catch((err) => {
-        console.warn("Could not auto-clean database:", err);
-      });
+    // Non-destructive check: Do NOT automatically delete dossiers or users on mount
+    console.log("[UserManagement] Preserving all historical dossiers, archives and non-matched accounts.");
   }, []);
 
   const handleCreateUser = async (data: {
@@ -244,6 +313,7 @@ export function UserManagement({ currentUser }: UserManagementProps) {
 
       const userPayload: Partial<UserProfile> = {
         id: newUserId,
+        idProfil: data.matricule ? `LL_${data.matricule.trim()}` : `PERS_${newUserId}`,
         email: data.email,
         displayName: data.displayName,
         roles: data.roles,
@@ -262,7 +332,8 @@ export function UserManagement({ currentUser }: UserManagementProps) {
         userPayload.assignedCandidateIds = data.assignedCandidateIds;
       }
 
-      await setDoc(newUserRef, sanitizeForFirestore(userPayload));
+      // Enregistrer immédiatement dans le UserDirectoryService local
+      UserDirectoryService.addUser(userPayload as UserProfile);
 
       // If CANDIDATE role is assigned, create their dossier
       if (data.roles.includes('CANDIDATE')) {
@@ -273,9 +344,10 @@ export function UserManagement({ currentUser }: UserManagementProps) {
           candidateName: userPayload.displayName,
           candidateEmail: userPayload.email,
           campaignYear: 2025,
-          status: 'OUVERT',
+          status: 'OUVERT' as const,
           assignedConsultantIds: [],
           annualReport: {
+            ...defaultReportData,
             currentGrade: userPayload.currentGrade,
             currentTJM: userPayload.currentTJM,
             currentSalary: userPayload.currentSalary,
@@ -286,48 +358,23 @@ export function UserManagement({ currentUser }: UserManagementProps) {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        await setDoc(doc(db, 'dossiers', dossierId), sanitizeForFirestore(newDossier));
+        // 1. Sauvegarde locale instantanée
+        LocalDatabaseService.saveDossier(newDossier);
+
       }
 
       // If candidates are assigned for evaluation
       if (data.assignedCandidateIds && data.assignedCandidateIds.length > 0) {
         for (const candidateId of data.assignedCandidateIds) {
           const candDossierId = `${candidateId}_2025`;
-          const dossierRef = doc(db, 'dossiers', candDossierId);
-          try {
-            const dossierSnap = await getDoc(dossierRef);
-            if (dossierSnap.exists()) {
-              const dData = dossierSnap.data();
-              const currentCons = dData.assignedConsultantIds || [];
-              const newCons = Array.from(new Set([...currentCons, newUserId]));
-              await updateDoc(dossierRef, { assignedConsultantIds: newCons });
-            } else {
-              const candUserDoc = await getDoc(doc(db, 'users', candidateId));
-              const candData = candUserDoc.exists() ? candUserDoc.data() : null;
-              const newDossier = {
-                id: candDossierId,
-                candidateId: candidateId,
-                candidateName: candData?.displayName || 'Candidat',
-                candidateEmail: candData?.email || '',
-                campaignYear: 2025,
-                status: 'OUVERT',
-                assignedConsultantIds: [newUserId],
-                annualReport: {
-                  currentGrade: candData?.currentGrade || 'Confirmé',
-                  currentTJM: candData?.currentTJM || 0,
-                  currentSalary: candData?.currentSalary || 0,
-                },
-                clientFeedbacks: [],
-                documents: [],
-                consultantFeedbacks: {},
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              };
-              await setDoc(dossierRef, sanitizeForFirestore(newDossier));
-            }
-          } catch (e) {
-            console.warn(`Could not update dossier ${candDossierId} for evaluator:`, e);
+          const localExisting = LocalDatabaseService.getDossierById(candDossierId);
+          if (localExisting) {
+            const currentCons = localExisting.assignedConsultantIds || [];
+            const newCons = Array.from(new Set([...currentCons, newUserId]));
+            LocalDatabaseService.updateDossier(candDossierId, { assignedConsultantIds: newCons });
           }
+
+
         }
       }
 
@@ -379,6 +426,9 @@ export function UserManagement({ currentUser }: UserManagementProps) {
         });
       }
 
+      // Supprimer du répertoire local
+      UserDirectoryService.deleteUser(user.id);
+
       showNotification('success', "Utilisateur supprimé avec succès.");
       setUserToDelete(null);
     } catch (error: any) {
@@ -423,10 +473,9 @@ export function UserManagement({ currentUser }: UserManagementProps) {
 
     setUpdatingId(user.id);
     try {
-      await updateDoc(doc(db, 'users', user.id), {
-        roles: newRoles,
-        updatedAt: new Date().toISOString()
-      });
+      // Mettre à jour immédiatement dans le répertoire local
+      UserDirectoryService.updateUser(user.id, { roles: newRoles });
+
     } catch (error) {
       console.error("Error updating roles:", error);
       showNotification('error', "Erreur lors de la mise à jour des rôles.");
@@ -448,33 +497,23 @@ export function UserManagement({ currentUser }: UserManagementProps) {
         newAssigned = currentAssigned.filter(id => id !== candidateId);
       }
 
-      await updateDoc(doc(db, 'users', consultant.id), {
-        assignedCandidateIds: newAssigned,
-        updatedAt: new Date().toISOString()
-      });
+      // Mettre à jour immédiatement dans le répertoire local
+      UserDirectoryService.updateUser(consultant.id, { assignedCandidateIds: newAssigned });
+
 
       const candidateDossierId = `${candidateId}_2025`;
-      const dossierRef = doc(db, 'dossiers', candidateDossierId);
-      
-      try {
-        const dossierSnap = await getDoc(dossierRef);
-        
-        if (dossierSnap.exists()) {
-          const dData = dossierSnap.data();
-          const currentCons = dData.assignedConsultantIds || [];
-          let newCons: string[];
-          if (isAdding) {
-            newCons = Array.from(new Set([...currentCons, consultant.id]));
-          } else {
-            newCons = currentCons.filter((id: string) => id !== consultant.id);
-          }
-          await updateDoc(dossierRef, { 
-            assignedConsultantIds: newCons
-          });
+      const localDossier = LocalDatabaseService.getDossierById(candidateDossierId);
+      if (localDossier) {
+        const currentCons = localDossier.assignedConsultantIds || [];
+        let newCons: string[];
+        if (isAdding) {
+          newCons = Array.from(new Set([...currentCons, consultant.id]));
+        } else {
+          newCons = currentCons.filter((id: string) => id !== consultant.id);
         }
-      } catch (e) {
-        console.warn("Could not update dossier assignments:", e);
+        LocalDatabaseService.updateDossier(candidateDossierId, { assignedConsultantIds: newCons });
       }
+
 
     } catch (error) {
       console.error("Assignment error:", error);
@@ -502,6 +541,20 @@ export function UserManagement({ currentUser }: UserManagementProps) {
 
         <div className="flex items-center gap-3">
           <button 
+            onClick={handleRunSafeMigration}
+            disabled={isMigrating}
+            className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 cursor-pointer"
+            title="Rapprochement non-destructif : associe les comptes aux personnes sans rien supprimer"
+          >
+            {isMigrating ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {isMigrating ? "Rapprochement..." : "Rapprocher les profils"}
+          </button>
+
+          <button 
             onClick={handleImportFromSheet}
             disabled={isImporting}
             className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 cursor-pointer"
@@ -513,6 +566,18 @@ export function UserManagement({ currentUser }: UserManagementProps) {
               <FileSpreadsheet className="w-4 h-4" />
             )}
             {isImporting ? "Importation..." : "Importer depuis Google Sheet"}
+          </button>
+
+          <button 
+            onClick={() => {
+              UserDirectoryService.downloadUsersJson();
+              showNotification('success', "Le fichier users.json a été téléchargé avec succès !");
+            }}
+            className="flex items-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md cursor-pointer"
+            title="Télécharger le fichier users.json complet mis à jour pour l'intégrer au code"
+          >
+            <Download className="w-4 h-4" />
+            Exporter users.json
           </button>
 
           <button 
@@ -555,8 +620,23 @@ export function UserManagement({ currentUser }: UserManagementProps) {
                         <UserIcon className="w-6 h-6 text-accent/20" />
                       </div>
                       <div className="min-w-0">
-                        <div className="font-bold text-lg text-accent truncate mb-0.5">{user.displayName}</div>
-                        <div className="text-sm text-accent/40 truncate font-light">{user.email}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-lg text-accent truncate mb-0.5">{user.displayName}</div>
+                          {user.matricule && (
+                            <span className="text-[10px] bg-accent/10 px-2 py-0.5 rounded font-mono font-bold text-accent/70">
+                              {user.matricule}
+                            </span>
+                          )}
+                          {user.idProfil && (
+                            <span className="text-[9px] bg-secondary/10 text-secondary px-2 py-0.5 rounded font-mono font-bold" title="Id Profil Canonique APP_LL">
+                              {user.idProfil}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-accent/40 truncate font-light flex items-center gap-2">
+                          <span>{user.email}</span>
+                          <span className="text-[9px] text-accent/30 font-mono">UID: {user.id.slice(0, 8)}...</span>
+                        </div>
                       </div>
                     </div>
                   </td>

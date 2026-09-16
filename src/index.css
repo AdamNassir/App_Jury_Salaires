@@ -1,11 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-.field { border: 1px solid #cbd5e1; border-radius: 4px; padding: .5rem; background: white; max-width: 100%; font-size: 1rem; }
-.action { background: #0D66C2; color: white; border-radius: 4px; padding: .65rem 1rem; font-size: 1rem; cursor: pointer; }
-.action.secondary { background: #edf2f7; color: #2D3748; }
-button:disabled { opacity: .45; cursor: not-allowed; }
-
 @theme {
   --font-sans: "Lexend", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Lexend", ui-sans-serif, system-ui, sans-serif;

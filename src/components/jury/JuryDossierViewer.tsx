@@ -407,59 +407,84 @@ export function JuryDossierViewer({
             <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">Évaluations par les Pairs</h4>
             <div className="grid grid-cols-1 gap-6">
               {Object.values(dossier.consultantFeedbacks || {}).length > 0 ? (
-                Object.values(dossier.consultantFeedbacks || {}).map((f, i) => (
-                  <div key={i} className="bg-white p-8 rounded-xl border border-accent/10 shadow-sm relative group">
-                    <div className="absolute left-0 top-0 h-full w-1 bg-primary/30 rounded-full" />
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-accent/5 rounded-base flex items-center justify-center text-primary font-bold border border-accent/10 shadow-inner">{f.consultantName.charAt(0)}</div>
-                        <div>
-                          <div className="font-bold text-xl text-accent">{f.consultantName}</div>
-                          <div className="text-[10px] text-accent/40 font-black uppercase tracking-widest">{f.type}</div>
+                Object.values(dossier.consultantFeedbacks || {}).map((f, i) => {
+                  const displayType = f.relationType || f.type;
+                  const isLegacy = f.isLegacyType || ['Coach', 'Collègue en mission', 'Météo Client', 'Logiclever', 'COP & Epic'].includes(displayType as string);
+                  const isValide = f.status === 'VALIDE' || f.validated;
+
+                  return (
+                    <div key={f.id || i} className="bg-white p-8 rounded-xl border border-accent/10 shadow-sm relative group">
+                      <div className="absolute left-0 top-0 h-full w-1 bg-primary/30 rounded-full" />
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-accent/5 rounded-base flex items-center justify-center text-primary font-bold border border-accent/10 shadow-inner">
+                            {f.consultantName ? f.consultantName.charAt(0) : 'E'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xl text-accent">{f.consultantName}</span>
+                              <span className={cn(
+                                "text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider border",
+                                isValide ? "bg-green-50 text-green-600 border-green-200" : "bg-yellow-50 text-yellow-600 border-yellow-200"
+                              )}>
+                                {isValide ? 'Validé' : 'Brouillon'}
+                              </span>
+                              {isLegacy && (
+                                <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                  Type à rapprocher
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-accent/50 font-black uppercase tracking-widest mt-0.5">
+                              {String(displayType).replace('_', ' ')}
+                              {f.client ? ` • Client : ${f.client}` : ''}
+                              {f.project ? ` • Mission : ${f.project}` : ''}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-center bg-accent/5 px-6 py-3 rounded-xl border border-accent/10">
-                          <div className="text-[9px] font-black uppercase text-accent/30 mb-1">Confiance</div>
-                          <div className="text-2xl font-bold text-secondary leading-none">{f.confidenceIndex}<span className="text-xs opacity-30">/10</span></div>
-                        </div>
-                        {f.justification && (
-                          <button
-                            type="button"
-                            onClick={() => setZoomData({ title: `Retour Pair - ${f.consultantName}`, content: f.justification })}
-                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1 text-[9px] font-black text-secondary uppercase tracking-widest hover:text-secondary-dark transition-all px-2.5 py-1 bg-secondary/5 hover:bg-secondary/15 rounded-md cursor-pointer h-max self-center"
-                            title="Agrandir"
-                          >
-                            <Maximize2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-lg italic text-accent/60 mb-8 font-light leading-relaxed">"{f.justification}"</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-accent/5 pt-8">
-                      <div className="group/axes relative">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-[9px] font-black uppercase text-accent/30 tracking-widest">Points d'amélioration</div>
-                          {f.improvementAxes && (
+                        <div className="flex items-center gap-4">
+                          <div className="text-center bg-accent/5 px-6 py-3 rounded-xl border border-accent/10">
+                            <div className="text-[9px] font-black uppercase text-accent/30 mb-1">Confiance</div>
+                            <div className="text-2xl font-bold text-secondary leading-none">{f.confidenceIndex}<span className="text-xs opacity-30">/10</span></div>
+                          </div>
+                          {f.justification && (
                             <button
                               type="button"
-                              onClick={() => setZoomData({ title: `Points d'amélioration - ${f.consultantName}`, content: f.improvementAxes })}
-                              className="opacity-0 group-hover/axes:opacity-100 focus:opacity-100 flex items-center gap-1 text-[8px] font-black text-secondary uppercase tracking-widest hover:text-secondary-dark transition-all px-1.5 py-0.5 bg-secondary/5 hover:bg-secondary/15 rounded cursor-pointer"
+                              onClick={() => setZoomData({ title: `Retour Pair - ${f.consultantName}`, content: f.justification })}
+                              className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1 text-[9px] font-black text-secondary uppercase tracking-widest hover:text-secondary-dark transition-all px-2.5 py-1 bg-secondary/5 hover:bg-secondary/15 rounded-md cursor-pointer h-max self-center"
                               title="Agrandir"
                             >
-                              <Maximize2 className="w-2.5 h-2.5" />
+                              <Maximize2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
-                        <div className="text-sm text-accent/70 leading-relaxed">{f.improvementAxes}</div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-[9px] font-black uppercase text-accent/30 mb-3 tracking-widest">Estimation TJM</div>
-                        <div className="text-2xl font-bold text-accent">{f.targetTJMin}€ - {f.targetTJMax}€</div>
+                      <div className="text-lg italic text-accent/60 mb-8 font-light leading-relaxed">"{f.justification}"</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-accent/5 pt-8">
+                        <div className="group/axes relative">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="text-[9px] font-black uppercase text-accent/30 tracking-widest">Points d'amélioration</div>
+                            {f.improvementAxes && (
+                              <button
+                                type="button"
+                                onClick={() => setZoomData({ title: `Points d'amélioration - ${f.consultantName}`, content: f.improvementAxes })}
+                                className="opacity-0 group-hover/axes:opacity-100 focus:opacity-100 flex items-center gap-1 text-[8px] font-black text-secondary uppercase tracking-widest hover:text-secondary-dark transition-all px-1.5 py-0.5 bg-secondary/5 hover:bg-secondary/15 rounded cursor-pointer"
+                                title="Agrandir"
+                              >
+                                <Maximize2 className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="text-sm text-accent/70 leading-relaxed">{f.improvementAxes || 'Aucun point spécifique'}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] font-black uppercase text-accent/30 mb-3 tracking-widest">Estimation TJM</div>
+                          <div className="text-2xl font-bold text-accent">{f.targetTJMin || 0}€ - {f.targetTJMax || 0}€</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-12 border border-dashed border-accent/10 rounded-xl text-center text-accent/30 italic">Aucun retour de pair pour le moment.</div>
               )}

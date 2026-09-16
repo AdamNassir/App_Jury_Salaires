@@ -1,13 +1,14 @@
+import { defaultReportData } from '../data/defaultAnnualReport';
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, setDoc, updateDoc, serverTimestamp, collection, getDocs, query, where, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, setDoc, updateDoc, serverTimestamp, collection, getDocs, query, where, getDoc } from '../lib/localDatabase';
+import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, AnnualReport, ClientFeedback, Grade, PreviousObjective, NextObjective, Satisfaction, DossierStatus, DossierDocument } from '../types';
+import { LocalDatabaseService } from '../services/localDatabaseService';
 import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, ChevronRight, ChevronDown, Eye, Calculator, LogIn, TrendingUp, Maximize2, X, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateYears, calculateSalaryFormule, getPrimeAnciennete } from '../lib/salaryUtils';
-import { api } from '../services/api';
 import { generateDossierPDF } from '../utils/pdfGenerator';
 import { TabButton, DataBox } from './candidate/CandidateUI';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
@@ -21,16 +22,16 @@ import { ReferentTab } from './candidate/tabs/ReferentTab';
 import { PretentionsTab } from './candidate/tabs/PretentionsTab';
 import { SalaryCalculatorTab } from './candidate/tabs/SalaryCalculatorTab';
 
-const sanitizeForFirestore = (obj: any): any => {
+const sanitizeForStorage = (obj: any): any => {
   if (obj === undefined) return null;
   if (obj === null || typeof obj !== 'object') return obj;
   // Let Firebase FieldValue pass through unmodified
   if (obj._methodName || (obj.constructor && obj.constructor.name !== 'Object' && obj.constructor.name !== 'Array')) return obj;
-  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+  if (Array.isArray(obj)) return obj.map(sanitizeForStorage);
   const result: any = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value !== undefined) {
-      result[key] = sanitizeForFirestore(value);
+      result[key] = sanitizeForStorage(value);
     } else {
       result[key] = null;
     }
@@ -44,71 +45,10 @@ interface CandidateViewProps {
   currentUser?: UserProfile;
 }
 
-const defaultReportData: AnnualReport = {
-  yearSummary: '',
-  synthesis: '',
-  previousObjectives: [],
-  commercialActivities: '',
-  training: '',
-  knowHow: '',
-  progressionDetails: '',
-  techDetails: '',
-  certificationsDetail: '',
-  meetingPrep: '',
-  deliverables: '',
-  missionAutonomy: '',
-  autonomyLevel: 'Junior',
-  autonomyJustification: '',
-  commercialPresentation: '',
-  commercialAdvice: '',
-  commercialProposition: '',
-  commercialOffers: '',
-  lifeLogiclever: '',
-  lifeKnowledgeSharing: '',
-  lifeSlack: '',
-  lifeTeamSpirit: '',
-  lifeBusinessModel: '',
-  internalInvestment: 0,
-  hadIntercontrat: false,
-  intercontratDays: 0,
-  intercontratAchievements: '',
-  recruitmentPromotion: '',
-  recruitmentInterviews: '',
-  recruitmentSocial: '',
-  encadrementCoach: '',
-  encadrementManager: '',
-  squadName: '',
-  squadRole: '',
-  squadContributions: '',
-  isReferentOrAspiring: false,
-  coachedConsultantsCount: 0,
-  recruitmentInterviewsCount: 0,
-  clientFollowUpMeteos: '',
-  coordinationPoints: '',
-  referentSquadRole: '',
-  donorNetworkActions: '',
-  encadrementMissionDetails: '',
-  encadrementCoachingDetails: '',
-  careerGoals: '',
-  nextObjectives: [],
-  salaryExpectations: '',
-  wishedGrade: 'Confirmé',
-  wishedSalary: 0,
-  currentSalary: 0,
-  currentGrade: 'Confirmé',
-  currentTJM: 0,
-  targetTJM: 0,
-  satisfaction: {
-    tasks: 'C',
-    wellBeingMission: 'C',
-    wellBeingClient: 'C',
-    wellBeingLogiclever: 'C'
-  }
-};
 
 export function CandidateView({ profile, dossier, currentUser }: CandidateViewProps) {
-  const isJuryUser = currentUser?.roles?.some(r => r === 'JURY' || r === 'ADMIN') || false;
-  const isLockedForEditing = !!dossier?.campaignLocked || dossier?.status === 'VALIDE' || (!isJuryUser && dossier?.status === 'COMPLET');
+  const isJuryUser = currentUser?.roles?.includes('JURY') || profile.roles?.includes('JURY');
+  const isLockedForEditing = dossier?.status === 'VALIDE' || (!isJuryUser && dossier?.status === 'COMPLET');
 
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -226,10 +166,8 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   };
 
   const processFile = async (file: File) => {
-    const targetDossierId = dossier?.id;
-    if (!targetDossierId || dossier?.campaignLocked) return;
+    const targetDossierId = dossier?.id || `${profile.id}_2025`;
 
-    if (isLockedForEditing) return;
     if (file.size > 15 * 1024 * 1024) {
       console.error("Le document est trop volumineux. La taille maximale est de 15 Mo.");
       return;
@@ -249,8 +187,24 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
           console.log("Transmission du fichier au serveur pour analyse...", file.name, mimeType);
 
-          const resData = await api('/api/parse-document', { name: file.name, mimeType, base64: base64Content });
+          const backendRes = await fetch("/api/parse-document", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              name: file.name,
+              mimeType: mimeType,
+              base64: base64Content
+            })
+          });
 
+          if (!backendRes.ok) {
+            const errData = await backendRes.json();
+            throw new Error(errData.error || "Une erreur est survenue lors de l'extraction.");
+          }
+
+          const resData = await backendRes.json();
           if (resData.success && resData.data) {
             const extracted = resData.data;
             
@@ -269,9 +223,28 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
                 careerGoals: extracted.careerGoals || prev.careerGoals,
               };
 
+              setDoc(doc(db, 'dossiers', targetDossierId), {
+                annualReport: sanitizeForStorage(updated)
+              }, { merge: true }).catch(err => console.error("Auto-saved annualReport err:", err));
 
               return updated;
             });
+
+            const newDocMockUrl = `local-file://${encodeURIComponent(file.name)}`;
+            const newDocs = [
+              ...(dossier?.documents || []),
+              {
+                type: fileExt?.toUpperCase() === 'PDF' ? 'PDF' : 'DOCX',
+                name: file.name,
+                url: newDocMockUrl,
+                uploadedAt: new Date().toISOString(),
+                fieldsPopulated: true
+              }
+            ];
+
+            await setDoc(doc(db, 'dossiers', targetDossierId), {
+              documents: newDocs
+            }, { merge: true });
 
             console.log(`🎉 Succès ! Les champs de votre dossier de candidature ont été alimentés depuis le document de bilan "${file.name}".`);
             // Petit hack pour un feedback visuel simple sans bloquer:
@@ -399,7 +372,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
     if (submit) {
       if (reportData.wishedSalary > 0 && reportData.wishedSalary < (profile.currentSalary || 0)) {
-        alert(`La rémunération souhaitée (${formatCurrency(reportData.wishedSalary)}) ne peut pas être inférieure à votre salaire actuel (${formatCurrency(profile.currentSalary)}).`);
+        alert(`La rémunération souhaitée (${formatCurrency(reportData.wishedSalary)}) ne peut pas être inférieure à votre salaire actuel (${formatCurrency(profile.currentSalary || 0)}).`);
         setLoading(false);
         return;
       }
@@ -411,29 +384,78 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }
 
     try {
-      const status: DossierStatus = submit ? 'COMPLET' : (dossier?.status || 'OUVERT');
-      const targetDossierId = dossier?.id;
-    if (!targetDossierId || dossier?.campaignLocked) return;
-
-      await updateDoc(doc(db, 'dossiers', targetDossierId), sanitizeForFirestore({
-        status, annualReport: reportData, clientFeedbacks: feedbacks,
-        updatedAt: serverTimestamp()
-      }));
+      let updatedDocs = dossier?.documents || [];
 
       if (submit) {
         // Generate PDF report automatically on submission
         const pdfDataUri = generateDossierPDF(profile, dossier, reportData, feedbacks);
-        const pdfFileName = `Bilan_Annuel_${dossier?.campaignYear}_${(profile.displayName || profile.email || 'Candidat').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-        const link = document.createElement('a');
-        link.href = pdfDataUri;
-        link.download = pdfFileName;
-        link.click();
+        const pdfFileName = `Bilan_Annuel_2025_${(profile.displayName || profile.email || 'Candidat').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+        const newPdfDoc: DossierDocument = {
+          name: pdfFileName,
+          type: 'PDF',
+          url: pdfDataUri,
+          uploadedAt: new Date().toISOString(),
+          fieldsPopulated: true
+        };
+        const filteredDocs = updatedDocs.filter(d => d.name !== pdfFileName);
+        updatedDocs = [...filteredDocs, newPdfDoc];
+      }
+
+      const status: DossierStatus = submit ? 'COMPLET' : (dossier?.status || 'OUVERT');
+      const targetDossierId = dossier?.id || `${profile.id}_2025`;
+
+      if (!dossier) {
+        const q = query(
+          collection(db, 'users'), 
+          where('assignedCandidateIds', 'array-contains', profile.id)
+        );
+        const consultantDocs = await getDocs(q).catch(() => ({ docs: [] }));
+        let assignedConsultantIds = consultantDocs.docs.map(d => d.id);
+
+        const candidateDoc = await getDoc(doc(db, 'users', profile.id)).catch(() => null);
+        if (candidateDoc && candidateDoc.exists() && candidateDoc.data().assignedConsultantIds) {
+          const profileAssigned = candidateDoc.data().assignedConsultantIds || [];
+          assignedConsultantIds = Array.from(new Set([...assignedConsultantIds, ...profileAssigned]));
+        }
+
+        const newDossier: Dossier = {
+          id: targetDossierId,
+          candidateId: profile.id,
+          idProfil: profile.idProfil || (profile.matricule ? `LL_${profile.matricule.trim()}` : `PERS_${profile.id}`),
+          campaignId: '2025',
+          candidateName: profile.displayName || 'Anonyme',
+          candidateEmail: profile.email,
+          campaignYear: 2025,
+          status: status,
+          annualReport: reportData,
+          clientFeedbacks: feedbacks,
+          documents: updatedDocs,
+          assignedConsultantIds: assignedConsultantIds,
+          consultantFeedbacks: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        // 1. Sauvegarde locale instantanée
+        LocalDatabaseService.saveDossier(newDossier);
+
+      } else {
+        const dossierUpdates: Partial<Dossier> = {
+          status: status,
+          annualReport: reportData,
+          clientFeedbacks: feedbacks,
+          documents: updatedDocs,
+          updatedAt: new Date().toISOString()
+        };
+
+        // 1. Sauvegarde locale instantanée
+        LocalDatabaseService.updateDossier(dossier.id, dossierUpdates);
 
       }
 
       if (!isSilent) {
         if (submit) {
-          alert('Dossier soumis avec succès ! Un récapitulatif PDF de votre dossier a été téléchargé.');
+          alert('Dossier soumis avec succès ! Un récapitulatif PDF de votre dossier a été généré et est disponible dans "Pièces jointes".');
         } else {
           alert('Dossier sauvegardé avec succès !');
         }
@@ -505,7 +527,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             <DataBox label="Date Entrée" value={profile.entryDate ? new Date(profile.entryDate).toLocaleDateString() : 'N/A'} />
             <DataBox label="Expérience" value={`${profile.experienceYears} ans`} />
             <DataBox label="TJM Actuel" value={`${profile.currentTJM}€`} />
-            <DataBox label="Salaire Actuel" value={formatCurrency(profile.currentSalary)} />
+            <DataBox label="Salaire Actuel" value={formatCurrency(profile.currentSalary || 0)} />
             <DataBox label="Grade Actuel" value={profile.currentGrade} />
           </div>
           
@@ -561,7 +583,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
                 +{dossier.juryDecision?.amount}€
               </div>
               <div className="text-lg font-black uppercase text-accent/40 tracking-[0.3em]">
-                Salaire annuel propos? {dossier.juryDecision?.percentage ? `(${dossier.juryDecision.percentage}%)` : ''}
+                Augmentation Annuelle {dossier.juryDecision?.percentage ? `(${dossier.juryDecision.percentage}%)` : ''}
               </div>
             </div>
           </div>
@@ -570,9 +592,10 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     );
   }
 
-  const yearsLL = profile.seniorityYears ?? Number.NaN;
+  const refDate = reportData.wishedSalaryDate || dossier?.annualReport?.wishedSalaryDate;
+  const yearsLL = calculateYears(profile.entryDate, refDate);
   const prime = getPrimeAnciennete(yearsLL);
-  const yearsExpert = profile.expertYears ?? Number.NaN;
+  const yearsExpert = calculateYears(profile.expertGradeDate, refDate);
 
   const effectiveCurrentGrade: Grade | 'Junior' = (reportData.currentGrade || profile.currentGrade || 'Confirmé') as Grade | 'Junior';
 
@@ -590,7 +613,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   );
 
   // Calculate target salary corridor based on target TJM
-  const effectiveTargetTJM = reportData.targetTJM ?? profile.currentTJM ?? Number.NaN;
+  const effectiveTargetTJM = reportData.targetTJM || profile.currentTJM || 500;
   const corridorGrade = (reportData.wishedGrade || effectiveCurrentGrade) as Grade | 'Junior';
   const corridorMinSalary = calculateSalaryFormule(effectiveTargetTJM, corridorGrade, yearsExpert, prime);
   const corridorMaxSalary = calculateSalaryFormule(effectiveTargetTJM + 30, corridorGrade, yearsExpert, prime);

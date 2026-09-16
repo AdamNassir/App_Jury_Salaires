@@ -1,4 +1,4 @@
-export type UserRole = 'CANDIDATE' | 'JURY' | 'ADMIN' | 'EVALUATOR';
+export type UserRole = 'CANDIDATE' | 'JURY' | 'ADMIN';
 export type DossierStatus = 'OUVERT' | 'COMPLET' | 'VALIDE';
 export type CampaignStatus = 'OUVERTE' | 'CLÔTURÉE' | 'EN_PRÉPARATION';
 
@@ -25,16 +25,107 @@ export interface Campaign {
   updatedAt?: any;
   closedAt?: any;
   closedBy?: string;
-  mode?: 'NEW' | 'HISTORY';
-  importState?: 'RUNNING' | 'FAILED' | 'READY';
-  sourceFiles?: string[];
-  importRunId?: string;
 }
 export type Grade = 'Junior' | 'Confirmé' | 'Senior' | 'Expert';
-export type ConsultationType = 'Auto_Evaluation' | 'Commerciale' | 'Encadrement' | 'Meteo_Client' | 'Coach Logiclever' | 'Collègue_Mission';
+
+export type EvaluationRelationType = 
+  | 'Auto_Evaluation'
+  | 'Commerciale'
+  | 'Encadrement'
+  | 'Meteo_Client'
+  | 'Coach'
+  | 'Logiclever'
+  | 'Coach Logiclever'
+  | 'Collègue_Mission';
+
+export type ConsultationType = 
+  | EvaluationRelationType
+  | 'Commerciale' 
+  | 'Encadrement' 
+  | 'Météo Client' 
+  | 'Coach' 
+  | 'Logiclever' 
+  | 'Collègue en mission' 
+  | 'COP & Epic';
+
+export type PersonneStatus = 'ACTIF' | 'INACTIF' | 'SORTI';
+export type PersonneType = 'COLLABORATEUR' | 'ASSOCIE' | 'FREELANCE' | 'EXTERNE';
+
+/**
+ * Personne : Entité canonique du référentiel (clé métier canonique = idProfil APP_LL ou Boond)
+ * Distincte de l'UID d'authentification Firebase (qui est l'identifiant du compte de connexion).
+ * Une personne peut exister sans être candidate à une campagne.
+ */
+export interface Personne {
+  idProfil: string; // Canonique métier (ex: ID Boond, matricule ou idProfil)
+  matricule?: string;
+  trigramme?: string;
+  nom: string;
+  prenom: string;
+  displayName: string;
+  email: string;
+  statut: PersonneStatus;
+  type: PersonneType;
+  entryDate?: string;
+  experienceYearsEmbauche?: number;
+  expertGradeDate?: string;
+  firebaseUid?: string; // UID Firebase Auth associé (si un compte de connexion existe)
+  notes?: string;
+  createdAt: any;
+  updatedAt?: any;
+}
+
+/**
+ * Snapshot RH d'une personne pour une campagne spécifique.
+ * Préserve l'indépendance historique de chaque campagne :
+ * Modifier les valeurs d'une nouvelle campagne ne touche pas les campagnes antérieures.
+ */
+export interface CampaignParticipant {
+  id: string; // Ex: `${campaignId}_${idProfil}`
+  campaignId: string;
+  campaignYear: number;
+  idProfil: string; // Clé canonique vers la Personne
+  matricule?: string;
+  displayName: string;
+  email: string;
+  team?: string;
+  position?: string;
+  
+  // Données RH figées pour la campagne
+  grade: Grade | 'Junior';
+  salary: number; // Salaire de référence au 30/06 de l'année
+  tjm: number; // TJ vendu de référence
+  entryDate?: string;
+  expertGradeDate?: string;
+  totalExperienceYears?: number;
+  
+  // Rôles sur la campagne
+  isCandidate: boolean; // Si true, a un dossier de campagne
+  isEvaluator: boolean; // Si true, peut évaluer des pairs (même freelance/associé sans dossier candidat)
+  dossierId?: string; // Référence vers le dossier si isCandidate = true
+  
+  assignedCandidateIds?: string[]; // IDs des candidats que cet évaluateur doit noter
+  createdAt: any;
+  updatedAt?: any;
+}
+
+/**
+ * Diagnostic de réconciliation des données existantes
+ */
+export interface ReconciliationStatus {
+  id: string; // idProfil ou uid ou matricule
+  source: 'users' | 'dossiers' | 'personnes';
+  idProfil?: string;
+  firebaseUid?: string;
+  email?: string;
+  displayName?: string;
+  status: 'MATCHED' | 'UNRESOLVED' | 'CONFLICT' | 'LEGACY';
+  reason?: string;
+}
 
 export interface UserProfile {
-  id: string;
+  id: string; // Firebase Auth UID
+  idProfil?: string; // Référence vers Personne.idProfil
   email: string;
   displayName: string;
   roles: UserRole[];
@@ -50,15 +141,6 @@ export interface UserProfile {
   assignedCandidateIds?: string[];
   createdAt: any;
   updatedAt?: any;
-  profileId?: string;
-  firstName?: string;
-  lastName?: string;
-  profileType?: string;
-  boondId?: string;
-  experienceAtHire?: number;
-  seniorityYears?: number;
-  expertYears?: number;
-  active?: boolean;
 }
 
 export interface DossierDocument {
@@ -82,14 +164,6 @@ export interface ClientFeedback {
   clientRating?: number; // Note sur 10 Client
   consultantRating?: number; // Note sur 10 Consultant
   realizationDate?: string; // Date de réalisation de la météo
-  sourceId?: string;
-  sourceUrl?: string;
-  clientId?: string;
-  authorProfileId?: string;
-  sourceStatus?: string;
-  consultantSatisfaction?: string;
-  consultantImprovement?: string;
-  consultantPerspectives?: string;
 }
 
 export interface PreviousObjective {
@@ -191,6 +265,7 @@ export interface AnnualReport {
   salaryExpectations: string; // Commentaire libre pour le Jury
   wishedGrade: Grade;
   wishedSalary: number;
+  wishedSalaryDate?: string; // Date d'effet / date de référence souhaitée (ex: 2026-07-01)
   currentSalary: number;
   currentGrade?: Grade;
   currentTJM: number;
@@ -200,9 +275,18 @@ export interface AnnualReport {
 }
 
 export interface ConsultantFeedback {
+  id?: string;
   consultantId: string;
   consultantName: string;
   type: ConsultationType;
+  relationType?: EvaluationRelationType | string;
+  campaignId?: string;
+  client?: string;
+  project?: string;
+  evaluatorUid?: string;
+  evaluatorIdProfil?: string;
+  isLegacyType?: boolean;
+  status?: 'BROUILLON' | 'VALIDE';
   targetTJMin: number;
   targetTJMax: number;
   justification: string;
@@ -210,13 +294,6 @@ export interface ConsultantFeedback {
   confidenceIndex: number; // 0-5 or 1-10
   validated: boolean;
   updatedAt: any;
-  id?: string;
-  candidateId?: string;
-  campaignYear?: number;
-  client?: string;
-  project?: string;
-  sourceGrade?: string;
-  sourceTJM?: number;
 }
 
 export interface JuryDecision {
@@ -228,24 +305,32 @@ export interface JuryDecision {
   date: any;
   unanimous?: boolean;
   referentJury?: string;
-  // Analytical columns for Salary Table
-  investmentPercentage?: number; // % Investissement (objectif 60)
-  missionPercentage?: number;    // % Mission (objectif 98)
+  // Analytical and historical deliberation columns
+  gradeDecision?: Grade | string;
+  tjVendu0107?: number;
+  tjCibleDecision?: number;
+  salaire3006?: number;
+  wishedSalary0107?: number;
+  proposedSalary0107?: number;
+  maxSalaryIfTjVenduIncreases?: number;
   whyThisSalary?: string;
   whatToDoMore?: string;
   consultantFeeling?: string;
+  secondTourFeedback?: string;
+  investmentPercentage?: number; // % Investissement (objectif 60)
+  missionPercentage?: number;    // % Mission (objectif 98)
   primeBefore?: number;
   primeAfter?: number;
   proposedSalaryFormule?: number; 
   maxSalaryIfTJIncreases?: number;
   maxSalaryIfVenduIncreases?: number;
-  finalGrade?: string;
-  secondRoundFeedback?: string;
 }
 
 export interface Dossier {
   id: string;
-  candidateId: string;
+  candidateId: string; // idProfil (ou legacy UID pour les anciens dossiers)
+  idProfil?: string; // Clé canonique APP_LL / Boond
+  campaignId?: string; // Référence vers la campagne spécifique
   candidateName: string;
   candidateEmail: string;
   campaignYear: number;
@@ -267,10 +352,6 @@ export interface Dossier {
   
   createdAt: any;
   updatedAt: any;
-  rhSnapshot?: Partial<UserProfile>;
-  campaignLocked?: boolean;
-  archived?: boolean;
-  sourceFiles?: string[];
 }
 
 export interface FirestoreErrorInfo {

@@ -31,7 +31,6 @@ export function handleFirestoreError(error: any, operationType: FirestoreErrorIn
 }
 
 export function formatCurrency(amount: number) {
-  if (amount == null || !Number.isFinite(amount)) return "Non renseigné / non calculable";
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
 }
 

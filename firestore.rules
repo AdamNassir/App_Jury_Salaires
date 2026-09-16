@@ -1,54 +1,108 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
-    function account() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
-    function member() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && account().get('accessVersion', 0) == 2 && account().get('roles', []).hasAny(['ADMIN', 'JURY', 'EVALUATOR']) && account().get('profileId', '') != ''; }
-    function staff() { return member() && account().get('roles', []).hasAny(['ADMIN', 'JURY']); }
-    function admin() { return member() && account().get('roles', []).hasAny(['ADMIN']); }
-    function openCampaign(data) {
-      let campaign = get(/databases/$(database)/documents/campaigns/$("campaign_" + string(data.campaignYear))).data;
-      return campaign.status == 'OUVERTE' && campaign.get('importState', 'READY') == 'READY';
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
     }
-    match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || admin());
-      allow write: if false;
+
+    // --- Helpers ---
+    
+    function isSignedIn() {
+      return request.auth != null;
     }
-    match /profiles/{id} {
-      allow read: if member();
-      allow write: if false;
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
-    match /campaigns/{id} {
-      allow read: if member();
-      allow write: if false;
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
-    match /participants/{id} {
-      allow read: if member();
-      allow update: if staff() && openCampaign(resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        && request.resource.data.status in ['OUVERT', 'COMPLET', 'VALIDE'];
-      allow create, delete: if false;
-    }
-    match /dossiers/{id} {
-      allow read: if member() && (staff() || resource.data.candidateId == account().profileId);
-      allow create, delete: if false;
-      allow update: if member() && openCampaign(resource.data) && resource.data.status != 'VALIDE' && (
-        (staff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['annualReport', 'clientFeedbacks', 'documents', 'juryDecision', 'status', 'updatedAt'])
-          && request.resource.data.status in ['OUVERT', 'COMPLET', 'VALIDE']) ||
-        (resource.data.candidateId == account().profileId && resource.data.status == 'OUVERT'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['annualReport', 'clientFeedbacks', 'documents', 'status', 'updatedAt'])
-          && request.resource.data.status in ['OUVERT', 'COMPLET'])
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email.matches('(?i)guillaumebestece@gmail\\.com') ||
+        request.auth.token.email.matches('(?i)guillaume\\.best@logiclever\\.com') ||
+        request.auth.token.email.matches('(?i)adam\\.nassir@logiclever\\.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('roles', []).hasAny(['JURY', 'ADMIN']) ||
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['JURY', 'ADMIN']
+         )
+        )
       );
     }
-    match /evaluations/{id} {
-      allow read: if member() && (staff() || resource.data.consultantId == account().profileId);
-      allow write: if false;
+
+    function isJury() {
+      return isAdmin();
     }
-    match /importRuns/{id} {
-      allow read: if admin();
-      allow write: if false;
-      match /before/{backupId} { allow read: if admin(); allow write: if false; }
+
+    function hasRole(role) {
+      return isAdmin() || (isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('roles', []).hasAny([role]));
     }
-    match /{document=**} { allow read, write: if false; }
+
+    function isConsultantOnDossier(dossierData) {
+      return isSignedIn() && dossierData.get('assignedConsultantIds', []).hasAny([request.auth.uid]);
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && (userId == request.auth.uid || isJury());
+      allow update: if isSignedIn() && (
+        userId == request.auth.uid || 
+        isJury()
+      );
+      allow delete: if isJury();
+    }
+
+    function isCampaignClosed(campaignId) {
+      return campaignId != null && 
+        exists(/databases/$(database)/documents/campaigns/$(campaignId)) &&
+        get(/databases/$(database)/documents/campaigns/$(campaignId)).data.get('status', '') == 'CLÔTURÉE';
+    }
+
+    match /dossiers/{dossierId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && (
+        isJury() ||
+        (incoming().candidateId == request.auth.uid && incoming().status == 'OUVERT')
+      );
+
+      allow update: if isSignedIn() && (
+        isJury() ||
+        // Candidate updating own dossier before validation and if campaign not closed
+        (resource.data.candidateId == request.auth.uid && 
+         existing().status != 'VALIDE' && 
+         !isCampaignClosed(resource.data.get('campaignId', null))) ||
+        // Evaluator / consultant submitting or updating peer review:
+        // - Campaign must NOT be closed
+        // - Dossier status cannot be forcibly changed to VALIDE by evaluator
+        (!isCampaignClosed(resource.data.get('campaignId', null)) &&
+         incoming().status != 'VALIDE')
+      );
+      
+      allow delete: if isJury();
+    }
+
+    match /campaigns/{campaignId} {
+      allow read, create, update, delete: if isSignedIn();
+    }
+
+    match /personnes/{personneId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isJury();
+    }
   }
 }

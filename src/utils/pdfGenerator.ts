@@ -33,7 +33,7 @@ export function generateDossierPDF(
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text(`LOGICLEVER - DOSSIER DE PROMOTION ${dossier?.campaignYear ?? ""}`, margin, 12);
+  doc.text('LOGICLEVER - DOSSIER DE PROMOTION 2025', margin, 12);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -228,7 +228,7 @@ export function generateDossierPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(`Document généré automatiquement - Logiclever Promotion ${dossier?.campaignYear ?? ""} - Page ${i} sur ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+    doc.text(`Document généré automatiquement - Logiclever Promotion 2025 - Page ${i} sur ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
   }
 
   return doc.output('datauristring');

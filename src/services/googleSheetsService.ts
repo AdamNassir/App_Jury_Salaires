@@ -1,4 +1,3 @@
-import { auth } from '../lib/firebase';
 import { getGoogleAccessToken, requestGoogleSheetsAccess } from '../lib/firebase';
 import { Dossier, UserProfile, JuryDecision, UserRole, Grade } from '../types';
 import { 
@@ -113,14 +112,169 @@ async function ensureSheetTabExists(spreadsheetId: string, sheetTitle: string, t
 }
 
 /**
+ * Resolves Id_Annees_Experience_A_Embauche from Boond_Liste_Valeur
+ * Strictly filters by Nom_Valeur === 'Annees_Experience_A_Embauche' to prevent key collisions between families
+ */
+export function resolveBoondExperience(
+  idAnneesExperience: string | number | null | undefined,
+  valeurRows: Array<{ Id_Valeur?: any; Nom_Valeur?: any; ID_Boond?: any; Libelle_Valeur?: any }>
+): number | null {
+  if (idAnneesExperience === null || idAnneesExperience === undefined || idAnneesExperience === '') {
+    return null;
+  }
+  const targetId = String(idAnneesExperience).trim();
+  
+  const expRow = valeurRows.find(row => {
+    const nomValeur = String(row.Nom_Valeur || '').trim();
+    if (nomValeur !== 'Annees_Experience_A_Embauche') return false;
+    const boondId = String(row.ID_Boond ?? '').trim();
+    const idVal = String(row.Id_Valeur ?? '').trim();
+    return boondId === targetId || idVal === targetId;
+  });
+
+  if (!expRow || !expRow.Libelle_Valeur) return null;
+  
+  const lib = String(expRow.Libelle_Valeur).trim();
+  const match = lib.match(/(\d+(?:[.,]\d+)?)/);
+  if (match) {
+    return parseFloat(match[1].replace(',', '.'));
+  }
+  return null;
+}
+
+/**
  * Prepares the deliberation row matrix from app data
  */
-export function prepareDeliberationsData(dossiers: Dossier[], candidates: Record<string, UserProfile>): { headers: string[]; rows: (string | number)[][] } {
-  const headers = ['Id_Profil','Campagne','Matricule','Prénom','Nom','Titre au 30/06','Salaire au 30/06','TJ vendu (01/07)','Exp.','Ancienneté LL',"Année en tant qu'expert",'TJ Cible','Salaire souhaité','Nouveau Grade','% Investissement','% Mission','Salaire proposé au 01/07','Salaire MAX proposé si TJ vendu augmente',"Salaire MAX proposé si TJ vendu augmenté en cours d'année",'Pourquoi ce salaire proposé',"Ce qu'il faut faire pour avoir plus",'Référent Jury de salaire','Ressenti consultant','Retour Second tour','Prime bureautique ancienneté (avant jury)','Prime bureautique ancienneté (après jury)','Statut dossier','Verdict'];
-  const rows = dossiers.map(d => {
-    const p = { ...candidates[d.candidateId], ...d.rhSnapshot }, j = d.juryDecision;
-    return [d.candidateId,d.campaignYear,p.matricule,p.firstName,p.lastName,p.currentGrade,p.currentSalary,p.currentTJM,p.experienceYears,p.seniorityYears,p.expertYears,d.annualReport?.targetTJM,d.annualReport?.wishedSalary,j?.finalGrade,j?.investmentPercentage,j?.missionPercentage,j?.amount,j?.maxSalaryIfTJIncreases,j?.maxSalaryIfVenduIncreases,j?.whyThisSalary,j?.whatToDoMore,j?.referentJury,j?.consultantFeeling,j?.secondRoundFeedback,j?.primeBefore,j?.primeAfter,d.status,j?.verdict].map(v => v ?? '');
+export function prepareDeliberationsData(
+  dossiers: Dossier[], 
+  candidates: Record<string, UserProfile>,
+  referenceDate?: string | Date | null
+): { headers: string[]; rows: (string | number)[][] } {
+  const headers = [
+    'Matricule',
+    'Collaborateur',
+    'Expérience (années)',
+    'Date Entrée LL',
+    'Date Grade Expert',
+    'Ancienneté LL (ans)',
+    'Années Expert',
+    'Grade Actuel',
+    'TJ Vendu (€)',
+    'Salaire Vendu (€)',
+    'Salaire Vendu 100% (€)',
+    'TJ Cible (€)',
+    'Salaire Cible (€)',
+    'Salaire Cible 100% (€)',
+    'Salaire Actuel (€)',
+    'Marge Mission (%)',
+    'Salaire Souhaité (€)',
+    'Grade Souhaité',
+    'Marge Souhaitée (%)',
+    '% Investissement',
+    '% Mission',
+    'Salaire Proposé Jury (€)',
+    'Prime Ancienneté (€)',
+    '% Augmentation',
+    'Marge Post-Jury (%)',
+    'Salaire Formule (€)',
+    'Salaire Max si Hausse TJ (€)',
+    'Verdict Jury',
+    'Pourquoi ce salaire',
+    'Actions Progrès',
+    'Référent Jury',
+    'Ressenti Consultant',
+    'Horodatage Export'
+  ];
+
+  const nowStr = new Date().toLocaleString('fr-FR');
+  
+  // Deduplicate dossiers by candidateId
+  const candidateIdsSeen = new Set<string>();
+  const rows: (string | number)[][] = [];
+
+  dossiers.forEach(dossier => {
+    if (!dossier.candidateId || candidateIdsSeen.has(dossier.candidateId)) return;
+    candidateIdsSeen.add(dossier.candidateId);
+
+    const candidate = candidates[dossier.candidateId];
+    if (!candidate) return;
+
+    const yearsLL = calculateYears(candidate.entryDate, referenceDate);
+    const yearsExpert = candidate.currentGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
+    const prime = getPrimeAnciennete(yearsLL);
+    const tjVendu = candidate.currentTJM || 0;
+    const currentSalary = candidate.currentSalary || 0;
+
+    const tjCible = dossier.annualReport?.targetTJM || 0;
+    const salaireVendu = calculateSalaryFormule(tjVendu, candidate.currentGrade || 'Junior', yearsExpert, prime);
+    const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, candidate.currentGrade || 'Junior', yearsExpert, prime);
+
+    const targetGrade = dossier.annualReport?.wishedGrade || candidate.currentGrade || 'Junior';
+    const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
+    const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
+    const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
+
+    const decision = (dossier.juryDecision || {}) as JuryDecision;
+    const wishedSalary = dossier.annualReport?.wishedSalary || 0;
+
+    const realMargin = calculateMargin(tjVendu, currentSalary, prime);
+    const wishedMargin = calculateMargin(tjVendu, wishedSalary, prime);
+    const proposedSalary = decision.amount || currentSalary;
+    const marginPostJury = calculateMargin(tjVendu, proposedSalary, prime);
+    const percentage = currentSalary ? Math.round(((proposedSalary - currentSalary) / currentSalary) * 1000) / 10 : 0;
+
+    const invest = decision.investmentPercentage ?? 60;
+    const mission = decision.missionPercentage ?? 98;
+
+    const calc1 = (mission / 100) * (((invest * (salaireCible100 - salaireCible)) / 100) + salaireCible);
+    const calc2 = (mission / 100) * (((invest * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu);
+
+    let resFormule = currentSalary;
+    if (currentSalary >= calc1 && currentSalary >= calc2) {
+      resFormule = currentSalary;
+    } else if (calc1 > currentSalary && calc1 <= calc2) {
+      resFormule = calc1;
+    } else if (calc2 > currentSalary && calc2 <= calc1) {
+      resFormule = calc2;
+    }
+
+    rows.push([
+      candidate.matricule || 'N/A',
+      candidate.displayName || 'Inconnu',
+      candidate.experienceYears ?? '-',
+      candidate.entryDate ? new Date(candidate.entryDate).toLocaleDateString('fr-FR') : '-',
+      candidate.expertGradeDate ? new Date(candidate.expertGradeDate).toLocaleDateString('fr-FR') : '-',
+      yearsLL !== null ? yearsLL : '-',
+      yearsExpert !== null ? yearsExpert : '-',
+      candidate.currentGrade || 'Junior',
+      tjVendu,
+      Math.round(salaireVendu),
+      Math.round(salaireVendu100),
+      tjCible,
+      Math.round(salaireCible),
+      Math.round(salaireCible100),
+      currentSalary,
+      realMargin !== null ? `${realMargin}%` : '-',
+      wishedSalary,
+      targetGrade,
+      wishedMargin !== null ? `${wishedMargin}%` : '-',
+      invest,
+      mission,
+      proposedSalary,
+      prime,
+      `${percentage}%`,
+      marginPostJury !== null ? `${marginPostJury}%` : '-',
+      Math.round(resFormule),
+      decision.maxSalaryIfTJIncreases || 0,
+      decision.verdict || 'Favorable',
+      decision.whyThisSalary || '',
+      decision.whatToDoMore || '',
+      decision.referentJury || '',
+      decision.consultantFeeling || '',
+      nowStr
+    ]);
   });
+
   return { headers, rows };
 }
 
@@ -133,20 +287,21 @@ export async function exportDeliberationsToGoogleSheet(
   dossiers: Dossier[],
   candidates: Record<string, UserProfile>,
   customSpreadsheetId?: string,
-  tabName: string = DEFAULT_SHEET_TAB_NAME
+  tabName: string = DEFAULT_SHEET_TAB_NAME,
+  referenceDate?: string | Date | null
 ): Promise<SheetExportResult> {
   const spreadsheetId = customSpreadsheetId || PREDEFINED_EXPORT_SPREADSHEET_ID;
   const sheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
 
   // 1. Prepare data rows
-  const { headers, rows } = prepareDeliberationsData(dossiers, candidates);
+  const { headers, rows } = prepareDeliberationsData(dossiers, candidates, referenceDate);
   const allValues = [headers, ...rows];
 
   // 2. Attempt server-side export via Google Service Account
   try {
     const serverRes = await fetch('/api/sheets/export', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await auth.currentUser?.getIdToken()}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         spreadsheetId,
         tabName,
@@ -250,8 +405,7 @@ export async function importDataFromGoogleSheet(
   // 1. Attempt server-side import via Service Account
   try {
     const serverRes = await fetch(
-      `/api/sheets/import?spreadsheetId=${encodeURIComponent(spreadsheetId)}&range=${encodeURIComponent(fullRange)}`,
-      { headers: { Authorization: `Bearer ${await auth.currentUser?.getIdToken()}` } }
+      `/api/sheets/import?spreadsheetId=${encodeURIComponent(spreadsheetId)}&range=${encodeURIComponent(fullRange)}`
     );
     if (serverRes.ok) {
       const serverData = await serverRes.json();
@@ -437,16 +591,18 @@ export async function importAccountsFromGoogleSheet(
   }
 
   const [rawHeaders, ...rawRows] = values;
-  const headers = rawHeaders.map(h => String(h).trim().toLowerCase());
+  const cleanHeader = (h: any) => String(h || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  const headers = rawHeaders.map(cleanHeader);
 
   // Use dynamic column mapping from google-sheets-config.json for this specific spreadsheetId and tabName
   const headerMap = GoogleSheetsConfigService.getHeaderToFieldMap(spreadsheetId, tabName);
 
   const getColIdx = (fieldKey: string, fallbackKeywords: string[]): number => {
     // 1. Look up exact configured header from google-sheets-config.json
-    const configuredHeader = GoogleSheetsConfigService.getColumnHeader(spreadsheetId, tabName, fieldKey)?.trim().toLowerCase();
+    const configuredHeader = GoogleSheetsConfigService.getColumnHeader(spreadsheetId, tabName, fieldKey);
     if (configuredHeader) {
-      const idx = headers.indexOf(configuredHeader);
+      const cleanedConfig = cleanHeader(configuredHeader);
+      const idx = headers.indexOf(cleanedConfig);
       if (idx !== -1) return idx;
     }
 
@@ -458,7 +614,24 @@ export async function importAccountsFromGoogleSheet(
     }
 
     // 3. Fallback keyword scan
-    return headers.findIndex(h => fallbackKeywords.some(kw => h.includes(kw)));
+    const keywordIdx = headers.findIndex(h => fallbackKeywords.some(kw => h.includes(kw)));
+    if (keywordIdx !== -1) return keywordIdx;
+
+    // 4. Specific regex fallbacks for headers with variable campaign years or whitespace/newlines
+    if (fieldKey === 'experienceYears') {
+      const expIdx = headers.findIndex(h => /exp(\.|\s)*\(année pleine\)/i.test(h));
+      if (expIdx !== -1) return expIdx;
+    }
+    if (fieldKey === 'currentSalary') {
+      const salIdx = headers.findIndex(h => /salaire au 30\/06\/\d{4}/i.test(h));
+      if (salIdx !== -1) return salIdx;
+    }
+    if (fieldKey === 'currentTJM') {
+      const tjmIdx = headers.findIndex(h => /tj\s*vendu/i.test(h));
+      if (tjmIdx !== -1) return tjmIdx;
+    }
+
+    return -1;
   };
 
   // Detect column indexes
@@ -519,17 +692,20 @@ export async function importAccountsFromGoogleSheet(
       ? normalizeDate(String(row[colIndex.entryDate]))
       : new Date().toISOString().split('T')[0];
 
-    const experienceYears = colIndex.exp !== -1 && row[colIndex.exp]
-      ? parseCleanNumber(row[colIndex.exp])
-      : 3;
+    const expRaw = colIndex.exp !== -1 ? row[colIndex.exp] : undefined;
+    const experienceYears = expRaw !== undefined && expRaw !== null && String(expRaw).trim() !== ''
+      ? parseCleanNumber(expRaw)
+      : 0;
 
-    const currentSalary = colIndex.salary !== -1 && row[colIndex.salary]
-      ? parseCleanNumber(row[colIndex.salary])
-      : 42000;
+    const salaryRaw = colIndex.salary !== -1 ? row[colIndex.salary] : undefined;
+    const currentSalary = salaryRaw !== undefined && salaryRaw !== null && String(salaryRaw).trim() !== ''
+      ? parseCleanNumber(salaryRaw)
+      : 0;
 
-    const currentTJM = colIndex.tjm !== -1 && row[colIndex.tjm]
-      ? parseCleanNumber(row[colIndex.tjm])
-      : 550;
+    const tjmRaw = colIndex.tjm !== -1 ? row[colIndex.tjm] : undefined;
+    const currentTJM = tjmRaw !== undefined && tjmRaw !== null && String(tjmRaw).trim() !== ''
+      ? parseCleanNumber(tjmRaw)
+      : 0;
 
     const team = colIndex.team !== -1 && row[colIndex.team]
       ? String(row[colIndex.team]).trim()

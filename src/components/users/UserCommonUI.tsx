@@ -5,13 +5,11 @@ import { cn } from '../../lib/utils';
 
 export function RoleBadge({ role }: { role: UserRole }) {
   const styles: Record<UserRole, string> = {
-    EVALUATOR: 'Évaluateur',
     CANDIDATE: "bg-secondary/10 text-secondary border-secondary/20",
     JURY: "bg-accent text-white border-accent",
     ADMIN: "bg-purple-700 text-white border-purple-800"
   };
   const labels: Record<UserRole, string> = {
-    EVALUATOR: 'bg-blue-100 text-blue-700',
     CANDIDATE: "Candidat & Évaluateur",
     JURY: "Membre Jury",
     ADMIN: "Administrateur"
@@ -20,6 +18,21 @@ export function RoleBadge({ role }: { role: UserRole }) {
     <span className={cn("px-4 py-1.5 rounded-base text-[10px] font-black uppercase tracking-[0.2em] inline-flex items-center gap-2 border shadow-sm", styles[role] || "bg-accent text-white border-accent")}>
       <Shield className="w-3.5 h-3.5" />
       {labels[role] || role}
+    </span>
+  );
+}
+
+export function PersonneTypeBadge({ type }: { type?: string }) {
+  if (!type) return null;
+  const styles: Record<string, string> = {
+    COLLABORATEUR: "bg-blue-50 text-blue-700 border-blue-200",
+    ASSOCIE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    FREELANCE: "bg-amber-50 text-amber-700 border-amber-200",
+    EXTERNE: "bg-slate-100 text-slate-700 border-slate-200"
+  };
+  return (
+    <span className={cn("px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border", styles[type] || "bg-gray-100 text-gray-700 border-gray-200")}>
+      {type}
     </span>
   );
 }

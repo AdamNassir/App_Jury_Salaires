@@ -24,7 +24,7 @@ export function MeteosTab({
   setSelectedMeteoIndex
 }: MeteosTabProps) {
   const sortedMeteos = [...feedbacks]
-    .filter(f => f.client && f.realizationDate && Number.isFinite(f.clientRating) && Number.isFinite(f.consultantRating))
+    .filter(f => f.client)
     .sort((a, b) => (a.realizationDate || '').localeCompare(b.realizationDate || ''));
 
   return (
@@ -366,14 +366,7 @@ export function MeteosTab({
           })()
         ) : (
           <div className="space-y-16">
-            {feedbacks.map((f, idx) => f.sourceId ? (
-              <article key={f.id} className="rounded-xl border p-6 space-y-3">
-                <h3 className="font-bold">{f.client || f.clientId} — {f.realizationDate}</h3>
-                <p className="text-sm">Météo importée · {f.sourceId} · {f.sourceStatus}</p>
-                {Object.entries({ 'Satisfaction client': f.satisfactionItems, 'Axes client': f.improvementAxes, 'Perspectives client': f.perspectives, 'Recommandation': f.recommendation, 'Vision client': f.clientVision, 'Vision consultant': f.consultantVision, 'Satisfaction consultant': f.consultantSatisfaction, 'Axes consultant': f.consultantImprovement, 'Perspectives consultant': f.consultantPerspectives }).filter(([, value]) => value).map(([label, value]) => <p key={label} className="whitespace-pre-wrap"><strong>{label} : </strong>{value}</p>)}
-                {f.sourceUrl && /^https:\/\//i.test(f.sourceUrl) && <a href={f.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">Ouvrir la météo source</a>}
-              </article>
-            ) : (
+            {feedbacks.map((f, idx) => (
               <div key={f.id} className="relative p-10 rounded-xl border border-accent/10 bg-accent/5 space-y-10">
                 <div className="flex flex-col gap-6 pb-10 border-b border-accent/10">
                   <div className="flex items-center justify-between gap-6 w-full">

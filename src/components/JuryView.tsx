@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { UserProfile, Dossier } from '../types';
+import { UserDirectoryService } from '../services/userDirectoryService';
 import { Gavel, Table, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SalaryTable } from './SalaryTable';
@@ -14,10 +13,9 @@ import { JuryDossierViewer } from './jury/JuryDossierViewer';
 interface JuryViewProps {
   dossiers: Dossier[];
   profile: UserProfile;
-  candidates: Record<string, UserProfile>;
 }
 
-export function JuryView({ dossiers, profile, candidates }: JuryViewProps) {
+export function JuryView({ dossiers, profile }: JuryViewProps) {
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'DELIBERATIONS' | 'SALARY_TABLE'>('DELIBERATIONS');
   const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({
@@ -32,12 +30,41 @@ export function JuryView({ dossiers, profile, candidates }: JuryViewProps) {
     });
   };
   const [zoomData, setZoomData] = useState<{ title: string; content: string } | null>(null);
-  const [filterStatus, setFilterStatus] = useState<Dossier['status'] | 'ALL'>('COMPLET');
+  const [filterStatus, setFilterStatus] = useState<Dossier['status'] | 'ALL'>('ALL');
+  const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
 
+  useEffect(() => {
+    // 1. Initialiser instantanément depuis UserDirectoryService
+    const syncCandidates = () => {
+      const all = UserDirectoryService.getCandidates();
+      const users: Record<string, UserProfile> = {};
+      all.forEach(u => {
+        users[u.id] = u;
+        if (u.idProfil) users[u.idProfil] = u;
+        if (u.matricule) users[u.matricule] = u;
+      });
+      setCandidates(users);
+    };
+    syncCandidates();
+    return UserDirectoryService.subscribe(syncCandidates);
+  }, []);
 
   const selectedDossier = dossiers.find(d => d.id === selectedDossierId) || null;
   const filteredDossiers = dossiers.filter(d => filterStatus === 'ALL' || d.status === filterStatus);
-  const selectedCandidate = selectedDossier ? (candidates[selectedDossier.candidateId] || null) : null;
+  const selectedCandidate = selectedDossier ? (
+    candidates[selectedDossier.candidateId] ||
+    (selectedDossier.idProfil && candidates[selectedDossier.idProfil]) ||
+    {
+      id: selectedDossier.candidateId,
+      idProfil: selectedDossier.idProfil,
+      displayName: selectedDossier.candidateName,
+      email: selectedDossier.candidateEmail || '',
+      roles: ['CANDIDATE'],
+      currentGrade: selectedDossier.annualReport?.currentGrade,
+      currentSalary: selectedDossier.annualReport?.currentSalary,
+      currentTJM: selectedDossier.annualReport?.currentTJM
+    } as UserProfile
+  ) : null;
 
   // Calculate average target TJM from consultant feedbacks
   const calculateAverageTargetTJM = (dossier: Dossier) => {
@@ -53,7 +80,7 @@ export function JuryView({ dossiers, profile, candidates }: JuryViewProps) {
         <div className="flex items-center gap-12">
           <div>
             <h2 className="text-secondary tracking-tight">Espace Jury</h2>
-            <p className="text-[10px] text-accent/40 uppercase tracking-[0.3em] font-black mt-2">Arbitrage & Validation des Augmentations {dossiers[0]?.campaignYear}</p>
+            <p className="text-[10px] text-accent/40 uppercase tracking-[0.3em] font-black mt-2">Arbitrage & Validation des Augmentations 2025</p>
           </div>
 
           <div className="flex bg-accent/5 p-1 rounded-xl border border-accent/10">
@@ -141,6 +168,7 @@ export function JuryView({ dossiers, profile, candidates }: JuryViewProps) {
                         dossier={selectedDossier}
                         candidate={selectedCandidate}
                         calculateAverageTargetTJM={calculateAverageTargetTJM}
+                        referenceDate={selectedDossier?.annualReport?.wishedSalaryDate}
                       />
 
                       {/* Accordion Sections & Decision */}

@@ -9,8 +9,8 @@ export type SheetPurpose =
 export interface ColumnDefinition {
   header?: string;
   name?: string;
-  description?: string;
   explanation?: string;
+  description?: string;
   required?: boolean;
 }
 
@@ -18,7 +18,6 @@ export interface TabConfig {
   purpose: SheetPurpose | string;
   description?: string;
   headerRow?: number;
-  dataStartRow?: number;
   columns: Record<string, ColumnDefinition>;
 }
 

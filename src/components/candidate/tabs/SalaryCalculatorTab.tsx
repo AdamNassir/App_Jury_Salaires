@@ -12,7 +12,7 @@ interface SalaryCalculatorTabProps {
   reportData: AnnualReport;
 }
 
-export function SalaryCalculatorTab({ profile, reportData }: SalaryCalculatorTabProps) {
+export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalculatorTabProps) {
   const effectiveCurrent = (reportData.currentGrade || profile.currentGrade || 'Confirmé') as Grade | 'Junior';
   const effectiveWished = (reportData.wishedGrade || effectiveCurrent) as Grade | 'Junior';
 
@@ -47,9 +47,10 @@ export function SalaryCalculatorTab({ profile, reportData }: SalaryCalculatorTab
     g => (gradeHierarchy[g] ?? 0) >= currentGradeRank
   );
 
-  const yearsLL = (profile.seniorityYears ?? Number.NaN);
-  const targetYearsExpert = grade === 'Expert' ? (profile.expertYears ?? Number.NaN) : 0;
-  const currentYearsExpert = currentGrade === 'Expert' ? (profile.expertYears ?? Number.NaN) : 0;
+  const refDate = reportData.wishedSalaryDate || dossier?.annualReport?.wishedSalaryDate;
+  const yearsLL = calculateYears(profile.entryDate, refDate);
+  const targetYearsExpert = grade === 'Expert' ? (calculateYears(profile.expertGradeDate, refDate) || 0) : 0;
+  const currentYearsExpert = currentGrade === 'Expert' ? (calculateYears(profile.expertGradeDate, refDate) || 0) : 0;
   const prime = getPrimeAnciennete(yearsLL);
   
   const salaireVendu = calculateSalaryFormule(tjVendu, currentGrade, currentYearsExpert, prime);
@@ -70,9 +71,6 @@ export function SalaryCalculatorTab({ profile, reportData }: SalaryCalculatorTab
     resFormule = calc2;
   }
 
-  if (![calc1, calc2].every(Number.isFinite) || profile.currentSalary === undefined || profile.currentTJM === undefined || !profile.currentGrade) {
-    return <p className="rounded-xl border p-6">Calcul indisponible : compléter les données RH de la campagne (grade, salaire, TJ et ancienneté ; ancienneté expert si concerné). Aucune ancienneté n’est déduite de la date du jour.</p>;
-  }
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <div className="bg-white p-8 rounded-xl border border-accent/10 shadow-lg">

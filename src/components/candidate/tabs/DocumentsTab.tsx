@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileUp, Eye, Trash2, CheckCircle2, Loader2 } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { doc, setDoc } from '../../../lib/localDatabase';
+import { db } from '../../../lib/localDatabase';
 import { Dossier, DossierDocument, UserProfile } from '../../../types';
 import { cn } from '../../../lib/utils';
 
@@ -173,8 +173,7 @@ export function DocumentsTab({
                     <button 
                       type="button"
                       onClick={() => {
-                        const targetDossierId = dossier?.id;
-                        if (!targetDossierId || isLockedForEditing) return;
+                        const targetDossierId = dossier?.id || `${profile.id}_2025`;
                         const newDocs = dossier?.documents?.filter((_, i) => i !== idx) || [];
                         setDoc(doc(db, 'dossiers', targetDossierId), { documents: newDocs }, { merge: true });
                       }}

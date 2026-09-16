@@ -1,5 +1,6 @@
-import { collection, doc, writeBatch, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { collection, doc, writeBatch, serverTimestamp, getDocs, query, where } from '../lib/localDatabase';
+import { auth } from '../lib/firebase';
+import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, Grade, ConsultationType, UserRole } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -221,7 +222,7 @@ export const seedMockData = async () => {
           dossier.consultantFeedbacks[cid] = {
             consultantId: cid,
             consultantName: cons.displayName,
-            type: 'Coach Logiclever',
+            type: 'Coach',
             targetTJMin: data.tj,
             targetTJMax: data.tj + 50,
             justification: "Le candidat est prêt pour le niveau supérieur.",

@@ -5,10 +5,6 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import mammoth from "mammoth";
 import { JWT } from "google-auth-library";
-import dotenv from 'dotenv';
-import { installCampaignApi, authenticate, requireMember, requireAdmin } from './server/campaignApi';
-dotenv.config({ path: '.env.local' });
-dotenv.config();
 
 // Load Google Sheets config dynamically
 function getSheetsConfig() {
@@ -30,9 +26,6 @@ async function startServer() {
   // Larger payload body parsers for base64 file transfers
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  installCampaignApi(app);
-  app.use('/api/parse-document', authenticate, requireMember);
-  app.use('/api/sheets', authenticate, requireAdmin);
 
   // API Route: healthcheck
   app.get("/api/health", (req, res) => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { doc, updateDoc } from '../../lib/localDatabase';
+import { db } from '../../lib/localDatabase';
 import { UserProfile, UserRole } from '../../types';
 import { Shield, Settings, Users, Search, Check, Plus } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -79,6 +79,11 @@ export function UserRowDrawer({
           <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent/30">Données RH / Profil</h4>
         </div>
         <div className="grid grid-cols-1 gap-8">
+          <div className="bg-accent/5 p-4 rounded-lg border border-accent/10 space-y-1">
+            <div className="text-[10px] font-black text-accent/40 uppercase tracking-[0.2em]">Id Métier Canonique (APP_LL)</div>
+            <div className="text-xs font-mono font-bold text-accent">{user.idProfil || user.matricule || 'Non rattaché'}</div>
+            <div className="text-[9px] text-accent/40 font-mono">UID Auth: {user.id}</div>
+          </div>
           <ProfileField 
             label="Matricule Collaborateur" 
             value={user.matricule || ''} 

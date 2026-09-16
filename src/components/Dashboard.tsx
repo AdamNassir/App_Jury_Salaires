@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle2, Award, Banknote, PieChart, X, Search, User, Mail, Shield, ChevronRight } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { collection, onSnapshot, query, where } from '../lib/localDatabase';
+import { db } from '../lib/localDatabase';
 import { Dossier, UserRole, UserProfile } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -9,13 +9,24 @@ import { motion, AnimatePresence } from 'motion/react';
 interface DashboardProps {
   dossiers: Dossier[];
   roles: UserRole[];
-  candidates: Record<string, UserProfile>;
 }
 
-export function Dashboard({ dossiers, roles, candidates }: DashboardProps) {
-
+export function Dashboard({ dossiers, roles }: DashboardProps) {
+  const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
   const [selectedStatus, setSelectedStatus] = useState<'OUVERT' | 'COMPLET' | 'VALIDE' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'), where('roles', 'array-contains', 'CANDIDATE'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const users: Record<string, UserProfile> = {};
+      snapshot.docs.forEach(doc => {
+        users[doc.id] = { id: doc.id, ...doc.data() } as UserProfile;
+      });
+      setCandidates(users);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const totalAmount = dossiers.reduce((acc, d) => {
     const candidate = candidates[d.candidateId];
