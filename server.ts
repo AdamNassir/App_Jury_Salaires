@@ -19,6 +19,43 @@ function getSheetsConfig() {
   return { defaultSpreadsheetId: "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk", spreadsheets: {} };
 }
 
+function saveJsonFiles(filename: string, data: any) {
+  const targets = [
+    path.join(process.cwd(), "src", "data", filename),
+    path.join(process.cwd(), "data", filename),
+  ];
+  for (const targetPath of targets) {
+    try {
+      const dir = path.dirname(targetPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(targetPath, JSON.stringify(data, null, 2), "utf-8");
+    } catch (err) {
+      console.error(`Failed to write ${targetPath}:`, err);
+    }
+  }
+}
+
+function readJsonArray(filename: string): any[] {
+  const targets = [
+    path.join(process.cwd(), "src", "data", filename),
+    path.join(process.cwd(), "data", filename),
+  ];
+  for (const targetPath of targets) {
+    if (fs.existsSync(targetPath)) {
+      try {
+        const content = fs.readFileSync(targetPath, "utf-8");
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (err) {
+        console.warn(`Failed to parse ${targetPath}:`, err);
+      }
+    }
+  }
+  return [];
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -30,6 +67,96 @@ async function startServer() {
   // API Route: healthcheck
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // API Route: Sync added user(s) to data/users.json
+  app.post("/api/sync/users", (req, res) => {
+    try {
+      const incoming = Array.isArray(req.body)
+        ? req.body
+        : req.body?.users && Array.isArray(req.body.users)
+        ? req.body.users
+        : [req.body];
+
+      const currentUsers = readJsonArray("users.json");
+      for (const newUser of incoming) {
+        if (!newUser || typeof newUser !== "object") continue;
+        const id = newUser.id || newUser.idProfil;
+        const email = newUser.email ? String(newUser.email).toLowerCase().trim() : "";
+        const existingIndex = currentUsers.findIndex((u: any) => {
+          if (id && (u.id === id || u.idProfil === id)) return true;
+          if (email && u.email && String(u.email).toLowerCase().trim() === email) return true;
+          return false;
+        });
+
+        if (existingIndex >= 0) {
+          currentUsers[existingIndex] = { ...currentUsers[existingIndex], ...newUser };
+        } else {
+          currentUsers.push(newUser);
+        }
+      }
+
+      saveJsonFiles("users.json", currentUsers);
+      console.log(`Synced ${incoming.length} user(s) to data/users.json. Total: ${currentUsers.length}`);
+      res.json({ success: true, count: currentUsers.length });
+    } catch (error: any) {
+      console.error("Error syncing users.json:", error);
+      res.status(500).json({ error: error.message || "Failed to sync users.json" });
+    }
+  });
+
+  // API Route: Replace users list in data/users.json (e.g. after mass-deleting non-admins)
+  app.post("/api/sync/users/replace", (req, res) => {
+    try {
+      const incoming = Array.isArray(req.body)
+        ? req.body
+        : req.body?.users && Array.isArray(req.body.users)
+        ? req.body.users
+        : [];
+
+      saveJsonFiles("users.json", incoming);
+      console.log(`Replaced users.json with ${incoming.length} user(s).`);
+      res.json({ success: true, count: incoming.length });
+    } catch (error: any) {
+      console.error("Error replacing users.json:", error);
+      res.status(500).json({ error: error.message || "Failed to replace users.json" });
+    }
+  });
+
+  // API Route: Sync added campaign(s) to data/campaigns.json
+  app.post("/api/sync/campaigns", (req, res) => {
+    try {
+      const incoming = Array.isArray(req.body)
+        ? req.body
+        : req.body?.campaigns && Array.isArray(req.body.campaigns)
+        ? req.body.campaigns
+        : [req.body];
+
+      const currentCampaigns = readJsonArray("campaigns.json");
+      for (const newCamp of incoming) {
+        if (!newCamp || typeof newCamp !== "object") continue;
+        const id = newCamp.id;
+        const year = newCamp.year;
+        const existingIndex = currentCampaigns.findIndex((c: any) => {
+          if (id && c.id === id) return true;
+          if (year !== undefined && c.year === year) return true;
+          return false;
+        });
+
+        if (existingIndex >= 0) {
+          currentCampaigns[existingIndex] = { ...currentCampaigns[existingIndex], ...newCamp };
+        } else {
+          currentCampaigns.push(newCamp);
+        }
+      }
+
+      saveJsonFiles("campaigns.json", currentCampaigns);
+      console.log(`Synced ${incoming.length} campaign(s) to data/campaigns.json. Total: ${currentCampaigns.length}`);
+      res.json({ success: true, count: currentCampaigns.length });
+    } catch (error: any) {
+      console.error("Error syncing campaigns.json:", error);
+      res.status(500).json({ error: error.message || "Failed to sync campaigns.json" });
+    }
   });
 
   // API Route: Parse Bilan/Dossier Document (PDF or DOCX) with Gemini
@@ -99,9 +226,9 @@ ${text}
         },
       });
 
-      console.log("Calling Gemini 3.5 Flash for document analysis...");
+      console.log("Calling Gemini for document analysis...");
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: geminiInputParts,
         config: {
           responseMimeType: "application/json",

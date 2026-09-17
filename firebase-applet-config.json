@@ -1,11 +1,12 @@
 {
-  "projectId": "gen-lang-client-0443495057",
-  "appId": "1:568836827021:web:e7abb3b9061f7730ab7fc4",
-  "apiKey": "AIzaSyDAFToaSkklFt-PPSQ8coE8ZtyQBy7hliY",
-  "authDomain": "gen-lang-client-0443495057.firebaseapp.com",
-  "storageBucket": "gen-lang-client-0443495057.firebasestorage.app",
-  "messagingSenderId": "568836827021",
+  "projectId": "galvanized-carver-cvd6f",
+  "appId": "1:152501611888:web:8ad59b5d171ac979ff73b5",
+  "apiKey": "AIzaSyBJBhXTOW7Zd9KiNVno3aByG4OPlLfbFJs",
+  "authDomain": "galvanized-carver-cvd6f.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-appjurysalaires-7c45a4bb-415a-4e6b-a985-aa74a085032e",
+  "storageBucket": "galvanized-carver-cvd6f.firebasestorage.app",
+  "messagingSenderId": "152501611888",
   "measurementId": "",
-  "oAuthClientId": "568836827021-cb9muu5jjdqee5mbjpnejgq7hstu38e1.apps.googleusercontent.com",
+  "oAuthClientId": "152501611888-hibs7trpgrli5acu6sjk5gh2p65s1ah3.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

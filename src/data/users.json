@@ -5,7 +5,11 @@
     "matricule": "LL001",
     "displayName": "Adam Nassir",
     "email": "adam.nassir@logiclever.com",
-    "roles": ["CANDIDATE", "JURY", "ADMIN"],
+    "roles": [
+      "CANDIDATE",
+      "JURY",
+      "ADMIN"
+    ],
     "team": "Direction",
     "currentGrade": "Directeur",
     "currentSalary": 0,
@@ -21,7 +25,11 @@
     "matricule": "LL002",
     "displayName": "Guillaume Best",
     "email": "guillaume.best@logiclever.com",
-    "roles": ["CANDIDATE", "JURY", "ADMIN"],
+    "roles": [
+      "CANDIDATE",
+      "JURY",
+      "ADMIN"
+    ],
     "team": "Direction",
     "currentGrade": "Directeur",
     "currentSalary": 0,
@@ -37,7 +45,11 @@
     "matricule": "LL002B",
     "displayName": "Guillaume Best (Admin)",
     "email": "guillaumebestece@gmail.com",
-    "roles": ["CANDIDATE", "JURY", "ADMIN"],
+    "roles": [
+      "CANDIDATE",
+      "JURY",
+      "ADMIN"
+    ],
     "team": "Direction",
     "currentGrade": "Directeur",
     "currentSalary": 0,

@@ -20,6 +20,7 @@ import { cn } from '../lib/utils';
 import { CampaignCard } from './campaigns/CampaignCard';
 import { CreateCampaignModal } from './campaigns/CreateCampaignModal';
 import { CloseCampaignModal } from './campaigns/CloseCampaignModal';
+import { DeleteCampaignModal } from './campaigns/DeleteCampaignModal';
 import { CampaignDocsModal } from './campaigns/CampaignDocsModal';
 import { CatchupCampaignModal } from './campaigns/CatchupCampaignModal';
 import { History } from 'lucide-react';
@@ -41,6 +42,8 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
   const [isCatchupModalOpen, setIsCatchupModalOpen] = useState(false);
   const [campaignToClose, setCampaignToClose] = useState<Campaign | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedCampaignForDocs, setSelectedCampaignForDocs] = useState<Campaign | null>(null);
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
@@ -75,6 +78,21 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
       showToast('error', `Erreur lors de la clôture : ${error.message || String(error)}`);
     } finally {
       setIsClosing(false);
+    }
+  };
+
+  const handleConfirmDeleteCampaign = async (deleteRelatedDossiers: boolean) => {
+    if (!campaignToDelete) return;
+    setIsDeleting(true);
+    try {
+      LocalDatabaseService.deleteCampaign(campaignToDelete.id, deleteRelatedDossiers);
+      showToast('success', `La campagne "${campaignToDelete.title}" a été supprimée avec succès.`);
+      setCampaignToDelete(null);
+    } catch (error: any) {
+      console.error("Error deleting campaign:", error);
+      showToast('error', `Erreur lors de la suppression : ${error.message || String(error)}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -248,6 +266,7 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
                 campaign={camp}
                 onViewDocs={(c) => setSelectedCampaignForDocs(c)}
                 onRequestClose={(c) => setCampaignToClose(c)}
+                onRequestDelete={(c) => setCampaignToDelete(c)}
               />
             ))}
           </div>
@@ -285,6 +304,17 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
             onClose={() => setCampaignToClose(null)}
             onConfirmClose={handleConfirmCloseCampaign}
             isClosing={isClosing}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {campaignToDelete && (
+          <DeleteCampaignModal
+            campaignToDelete={campaignToDelete}
+            onClose={() => setCampaignToDelete(null)}
+            onConfirmDelete={handleConfirmDeleteCampaign}
+            isDeleting={isDeleting}
           />
         )}
       </AnimatePresence>

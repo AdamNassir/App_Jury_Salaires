@@ -1,4 +1,4 @@
-export type UserRole = 'CANDIDATE' | 'JURY' | 'ADMIN';
+export type UserRole = 'CANDIDATE' | 'JURY' | 'ADMIN' | 'EVALUATOR';
 export type DossierStatus = 'OUVERT' | 'COMPLET' | 'VALIDE';
 export type CampaignStatus = 'OUVERTE' | 'CLÔTURÉE' | 'EN_PRÉPARATION';
 
@@ -98,6 +98,8 @@ export interface CampaignParticipant {
   entryDate?: string;
   expertGradeDate?: string;
   totalExperienceYears?: number;
+  ancienneteLL?: number;
+  yearsExpert?: number;
   
   // Rôles sur la campagne
   isCandidate: boolean; // Si true, a un dossier de campagne
@@ -132,6 +134,8 @@ export interface UserProfile {
   team?: string;
   position?: string;
   experienceYears?: number;
+  ancienneteLL?: number;
+  yearsExpert?: number;
   entryDate?: string;
   expertGradeDate?: string;
   currentGrade?: Grade;
@@ -326,6 +330,20 @@ export interface JuryDecision {
   maxSalaryIfVenduIncreases?: number;
 }
 
+export interface JuryMemberReview {
+  juryUid: string;
+  juryName: string;
+  juryEmail: string;
+  whyThisSalary: string;
+  whatToDoMore: string;
+  verdict?: string;
+  proposedSalary?: number;
+  percentage?: number;
+  isFinalized?: boolean;
+  finalizedAt?: string;
+  updatedAt: string;
+}
+
 export interface Dossier {
   id: string;
   candidateId: string; // idProfil (ou legacy UID pour les anciens dossiers)
@@ -349,6 +367,7 @@ export interface Dossier {
   
   // Decision
   juryDecision?: JuryDecision;
+  juryMemberReviews?: Record<string, JuryMemberReview>; // Key is juryUid or email
   
   createdAt: any;
   updatedAt: any;

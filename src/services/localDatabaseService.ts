@@ -11,11 +11,49 @@ class LocalDatabaseServiceImpl {
   subscribeCampaigns = subscribeLocal;
   subscribeDossiers = subscribeLocal;
   subscribe = subscribeLocal;
+  syncCampaignToDisk(campaign: Campaign | Campaign[] | Partial<Campaign>) {
+    try {
+      if (typeof window === 'undefined') return;
+      const payload = Array.isArray(campaign) ? campaign : [campaign];
+      if (payload.length === 0) return;
+      fetch('/api/sync/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(err => console.warn('Could not sync campaign to disk:', err));
+    } catch (e) {
+      console.warn('Sync campaign failed:', e);
+    }
+  }
   getCampaigns(): Campaign[] { return readCollection<Campaign>('campaigns').sort((a, b) => b.year - a.year); }
   getCampaignById(id: string): Campaign | undefined { return readRecord('campaigns', id) as Campaign; }
-  saveCampaign(campaign: Campaign) { this.save('campaigns', campaign.id, campaign); }
-  updateCampaign(id: string, updates: Partial<Campaign>) { this.update('campaigns', id, updates); }
-  deleteCampaign(id: string) { commitMutations([{ collection: 'campaigns', id, kind: 'delete' }]); }
+  saveCampaign(campaign: Campaign) { 
+    this.save('campaigns', campaign.id, campaign); 
+    this.syncCampaignToDisk(campaign);
+  }
+  updateCampaign(id: string, updates: Partial<Campaign>) { 
+    this.update('campaigns', id, updates); 
+    const existing = this.getCampaignById(id);
+    if (existing) {
+      this.syncCampaignToDisk({ ...existing, ...updates });
+    }
+  }
+  deleteCampaign(id: string, deleteRelatedDossiers = false) {
+    const mutations: { collection: CollectionName; id: string; kind: 'delete' }[] = [
+      { collection: 'campaigns', id, kind: 'delete' }
+    ];
+    if (deleteRelatedDossiers) {
+      const dossiersToDelete = this.getDossiers().filter(d => d.campaignId === id);
+      for (const d of dossiersToDelete) {
+        mutations.push({ collection: 'dossiers', id: d.id, kind: 'delete' });
+      }
+      const participantsToDelete = this.getParticipants().filter(p => p.campaignId === id);
+      for (const p of participantsToDelete) {
+        mutations.push({ collection: 'campaign_participants', id: p.id, kind: 'delete' });
+      }
+    }
+    commitMutations(mutations);
+  }
   getDossiers(): Dossier[] { return readCollection<Dossier>('dossiers').sort((a, b) => (a.candidateName || '').localeCompare(b.candidateName || '')); }
   getDossierById(id: string): Dossier | undefined { return readRecord('dossiers', id) as Dossier; }
   getDossiersByCandidate(candidateId: string, idProfil?: string): Dossier[] {

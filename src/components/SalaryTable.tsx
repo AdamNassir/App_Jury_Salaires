@@ -115,27 +115,48 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
     }
 
     return uniqueDossiers.map(dossier => {
-      const candidate = candidates[dossier.candidateId];
-      if (!candidate) return null;
+      const candidate = candidates[dossier.candidateId] ||
+        (dossier.idProfil ? candidates[dossier.idProfil] : null) ||
+        ({
+          id: dossier.candidateId,
+          idProfil: dossier.idProfil,
+          displayName: dossier.candidateName,
+          email: dossier.candidateEmail,
+          currentGrade: dossier.annualReport?.currentGrade || 'Junior',
+          currentSalary: dossier.annualReport?.currentSalary || 0,
+          currentTJM: dossier.annualReport?.currentTJM || 0,
+          roles: ['CANDIDATE']
+        } as UserProfile);
 
-      const yearsLL = calculateYears(candidate.entryDate, referenceDate);
-      const yearsExpert = candidate.currentGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
+      const effectiveGrade = candidate.currentGrade || dossier.annualReport?.currentGrade || 'Junior';
+      const entryDate = candidate.entryDate;
+      const expertGradeDate = candidate.expertGradeDate;
+
+      const yearsLL = candidate.ancienneteLL !== undefined && candidate.ancienneteLL !== null
+        ? candidate.ancienneteLL
+        : calculateYears(entryDate, referenceDate);
+
+      const yearsExpert = candidate.yearsExpert !== undefined && candidate.yearsExpert !== null
+        ? candidate.yearsExpert
+        : (effectiveGrade === 'Expert' ? calculateYears(expertGradeDate, referenceDate) : 0);
+
       const prime = getPrimeAnciennete(yearsLL);
 
       // Calculations
-      const tjVendu = candidate.currentTJM || 0;
+      const tjVendu = candidate.currentTJM || dossier.annualReport?.currentTJM || 0;
       const tjCible = dossier.annualReport?.targetTJM || 0;
 
-      const salaireVendu = calculateSalaryFormule(tjVendu, candidate.currentGrade || 'Junior', yearsExpert, prime);
-      const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, candidate.currentGrade || 'Junior', yearsExpert, prime);
+      const salaireVendu = calculateSalaryFormule(tjVendu, effectiveGrade, yearsExpert, prime);
+      const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, effectiveGrade, yearsExpert, prime);
       
-      const targetGrade = dossier.annualReport?.wishedGrade || candidate.currentGrade || 'Junior';
-      const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
+      const targetGrade = dossier.annualReport?.wishedGrade || effectiveGrade;
+      const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(expertGradeDate, referenceDate) : 0;
 
       const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
       const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
 
-      const realMargin = calculateMargin(tjVendu, candidate.currentSalary || 0, prime);
+      const currentSalary = candidate.currentSalary || dossier.annualReport?.currentSalary || 0;
+      const realMargin = calculateMargin(tjVendu, currentSalary, prime);
 
       // Jury Decision Data
       const decision = (dossier.juryDecision || {}) as JuryDecision;
@@ -144,7 +165,6 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
       const marginPostJury = calculateMargin(tjVendu, proposedSalary, prime);
 
       // Logic for Salaire Formule Result
-      const currentSalary = candidate.currentSalary || 0;
       const invest = decision.investmentPercentage || 60;
       const mission = decision.missionPercentage || 98;
       
@@ -461,8 +481,8 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
               <th onClick={() => requestSort('experienceYears')} className="p-4 min-w-[60px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Expérience initiale (Saisie dans l'administration)">Exp. {renderSortIndicator('experienceYears')}</th>
               <th onClick={() => requestSort('entryDate')} className="p-4 min-w-[100px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisie dans l'administration">Entrée LL {renderSortIndicator('entryDate')}</th>
               <th onClick={() => requestSort('expertGradeDate')} className="p-4 min-w-[100px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisie dans l'administration">Expert Grade {renderSortIndicator('expertGradeDate')}</th>
-              <th onClick={() => requestSort('yearsLL')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : Date de référence (01/07/2025) - Date d'entrée">Ancien. LL {renderSortIndicator('yearsLL')}</th>
-              <th onClick={() => requestSort('yearsExpert')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : Si grade Expert (Date de référence (01/07/2025) - Date d'obtention du grade)">Années Exp. {renderSortIndicator('yearsExpert')}</th>
+              <th onClick={() => requestSort('yearsLL')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Issu du fichier Analyse_Jury (Col G : Ancienneté LL)">Ancien. LL {renderSortIndicator('yearsLL')}</th>
+              <th onClick={() => requestSort('yearsExpert')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Issu du fichier Analyse_Jury (Col H : Années Exp. si Expert)">Années Exp. {renderSortIndicator('yearsExpert')}</th>
               <th onClick={() => requestSort('currentGrade')} className="p-4 min-w-[100px] border-r border-accent/10 cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration">Grade {renderSortIndicator('currentGrade')}</th>
               
               {/* RG Logiclever */}

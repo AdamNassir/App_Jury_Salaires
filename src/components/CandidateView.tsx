@@ -21,6 +21,8 @@ import { IntercontratTab } from './candidate/tabs/IntercontratTab';
 import { ReferentTab } from './candidate/tabs/ReferentTab';
 import { PretentionsTab } from './candidate/tabs/PretentionsTab';
 import { SalaryCalculatorTab } from './candidate/tabs/SalaryCalculatorTab';
+import { PeerFeedbacksTab } from './candidate/tabs/PeerFeedbacksTab';
+import { JuryFeedbacksTab } from './candidate/tabs/JuryFeedbacksTab';
 
 const sanitizeForStorage = (obj: any): any => {
   if (obj === undefined) return null;
@@ -49,6 +51,7 @@ interface CandidateViewProps {
 export function CandidateView({ profile, dossier, currentUser }: CandidateViewProps) {
   const isJuryUser = currentUser?.roles?.includes('JURY') || profile.roles?.includes('JURY');
   const isLockedForEditing = dossier?.status === 'VALIDE' || (!isJuryUser && dossier?.status === 'COMPLET');
+  const isDossierComplet = dossier?.status === 'COMPLET' || dossier?.status === 'VALIDE';
 
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -56,7 +59,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
-  const [activeTab, setActiveTab] = useState<'SYNTHESE' | 'OBJECTIFS_PASSES' | 'EXPERTISES' | 'ENGAGEMENT' | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'INTERCONTRAT'>(
+  const [activeTab, setActiveTab] = useState<'SYNTHESE' | 'OBJECTIFS_PASSES' | 'EXPERTISES' | 'ENGAGEMENT' | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'INTERCONTRAT' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
     hasUploadedDocsInitial ? 'SYNTHESE' : 'DOCUMENTS'
   );
   const [meteoSubTab, setMeteoSubTab] = useState<'LIST' | 'CHART'>('LIST');
@@ -588,6 +591,14 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             </div>
           </div>
         </div>
+
+        {/* Détails complémentaires des délibérations et des retours pairs pour le candidat après validation */}
+        <div className="space-y-8 max-w-5xl mx-auto">
+          <JuryFeedbacksTab dossier={dossier} />
+          {Object.keys(dossier.consultantFeedbacks || {}).length > 0 && (
+            <PeerFeedbacksTab dossier={dossier} />
+          )}
+        </div>
       </div>
     );
   }
@@ -637,6 +648,22 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Missions & Expertises" required />
           <TabButton active={activeTab === 'ENGAGEMENT'} onClick={() => setActiveTab('ENGAGEMENT')} label="Engagement & Autonomie" required />
           <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={feedbacks.length} required />
+          {isDossierComplet && (
+            <>
+              <TabButton 
+                active={activeTab === 'RETOURS_PAIRS'} 
+                onClick={() => setActiveTab('RETOURS_PAIRS')} 
+                label="Retours Pairs" 
+                count={Object.keys(dossier?.consultantFeedbacks || {}).length} 
+              />
+              <TabButton 
+                active={activeTab === 'AVIS_JURY'} 
+                onClick={() => setActiveTab('AVIS_JURY')} 
+                label="Avis du Jury" 
+                count={Object.keys(dossier?.juryMemberReviews || {}).length} 
+              />
+            </>
+          )}
           <TabButton active={activeTab === 'INTERCONTRAT'} onClick={() => setActiveTab('INTERCONTRAT')} label="Intercontrat" />
           {profile.currentGrade === 'Senior' || profile.currentGrade === 'Expert' || reportData.isReferentOrAspiring ? (
             <TabButton active={activeTab === 'REFERENT'} onClick={() => setActiveTab('REFERENT')} label="Référents / Experts" />
@@ -798,6 +825,14 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
               selectedMeteoIndex={selectedMeteoIndex}
               setSelectedMeteoIndex={setSelectedMeteoIndex}
             />
+          )}
+
+          {activeTab === 'RETOURS_PAIRS' && isDossierComplet && (
+            <PeerFeedbacksTab dossier={dossier} />
+          )}
+
+          {activeTab === 'AVIS_JURY' && isDossierComplet && (
+            <JuryFeedbacksTab dossier={dossier} />
           )}
 
           {activeTab === 'INTERCONTRAT' && (

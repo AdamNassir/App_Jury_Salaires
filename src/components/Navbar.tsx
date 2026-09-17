@@ -36,7 +36,7 @@ export function Navbar({ profile, onLogout, onHome }: NavbarProps) {
             <div>
               <div className="text-base font-bold text-accent">{profile.displayName}</div>
               <div className="text-[10px] text-primary uppercase tracking-widest font-black">
-                {profile.roles?.map(r => r === 'CANDIDATE' ? 'Candidat' : r === 'ADMIN' ? 'Administrateur' : 'Jury').join(' / ') || 'Utilisateur'}
+                {profile.roles?.map(r => r === 'CANDIDATE' ? 'Candidat' : r === 'ADMIN' ? 'Administrateur' : r === 'EVALUATOR' ? 'Évaluateur' : 'Jury').join(' / ') || 'Utilisateur'}
               </div>
             </div>
             <div className="w-11 h-11 bg-accent/5 rounded-full flex items-center justify-center border border-accent/10">

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "campaign_2025",
+    "year": 2025,
+    "label": "Campagne d'évaluation 2025",
+    "status": "OUVERTE",
+    "description": "Campagne annuelle d'évaluation des consultants et collaborateurs Logic Clever",
+    "startDate": "2025-01-01",
+    "endDate": "2025-12-31",
+    "files": [],
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "updatedAt": "2025-01-01T00:00:00.000Z"
+  }
+]

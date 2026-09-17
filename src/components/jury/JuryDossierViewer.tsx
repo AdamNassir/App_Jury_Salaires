@@ -13,6 +13,7 @@ interface JuryDossierViewerProps {
   toggleTab: (tab: string) => void;
   setZoomData: (data: { title: string; content: string }) => void;
   onDoneDecision: () => void;
+  isAssigned?: boolean;
 }
 
 export function JuryDossierViewer({
@@ -22,8 +23,13 @@ export function JuryDossierViewer({
   expandedTabs,
   toggleTab,
   setZoomData,
-  onDoneDecision
+  onDoneDecision,
+  isAssigned = true
 }: JuryDossierViewerProps) {
+  const isAdmin = profile.roles?.includes('ADMIN') || 
+    profile.email?.toLowerCase() === 'adam.nassir@logiclever.com' ||
+    profile.email?.toLowerCase() === 'guillaume.best@logiclever.com';
+  const isReadOnly = !isAssigned && !isAdmin;
   return (
     <div className="space-y-4">
       {/* 1. Synthèse */}
@@ -450,7 +456,7 @@ export function JuryDossierViewer({
                           {f.justification && (
                             <button
                               type="button"
-                              onClick={() => setZoomData({ title: `Retour Pair - ${f.consultantName}`, content: f.justification })}
+                              onClick={() => setZoomData({ title: `Justification TJ Cible - ${f.consultantName}`, content: f.justification })}
                               className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1 text-[9px] font-black text-secondary uppercase tracking-widest hover:text-secondary-dark transition-all px-2.5 py-1 bg-secondary/5 hover:bg-secondary/15 rounded-md cursor-pointer h-max self-center"
                               title="Agrandir"
                             >
@@ -459,15 +465,20 @@ export function JuryDossierViewer({
                           )}
                         </div>
                       </div>
-                      <div className="text-lg italic text-accent/60 mb-8 font-light leading-relaxed">"{f.justification}"</div>
+                      
+                      <div className="space-y-1 mb-8">
+                        <div className="text-[10px] font-black uppercase text-primary tracking-widest">Justification TJ Cible</div>
+                        <div className="text-lg italic text-accent/70 font-light leading-relaxed">"{f.justification || 'Non renseigné'}"</div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-accent/5 pt-8">
                         <div className="group/axes relative">
                           <div className="flex items-center justify-between mb-3">
-                            <div className="text-[9px] font-black uppercase text-accent/30 tracking-widest">Points d'amélioration</div>
+                            <div className="text-[10px] font-black uppercase text-secondary tracking-widest">Axes pour augmenter le TJ</div>
                             {f.improvementAxes && (
                               <button
                                 type="button"
-                                onClick={() => setZoomData({ title: `Points d'amélioration - ${f.consultantName}`, content: f.improvementAxes })}
+                                onClick={() => setZoomData({ title: `Axes pour augmenter le TJ - ${f.consultantName}`, content: f.improvementAxes })}
                                 className="opacity-0 group-hover/axes:opacity-100 focus:opacity-100 flex items-center gap-1 text-[8px] font-black text-secondary uppercase tracking-widest hover:text-secondary-dark transition-all px-1.5 py-0.5 bg-secondary/5 hover:bg-secondary/15 rounded cursor-pointer"
                                 title="Agrandir"
                               >
@@ -475,10 +486,10 @@ export function JuryDossierViewer({
                               </button>
                             )}
                           </div>
-                          <div className="text-sm text-accent/70 leading-relaxed">{f.improvementAxes || 'Aucun point spécifique'}</div>
+                          <div className="text-sm text-accent/70 leading-relaxed">{f.improvementAxes || 'Aucun axe spécifique'}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[9px] font-black uppercase text-accent/30 mb-3 tracking-widest">Estimation TJM</div>
+                          <div className="text-[9px] font-black uppercase text-accent/30 mb-3 tracking-widest">TJM Préconisé</div>
                           <div className="text-2xl font-bold text-accent">{f.targetTJMin || 0}€ - {f.targetTJMax || 0}€</div>
                         </div>
                       </div>
@@ -594,7 +605,13 @@ export function JuryDossierViewer({
         <div>
           {(dossier.status === 'COMPLET' || profile.roles.includes('JURY')) ? (
             <div key={dossier.id}>
-              <JuryDecisionForm dossier={dossier} candidate={candidate} onDone={onDoneDecision} />
+              <JuryDecisionForm 
+                dossier={dossier} 
+                candidate={candidate} 
+                onDone={onDoneDecision} 
+                readOnly={isReadOnly}
+                profile={profile}
+              />
             </div>
           ) : dossier.status === 'VALIDE' ? (
             <div className="bg-green-50 p-12 rounded-[40px] border border-green-100 text-center space-y-8">

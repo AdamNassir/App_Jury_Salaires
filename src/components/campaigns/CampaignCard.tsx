@@ -4,7 +4,8 @@ import {
   Calendar, 
   Clock, 
   Lock, 
-  FileText 
+  FileText,
+  Trash2
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -13,9 +14,10 @@ interface CampaignCardProps {
   campaign: Campaign;
   onViewDocs: (campaign: Campaign) => void;
   onRequestClose: (campaign: Campaign) => void;
+  onRequestDelete: (campaign: Campaign) => void;
 }
 
-export function CampaignCard({ campaign, onViewDocs, onRequestClose }: CampaignCardProps) {
+export function CampaignCard({ campaign, onViewDocs, onRequestClose, onRequestDelete }: CampaignCardProps) {
   const totalDocs = (campaign.rhDocuments?.length || 0) + 
                     (campaign.pairsDocuments?.length || 0) + 
                     (campaign.otherDocuments?.length || 0);
@@ -78,6 +80,16 @@ export function CampaignCard({ campaign, onViewDocs, onRequestClose }: CampaignC
             Campagne Clôturée
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={() => onRequestDelete(campaign)}
+          title="Supprimer la campagne"
+          aria-label="Supprimer la campagne"
+          className="px-3.5 py-3 rounded-xl bg-rose-50/70 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 font-bold text-sm transition-all flex items-center justify-center cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

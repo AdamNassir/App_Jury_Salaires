@@ -165,10 +165,16 @@ export function CreateUserModal({
 
             <div>
               <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-1">Sélectionner le ou les rôles</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {(['CANDIDATE', 'JURY', 'ADMIN'] as UserRole[]).map((r) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {(['CANDIDATE', 'EVALUATOR', 'JURY', 'ADMIN'] as UserRole[]).map((r) => {
                   const isActive = newRoles.includes(r);
                   const isRestrictedAdmin = r === 'ADMIN' && !isOperatingAdmin;
+                  const roleLabel = 
+                    r === 'ADMIN' ? 'Admin' : 
+                    r === 'JURY' ? 'Membre Jury' : 
+                    r === 'EVALUATOR' ? 'Évaluateur' : 
+                    'Candidat';
+
                   return (
                     <button
                       key={r}
@@ -176,7 +182,7 @@ export function CreateUserModal({
                       onClick={() => handleRoleToggle(r)}
                       title={isRestrictedAdmin ? "Réservé aux Administrateurs" : undefined}
                       className={cn(
-                        "px-4 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-between border cursor-pointer",
+                        "px-3 py-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-between border cursor-pointer",
                         isActive 
                           ? "bg-accent border-accent text-white shadow-md ring-2 ring-primary ring-offset-1" 
                           : "bg-white border-accent/10 text-accent/40 hover:bg-accent/5",
@@ -185,7 +191,7 @@ export function CreateUserModal({
                     >
                       <span className="flex items-center gap-2 truncate">
                         <Shield className={cn("w-4 h-4 opacity-35 shrink-0", isActive && "opacity-100 text-primary")} />
-                        {r === 'CANDIDATE' ? 'Candidat & Évaluateur' : r === 'ADMIN' ? 'Admin' : 'Membre Jury'}
+                        {roleLabel}
                         {isRestrictedAdmin && (
                           <span className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.5 rounded font-bold uppercase tracking-normal shrink-0">Admin</span>
                         )}

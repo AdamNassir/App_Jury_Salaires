@@ -146,7 +146,11 @@ export default function App() {
         setLoading(false);
 
         if (instantProfile.roles.length === 1 && !activeView) {
-          setActiveView(instantProfile.roles[0]);
+          if (instantProfile.roles[0] === 'EVALUATOR') {
+            setActiveView('EVALUATIONS');
+          } else {
+            setActiveView(instantProfile.roles[0]);
+          }
           setShowRoleSelection(false);
         } else if (!activeView) {
           setShowRoleSelection(true);
@@ -338,7 +342,7 @@ export default function App() {
             )}
 
             {/* 2. Évaluation des Collègues (Feedback pairs) */}
-            {(profile.roles?.includes('CANDIDATE') || profile.roles?.includes('JURY') || isAdminUser) && (
+            {(profile.roles?.includes('CANDIDATE') || profile.roles?.includes('EVALUATOR') || profile.roles?.includes('JURY') || isAdminUser) && (
               <button
                 onClick={() => handleViewSelection('EVALUATIONS')}
                 className={cn(

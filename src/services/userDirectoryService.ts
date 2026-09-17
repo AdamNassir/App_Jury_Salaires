@@ -58,6 +58,7 @@ class UserDirectoryServiceImpl {
   }
   getCandidates(): UserProfile[] { return this.getAllUsers().filter(u => u.roles.includes('CANDIDATE')); }
   getJuryMembers(): UserProfile[] { return this.getAllUsers().filter(u => u.roles.includes('JURY')); }
+  getEvaluators(): UserProfile[] { return this.getAllUsers().filter(u => u.roles.includes('EVALUATOR')); }
   prepareUsers(rows: Partial<UserProfile>[]): UserProfile[] {
     const users = this.getAllUsers();
     const prepared = new Map<string, UserProfile>();
@@ -76,14 +77,30 @@ class UserDirectoryServiceImpl {
     }
     return [...prepared.values()];
   }
+  syncUsersToDisk(users: UserProfile | UserProfile[]): void {
+    try {
+      if (typeof window === 'undefined') return;
+      const payload = Array.isArray(users) ? users : [users];
+      if (payload.length === 0) return;
+      fetch('/api/sync/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(err => console.warn('Could not sync user to disk:', err));
+    } catch (e) {
+      console.warn('Sync user failed:', e);
+    }
+  }
   registerUsers(rows: Partial<UserProfile>[]): number {
     const users = this.prepareUsers(rows);
     commitMutations(users.map(user => ({ collection: 'users', id: user.id, kind: 'set', data: user })));
+    this.syncUsersToDisk(users);
     return users.length;
   }
   addUser(user: Partial<UserProfile>): UserProfile {
     const normalized = this.normalizeUser({ ...user, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     commitMutations([{ collection: 'users', id: normalized.id, kind: 'set', data: normalized }]);
+    this.syncUsersToDisk(normalized);
     return normalized;
   }
   updateUser(id: string, updates: Partial<UserProfile>): UserProfile | null {
@@ -91,6 +108,7 @@ class UserDirectoryServiceImpl {
     if (!existing) return null;
     const merged = this.normalizeUser({ ...existing, ...updates, updatedAt: new Date().toISOString() });
     commitMutations([{ collection: 'users', id: existing.id, kind: 'set', data: merged }]);
+    this.syncUsersToDisk(merged);
     return merged;
   }
   deleteUser(id: string): boolean {
@@ -98,6 +116,35 @@ class UserDirectoryServiceImpl {
     if (!existing) return false;
     commitMutations([{ collection: 'users', id: existing.id, kind: 'delete' }]);
     return true;
+  }
+  replaceAllUsers(remainingUsers: UserProfile[]): void {
+    const all = this.getAllUsers();
+    const mutations: { collection: 'users'; id: string; kind: 'delete' | 'set'; data?: any }[] = all.map(u => ({
+      collection: 'users' as const,
+      id: u.id,
+      kind: 'delete' as const
+    }));
+    for (const r of remainingUsers) {
+      mutations.push({
+        collection: 'users',
+        id: r.id,
+        kind: 'set',
+        data: r
+      });
+    }
+    commitMutations(mutations);
+
+    try {
+      if (typeof window !== 'undefined') {
+        fetch('/api/sync/users/replace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(remainingUsers)
+        }).catch(err => console.warn('Could not sync user replacement to disk:', err));
+      }
+    } catch (e) {
+      console.warn('Sync users replacement failed:', e);
+    }
   }
   public exportUsersJson(): string {
     const list = this.getAllUsers();

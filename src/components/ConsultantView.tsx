@@ -26,7 +26,9 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('ALL');
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
   const [selectedEvaluationKey, setSelectedEvaluationKey] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ASSIGNED' | 'TO_TREAT'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ASSIGNED' | 'TO_TREAT'>(
+    (profile.roles?.includes('EVALUATOR') || (profile.assignedCandidateIds && profile.assignedCandidateIds.length > 0)) ? 'ASSIGNED' : 'ALL'
+  );
   const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
   const [isCreatingNewEvaluation, setIsCreatingNewEvaluation] = useState(false);
 
@@ -77,6 +79,8 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
   const filteredDossiers = campaignDossiers.filter(d => {
     const isAssigned = (d.assignedConsultantIds || []).some(id => 
       id === profile.id || (profile.idProfil && id === profile.idProfil)
+    ) || (profile.assignedCandidateIds || []).some(cid =>
+      cid === d.candidateId || (d.idProfil && cid === d.idProfil)
     );
     const myFeedbacks = Object.entries(d.consultantFeedbacks || {}).filter(([_, f]) => {
       return f.evaluatorUid === profile.id || f.consultantId === profile.id || (profile.idProfil && (f.evaluatorUid === profile.idProfil || f.consultantId === profile.idProfil));
@@ -749,26 +753,26 @@ function ConsultantFeedbackForm({
         <div className="space-y-4 pt-2">
           <div>
             <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
-              Argumentaire Technique & Retour d'Expérience *
+              Justification TJ Cible *
             </label>
             <textarea
               disabled={isReadOnly}
               value={formData.justification || ''}
               onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
-              placeholder="Détaillez vos observations sur les compétences techniques, la posture professionnelle et la valeur apportée..."
+              placeholder="Justifiez l'estimation ou positionnement du TJ cible, vos observations techniques et valeur apportée..."
               className="w-full p-4 bg-white/5 border border-white/15 rounded-xl text-white text-sm font-light resize-none h-28 outline-none focus:border-primary transition-all disabled:opacity-50"
             />
           </div>
 
           <div>
             <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
-              Leviers de Valorisation & Axes de Progrès
+              Axes pour augmenter le TJ
             </label>
             <textarea
               disabled={isReadOnly}
               value={formData.improvementAxes || ''}
               onChange={(e) => setFormData({ ...formData, improvementAxes: e.target.value })}
-              placeholder="Suggestions de formations, certifications, leadership..."
+              placeholder="Actions de progrès, formations, certifications ou axes pour augmenter le TJ..."
               className="w-full p-4 bg-white/5 border border-white/15 rounded-xl text-white text-sm font-light resize-none h-24 outline-none focus:border-primary transition-all disabled:opacity-50"
             />
           </div>

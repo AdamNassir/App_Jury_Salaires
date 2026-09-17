@@ -6,11 +6,13 @@ import { cn } from '../../lib/utils';
 export function RoleBadge({ role }: { role: UserRole }) {
   const styles: Record<UserRole, string> = {
     CANDIDATE: "bg-secondary/10 text-secondary border-secondary/20",
+    EVALUATOR: "bg-amber-100 text-amber-900 border-amber-300",
     JURY: "bg-accent text-white border-accent",
     ADMIN: "bg-purple-700 text-white border-purple-800"
   };
   const labels: Record<UserRole, string> = {
-    CANDIDATE: "Candidat & Évaluateur",
+    CANDIDATE: "Candidat",
+    EVALUATOR: "Évaluateur",
     JURY: "Membre Jury",
     ADMIN: "Administrateur"
   };

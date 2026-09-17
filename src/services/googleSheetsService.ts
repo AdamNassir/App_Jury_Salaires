@@ -508,6 +508,7 @@ function normalizeRoles(val: string): UserRole[] {
   
   if (clean.includes('ADMIN')) roles.push('ADMIN');
   if (clean.includes('JURY')) roles.push('JURY');
+  if (clean.includes('EVALUAT') || clean.includes('ÉVALUAT') || clean.includes('PAIR')) roles.push('EVALUATOR');
   if (clean.includes('CANDIDAT') || clean.includes('CANDIDATE') || roles.length === 0) {
     roles.push('CANDIDATE');
   }

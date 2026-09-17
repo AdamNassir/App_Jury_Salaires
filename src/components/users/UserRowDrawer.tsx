@@ -38,9 +38,15 @@ export function UserRowDrawer({
           <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent/30">Attributions Rôles</h4>
         </div>
         <div className="space-y-3">
-          {(['CANDIDATE', 'JURY', 'ADMIN'] as UserRole[]).map((r) => {
+          {(['CANDIDATE', 'EVALUATOR', 'JURY', 'ADMIN'] as UserRole[]).map((r) => {
             const isActive = user.roles?.includes(r);
             const isRestrictedAdmin = r === 'ADMIN' && !isOperatingAdmin;
+            const roleLabel = 
+              r === 'ADMIN' ? 'Administrateur' : 
+              r === 'JURY' ? 'Membre Jury' : 
+              r === 'EVALUATOR' ? 'Évaluateur' : 
+              'Candidat';
+
             return (
               <button
                 key={r}
@@ -58,7 +64,7 @@ export function UserRowDrawer({
               >
                 <span className="flex items-center gap-3">
                   <Shield className={cn("w-5 h-5 opacity-20 transition-opacity", isActive && "opacity-100 text-primary")} />
-                  {r === 'ADMIN' ? 'Administrateur' : r === 'CANDIDATE' ? 'Candidat & Évaluateur' : 'Membre Jury'}
+                  {roleLabel}
                   {isRestrictedAdmin && (
                     <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold tracking-normal uppercase">Réservé Admin</span>
                   )}
@@ -135,7 +141,7 @@ export function UserRowDrawer({
 
       {/* Column 3: Assignments section */}
       <div className="lg:col-span-1">
-        {(user.roles.includes('CANDIDATE') || user.roles.includes('JURY')) ? (
+        {(user.roles.includes('CANDIDATE') || user.roles.includes('EVALUATOR') || user.roles.includes('JURY')) ? (
           <div className="p-10 bg-white rounded-xl border border-accent/10 shadow-sm h-full">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
@@ -192,7 +198,7 @@ export function UserRowDrawer({
           <div className="p-8 bg-black/[0.02] border border-dashed border-black/10 rounded-3xl h-full flex flex-col items-center justify-center text-center">
             <Shield className="w-8 h-8 mb-4 text-black/10" />
             <p className="text-xs text-black/40 italic">
-              Seuls les utilisateurs avec le rôle <br/><strong>Candidat ou Jury</strong> peuvent évaluer des dossiers.
+              Seuls les utilisateurs avec le rôle <br/><strong>Candidat, Évaluateur ou Jury</strong> peuvent évaluer des dossiers.
             </p>
           </div>
         )}

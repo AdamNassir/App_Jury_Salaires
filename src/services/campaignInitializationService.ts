@@ -2,7 +2,7 @@ import { defaultReportData } from '../data/defaultAnnualReport';
 import * as XLSX from 'xlsx';
 import { collection, getDocs, doc, writeBatch, query, where } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
-import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign } from '../types';
+import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole } from '../types';
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
 
@@ -30,6 +30,7 @@ export interface CandidateInitData {
   entryDate?: string;    // Date entrée LL (Col E)
   expertPassageDate?: string; // Date de passage au grade expert (Col F)
   ancienneteLL?: number; // Ancienneté chez LL (Col G)
+  anneesExpertise?: number; // Années Exp. si Expert (Col H)
   experienceEmbauche?: number; // Déduit de Boond_Liste_Valeur via Id_Annees_Experience_A_Embauche
   experienceYears?: number; // Total = Ancienneté LL + Expérience à l'embauche
   isExistingPersonne: boolean;
@@ -285,7 +286,16 @@ export class CampaignInitializationService {
       let isActive = true;
       let explanation = 'Prime active';
 
-      if (finDate && finDate.getTime() < thresholdDate.getTime()) {
+      // Règle spécifique : Si Col C contient "Freelance" ET ne contient PAS "Commerciale",
+      // alors ignorer la prime et l'attribution de dossier
+      const normalizedType = normalizeHeader(typePrime);
+      const containsFreelance = normalizedType.includes('freelance');
+      const containsCommerciale = normalizedType.includes('commerciale') || normalizedType.includes('commercial');
+
+      if (containsFreelance && !containsCommerciale) {
+        isActive = false;
+        explanation = 'Prime Freelance non commerciale ignorée : aucune obligation ni attribution de dossier.';
+      } else if (finDate && finDate.getTime() < thresholdDate.getTime()) {
         isActive = false;
         explanation = `Prime expirée au ${finDate.toLocaleDateString('fr-FR')} (antérieure au 01/07/${campaignYear}) : aucune obligation d'évaluation.`;
       }
@@ -536,8 +546,10 @@ export class CampaignInitializationService {
       dateEntreeLL?: string; // Col E
       datePassageExpert?: string; // Col F
       ancienneteLL: number;  // Col G
+      anneesExpertise: number; // Col H
       tjVendu0107: number;   // Col J
       salaireVendu: number;  // Col K
+      salaireActuel: number; // Col P
     }
     const rawJuryRows: RawJuryRow[] = [];
 
@@ -612,8 +624,10 @@ export class CampaignInitializationService {
           const dateEntreeLLRaw = row[4]; // Col E
           const dateExpertRaw = row[5];   // Col F
           const ancienneteLL = parseFrenchNumber(row[6]); // Col G
+          const anneesExpertise = parseFrenchNumber(row[7]); // Col H : Années Exp. (si Expert)
           const tjVendu0107 = parseFrenchNumber(row[9]);  // Col J
           const salaireVendu = parseFrenchNumber(row[10]); // Col K
+          const salaireActuel = parseFrenchNumber(row[15]); // Col P : Salaire Actuel au 30/06
 
           const dEntree = parseExcelDate(dateEntreeLLRaw);
           const dExpert = parseExcelDate(dateExpertRaw);
@@ -625,8 +639,10 @@ export class CampaignInitializationService {
             dateEntreeLL: dEntree ? dEntree.toISOString().split('T')[0] : (dateEntreeLLRaw ? cleanString(dateEntreeLLRaw) : undefined),
             datePassageExpert: dExpert ? dExpert.toISOString().split('T')[0] : (dateExpertRaw ? cleanString(dateExpertRaw) : undefined),
             ancienneteLL,
+            anneesExpertise,
             tjVendu0107,
-            salaireVendu
+            salaireVendu,
+            salaireActuel: salaireActuel || salaireVendu
           });
         }
 
@@ -776,11 +792,12 @@ export class CampaignInitializationService {
         displayName: displayNameFinal,
         email: emailFinal,
         grade: finalGrade,
-        currentSalary: jury.salaireVendu || existingParticipant?.salary || (existingUser as any)?.currentSalary || 0,
+        currentSalary: jury.salaireActuel || jury.salaireVendu || existingParticipant?.salary || (existingUser as any)?.currentSalary || 0,
         currentTJM: jury.tjVendu0107 || existingParticipant?.tjm || (existingUser as any)?.currentTJM || 0,
         entryDate: jury.dateEntreeLL || matchedPersonne?.entryDate || undefined,
         expertPassageDate: jury.datePassageExpert || (matchedPersonne as any)?.expertGradeDate || undefined,
         ancienneteLL: anciennete,
+        anneesExpertise: jury.anneesExpertise,
         experienceEmbauche: expEmbauche,
         experienceYears: totalExp,
         isExistingPersonne: !!matchedPersonne,
@@ -1118,6 +1135,8 @@ export class CampaignInitializationService {
         entryDate: cand.entryDate || '',
         expertGradeDate: cand.expertPassageDate || '',
         totalExperienceYears: cand.experienceYears || 0,
+        ancienneteLL: cand.ancienneteLL,
+        yearsExpert: cand.anneesExpertise,
         isCandidate: true,
         isEvaluator: isAlsoEvaluator,
         assignedCandidateIds: evalObj?.assignedCandidateIds || [],
@@ -1170,7 +1189,7 @@ export class CampaignInitializationService {
       });
 
       // D. Prepare the user profile for the same local commit.
-      const candUserRoles: ('CANDIDATE' | 'JURY')[] = isAlsoEvaluator ? ['CANDIDATE', 'JURY'] : ['CANDIDATE'];
+      const candUserRoles: UserRole[] = isAlsoEvaluator ? ['CANDIDATE', 'EVALUATOR'] : ['CANDIDATE'];
       usersToRegister.push({
         id: cand.idProfil,
         idProfil: cand.idProfil,
@@ -1183,7 +1202,10 @@ export class CampaignInitializationService {
         currentSalary: cand.currentSalary,
         currentTJM: cand.currentTJM,
         entryDate: cand.entryDate || '',
+        expertGradeDate: cand.expertPassageDate || '',
         experienceYears: cand.experienceYears || 0,
+        ancienneteLL: cand.ancienneteLL,
+        yearsExpert: cand.anneesExpertise,
         assignedCandidateIds: evalObj?.assignedCandidateIds || [],
         updatedAt: new Date().toISOString()
       });
@@ -1251,7 +1273,7 @@ export class CampaignInitializationService {
         matricule: ev.matricule || '',
         displayName: ev.displayName,
         email: ev.email,
-        roles: ['JURY'],
+        roles: ['EVALUATOR'],
         team: 'Logic Clever',
         currentGrade: ev.grade || 'Senior',
         assignedCandidateIds: ev.assignedCandidateIds,
@@ -1266,10 +1288,30 @@ export class CampaignInitializationService {
     }
 
     // Commit every campaign entity together before reporting success.
-    for (const user of UserDirectoryService.prepareUsers(usersToRegister)) {
+    const preparedUsers = UserDirectoryService.prepareUsers(usersToRegister);
+    for (const user of preparedUsers) {
       batch.set(doc(db, 'users', user.id), user);
     }
     await batch.commit();
+
+    // Synchroniser automatiquement la nouvelle campagne et les nouveaux utilisateurs dans les fichiers JSON
+    const createdCampaign: Campaign = {
+      id: campaignId,
+      year: preview.year,
+      title: campaignData.title,
+      description: campaignData.description || '',
+      status: existingCampaign?.status || 'OUVERTE',
+      rhDocuments: campaignData.rhDocuments || [],
+      pairsDocuments: campaignData.pairsDocuments || [],
+      otherDocuments: campaignData.otherDocuments || [],
+      createdAt: existingCampaign?.createdAt || new Date().toISOString(),
+      createdBy: existingCampaign?.createdBy || campaignData.createdBy,
+      updatedAt: new Date().toISOString()
+    };
+    LocalDatabaseService.syncCampaignToDisk(createdCampaign);
+    if (preparedUsers.length > 0) {
+      UserDirectoryService.syncUsersToDisk(preparedUsers);
+    }
 
     return { 
       success: true, 

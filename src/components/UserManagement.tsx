@@ -3,13 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, doc, updateDoc, getDoc, getDocs, where, setDoc, deleteDoc } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
 import { UserProfile, UserRole, Grade } from '../types';
-import { Users, User as UserIcon, ChevronDown, Plus, Database, Trash2, Check, FileSpreadsheet, Loader2, RefreshCw, Download } from 'lucide-react';
+import { Users, User as UserIcon, ChevronDown, Plus, Trash2, Check, Download } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { seedMockData } from '../services/mockSeeder';
 import { cleanDatabase } from '../services/dataCleansing';
-import { importAccountsFromGoogleSheet } from '../services/googleSheetsService';
-import { DataReconciliationService, ReconciliationReport } from '../services/dataReconciliationService';
 import { UserDirectoryService } from '../services/userDirectoryService';
 import { LocalDatabaseService } from '../services/localDatabaseService';
 import { Personne, PersonneType } from '../types';
@@ -19,6 +16,7 @@ import { RoleBadge } from './users/UserCommonUI';
 import { UserRowDrawer } from './users/UserRowDrawer';
 import { CreateUserModal } from './users/CreateUserModal';
 import { DeleteUserModal } from './users/DeleteUserModal';
+import { MassDeleteUsersModal } from './users/MassDeleteUsersModal';
 
 const sanitizeForStorage = (obj: any): any => {
   if (obj === undefined) return null;
@@ -39,10 +37,11 @@ interface UserManagementProps {
 export function UserManagement({ currentUser }: UserManagementProps) {
   const isOperatingAdmin = currentUser?.roles?.includes('ADMIN');
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const adminUsers = users.filter(u => u.roles?.includes('ADMIN'));
+  const nonAdminUsers = users.filter(u => !u.roles?.includes('ADMIN'));
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [assignmentsLoading, setAssignmentsLoading] = useState<string | null>(null);
 
   // Custom alert/toast notification states
@@ -61,224 +60,10 @@ export function UserManagement({ currentUser }: UserManagementProps) {
   // States for "Delete User" Confirmation Modal
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
 
-  const handleRunSafeMigration = async () => {
-    setIsMigrating(true);
-    try {
-      const report = await DataReconciliationService.executeSafeMigration();
-      let msg = `Rapprochement terminé : ${report.matchedUsers} compte(s) lié(s), ${report.createdPersonnesCount} profil(s) canonique(s) créé(s).`;
-      if (report.unresolvedUsers.length > 0) {
-        msg += ` ${report.unresolvedUsers.length} compte(s) non rapproché(s) par précaution.`;
-      }
-      showNotification('success', msg);
-    } catch (error: any) {
-      console.error("Migration error:", error);
-      showNotification('error', `Erreur lors du rapprochement : ${error.message || String(error)}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
-  const handleImportFromSheet = async () => {
-    setIsImporting(true);
-    try {
-      const result = await importAccountsFromGoogleSheet();
-      if (!result.success || result.accounts.length === 0) {
-        showNotification('info', `Aucun compte valide trouvé à importer dans l'onglet '${result.tabName}'.`);
-        return;
-      }
-
-      let createdCount = 0;
-      let updatedCount = 0;
-
-      // Query current users to check existing emails
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const existingUsersByEmail = new Map<string, { id: string; data: any }>();
-      usersSnap.docs.forEach(docSnap => {
-        const d = docSnap.data();
-        if (d.email) {
-          existingUsersByEmail.set(d.email.trim().toLowerCase(), { id: docSnap.id, data: d });
-        }
-      });
-
-      for (const account of result.accounts) {
-        const emailLower = account.email.trim().toLowerCase();
-        const existing = existingUsersByEmail.get(emailLower);
-
-        // 1. Déterminer l'Id_Profil canonique APP_LL
-        const idProfil = account.matricule ? `LL_${account.matricule.trim()}` : (existing ? `PERS_${existing.id}` : `PERS_${account.email.replace(/[^a-zA-Z0-9]/g, '_')}`);
-        
-        // 2. Créer ou enrichir l'entité Personne dans le référentiel canonique
-        const nameParts = (account.displayName || account.email).trim().split(' ');
-        const prenom = nameParts[0] || '';
-        const nom = nameParts.slice(1).join(' ') || prenom;
-        const isCollaborateur = account.roles.includes('CANDIDATE');
-        const pType: PersonneType = isCollaborateur ? 'COLLABORATEUR' : 'EXTERNE';
-
-        const personneData: Partial<Personne> = {
-          idProfil,
-          matricule: account.matricule || undefined,
-          nom,
-          prenom,
-          displayName: account.displayName || account.email,
-          email: account.email,
-          statut: 'ACTIF',
-          type: pType,
-          entryDate: account.entryDate,
-          experienceYearsEmbauche: account.experienceYears,
-          updatedAt: new Date().toISOString()
-        };
-        await setDoc(doc(db, 'personnes', idProfil), sanitizeForStorage(personneData), { merge: true });
-
-        // 3. Créer ou mettre à jour le snapshot figé de la campagne 2025
-        const participantId = `2025_${idProfil}`;
-        const hasCandidateRole = account.roles.includes('CANDIDATE') || (existing && existing.data.roles?.includes('CANDIDATE'));
-        const participantData = {
-          id: participantId,
-          campaignId: '2025',
-          campaignYear: 2025,
-          idProfil,
-          matricule: account.matricule,
-          displayName: account.displayName || (existing ? existing.data.displayName : account.email),
-          email: account.email,
-          team: account.team || 'Logic Clever',
-          grade: account.currentGrade || 'Confirmé',
-          salary: account.currentSalary || 0,
-          tjm: account.currentTJM || 0,
-          entryDate: account.entryDate,
-          totalExperienceYears: account.experienceYears,
-          isCandidate: !!hasCandidateRole,
-          isEvaluator: true,
-          dossierId: hasCandidateRole ? `${idProfil}_2025` : null,
-          updatedAt: new Date().toISOString()
-        };
-        await setDoc(doc(db, 'campaign_participants', participantId), sanitizeForStorage(participantData), { merge: true });
-
-        if (existing) {
-          // Update existing user profile
-          const userRef = doc(db, 'users', existing.id);
-          const updatePayload: any = {
-            idProfil,
-            displayName: account.displayName || existing.data.displayName,
-            matricule: account.matricule || existing.data.matricule,
-            currentGrade: account.currentGrade || existing.data.currentGrade,
-            entryDate: account.entryDate || existing.data.entryDate,
-            experienceYears: account.experienceYears ?? existing.data.experienceYears,
-            currentSalary: account.currentSalary ?? existing.data.currentSalary,
-            currentTJM: account.currentTJM ?? existing.data.currentTJM,
-            team: account.team || existing.data.team,
-            updatedAt: new Date().toISOString()
-          };
-
-          // If role CANDIDATE is specified and dossier doesn't exist, ensure dossier is created
-          if (hasCandidateRole) {
-            const dossierId = `${existing.id}_2025`;
-            const dossierRef = doc(db, 'dossiers', dossierId);
-            const dossierSnap = await getDoc(dossierRef);
-            if (!dossierSnap.exists()) {
-              const newDossier = {
-                id: dossierId,
-                candidateId: existing.id,
-                idProfil,
-                campaignId: '2025',
-                candidateName: updatePayload.displayName,
-                candidateEmail: account.email,
-                campaignYear: 2025,
-                status: 'OUVERT',
-                assignedConsultantIds: [],
-                annualReport: {
-                  ...defaultReportData,
-                  currentGrade: updatePayload.currentGrade,
-                  currentTJM: updatePayload.currentTJM,
-                  currentSalary: updatePayload.currentSalary,
-                },
-                clientFeedbacks: [],
-                documents: [],
-                consultantFeedbacks: {},
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              };
-              await setDoc(dossierRef, sanitizeForStorage(newDossier));
-            } else {
-              // Ensure idProfil is present on existing dossier without erasing contents
-              await updateDoc(dossierRef, { idProfil, updatedAt: new Date().toISOString() });
-            }
-          }
-
-          await updateDoc(userRef, sanitizeForStorage(updatePayload));
-          updatedCount++;
-        } else {
-          // Create new user
-          const newUserRef = doc(collection(db, 'users'));
-          const newUserId = newUserRef.id;
-
-          const userPayload: Partial<UserProfile> = {
-            id: newUserId,
-            idProfil,
-            email: account.email,
-            displayName: account.displayName,
-            roles: account.roles,
-            team: account.team,
-            matricule: account.matricule,
-            currentGrade: account.currentGrade,
-            entryDate: account.entryDate,
-            experienceYears: account.experienceYears,
-            currentSalary: account.currentSalary,
-            currentTJM: account.currentTJM,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          await setDoc(newUserRef, sanitizeForStorage(userPayload));
-
-          // Also link back firebaseUid in Personne
-          await updateDoc(doc(db, 'personnes', idProfil), { firebaseUid: newUserId });
-
-          // If CANDIDATE role is assigned, create their evaluation dossier
-          if (account.roles.includes('CANDIDATE')) {
-            const dossierId = `${newUserId}_2025`;
-            const newDossier = {
-              id: dossierId,
-              candidateId: newUserId,
-              idProfil,
-              campaignId: '2025',
-              candidateName: userPayload.displayName,
-              candidateEmail: userPayload.email,
-              campaignYear: 2025,
-              status: 'OUVERT',
-              assignedConsultantIds: [],
-              annualReport: {
-                ...defaultReportData,
-                currentGrade: userPayload.currentGrade,
-                currentTJM: userPayload.currentTJM,
-                currentSalary: userPayload.currentSalary,
-              },
-              clientFeedbacks: [],
-              documents: [],
-              consultantFeedbacks: {},
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            };
-            await setDoc(doc(db, 'dossiers', dossierId), sanitizeForStorage(newDossier));
-          }
-
-          createdCount++;
-        }
-      }
-
-      showNotification(
-        'success', 
-        `Synchronisation Google Sheet (${result.tabName}) : ${createdCount} nouveau(x) compte(s) créé(s), ${updatedCount} mis à jour (${result.ignoredRowsCount} ligne(s) vide(s) ignorée(s)).`
-      );
-    } catch (err: any) {
-      console.error("Erreur d'importation depuis Google Sheets:", err);
-      showNotification('error', `Erreur lors de l'importation : ${err.message || String(err)}`);
-    } finally {
-      setIsImporting(false);
-    }
-  };
+  // States for "Mass Delete Non-Admin Users" Confirmation Modal
+  const [isMassDeleteModalOpen, setIsMassDeleteModalOpen] = useState(false);
+  const [isMassDeleting, setIsMassDeleting] = useState(false);
 
   useEffect(() => {
     const syncFromDirectory = () => {
@@ -439,17 +224,61 @@ export function UserManagement({ currentUser }: UserManagementProps) {
     }
   };
 
-  const handleSeedData = async () => {
-    setIsSeeding(true);
+  const handleConfirmMassDelete = async (deleteRelatedDossiers: boolean) => {
+    setIsMassDeleting(true);
     try {
-      await seedMockData();
-      await cleanDatabase();
-      showNotification('success', "La base a été peuplée et nettoyée de tout doublon avec succès !");
-    } catch (error: any) {
-      console.error("Seed error detailed:", error);
-      showNotification('error', `Erreur lors de la génération des données : ${error.message || String(error)}`);
+      const nonAdminList = users.filter(u => !u.roles?.includes('ADMIN'));
+      const adminList = users.filter(u => u.roles?.includes('ADMIN'));
+      const nonAdminIds = new Set(nonAdminList.map(u => u.id));
+
+      // 1. Supprimer les documents utilisateurs non-admins
+      for (const user of nonAdminList) {
+        try {
+          await deleteDoc(doc(db, 'users', user.id));
+        } catch (e) {
+          console.warn(`Could not delete user ${user.id}:`, e);
+        }
+      }
+
+      // 2. Nettoyer les assignations chez les évaluateurs restants
+      const dossiersSnap = await getDocs(collection(db, 'dossiers'));
+      for (const docRef of dossiersSnap.docs) {
+        const data = docRef.data();
+        const consultants = data.assignedConsultantIds || [];
+        const filteredConsultants = consultants.filter((id: string) => !nonAdminIds.has(id));
+        if (filteredConsultants.length !== consultants.length) {
+          await updateDoc(docRef.ref, {
+            assignedConsultantIds: filteredConsultants,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+
+      // 3. Supprimer les dossiers associés si demandé
+      if (deleteRelatedDossiers) {
+        const dossiers = LocalDatabaseService.getDossiers();
+        for (const dossier of dossiers) {
+          if (nonAdminIds.has(dossier.candidateId) || (dossier.idProfil && nonAdminIds.has(dossier.idProfil))) {
+            try {
+              await deleteDoc(doc(db, 'dossiers', dossier.id));
+            } catch (e) {
+              console.warn(`Could not delete dossier ${dossier.id}:`, e);
+            }
+          }
+        }
+      }
+
+      // 4. Mettre à jour atomiquement UserDirectoryService et synchroniser data/users.json
+      UserDirectoryService.replaceAllUsers(adminList);
+      setUsers(adminList);
+
+      showNotification('success', `${nonAdminList.length} utilisateur(s) non-admin supprimé(s). ${adminList.length} administrateur(s) conservé(s).`);
+      setIsMassDeleteModalOpen(false);
+    } catch (err: any) {
+      console.error("Error mass deleting non-admin users:", err);
+      showNotification('error', `Erreur lors de la suppression massive : ${err.message || String(err)}`);
     } finally {
-      setIsSeeding(false);
+      setIsMassDeleting(false);
     }
   };
 
@@ -541,34 +370,6 @@ export function UserManagement({ currentUser }: UserManagementProps) {
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={handleRunSafeMigration}
-            disabled={isMigrating}
-            className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 cursor-pointer"
-            title="Rapprochement non-destructif : associe les comptes aux personnes sans rien supprimer"
-          >
-            {isMigrating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            {isMigrating ? "Rapprochement..." : "Rapprocher les profils"}
-          </button>
-
-          <button 
-            onClick={handleImportFromSheet}
-            disabled={isImporting}
-            className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 cursor-pointer"
-            title="Importer et synchroniser les comptes depuis l'onglet Comptes du Google Sheet"
-          >
-            {isImporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="w-4 h-4" />
-            )}
-            {isImporting ? "Importation..." : "Importer depuis Google Sheet"}
-          </button>
-
-          <button 
             onClick={() => {
               UserDirectoryService.downloadUsersJson();
               showNotification('success', "Le fichier users.json a été téléchargé avec succès !");
@@ -580,21 +381,23 @@ export function UserManagement({ currentUser }: UserManagementProps) {
             Exporter users.json
           </button>
 
+          {nonAdminUsers.length > 0 && (
+            <button 
+              onClick={() => setIsMassDeleteModalOpen(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md cursor-pointer"
+              title="Supprimer massivement tous les utilisateurs hors administrateurs"
+            >
+              <Trash2 className="w-4 h-4" />
+              Supprimer les non-admins ({nonAdminUsers.length})
+            </button>
+          )}
+
           <button 
             onClick={() => setIsAddModalOpen(true)}
             className="flex items-center gap-2 px-6 py-3 bg-secondary text-white hover:bg-secondary/90 rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Ajouter un utilisateur
-          </button>
-
-          <button 
-            onClick={handleSeedData}
-            disabled={isSeeding}
-            className="flex items-center gap-2 px-4 py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 cursor-pointer"
-          >
-            <Database className="w-4 h-4" />
-            {isSeeding ? "Génération..." : "Peupler la base (Demo)"}
           </button>
         </div>
       </div>
@@ -718,6 +521,19 @@ export function UserManagement({ currentUser }: UserManagementProps) {
             onClose={() => setUserToDelete(null)}
             onConfirmDelete={executeDeleteUser}
             isDeleting={isDeleting}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isMassDeleteModalOpen && (
+          <MassDeleteUsersModal
+            isOpen={isMassDeleteModalOpen}
+            onClose={() => setIsMassDeleteModalOpen(false)}
+            onConfirmMassDelete={handleConfirmMassDelete}
+            isDeleting={isMassDeleting}
+            nonAdminCount={nonAdminUsers.length}
+            adminUsers={adminUsers}
           />
         )}
       </AnimatePresence>

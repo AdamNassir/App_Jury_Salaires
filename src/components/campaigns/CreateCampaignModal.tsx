@@ -55,7 +55,6 @@ export function CreateCampaignModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitting = useRef(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
-  const [keepSourceFiles, setKeepSourceFiles] = useState(true);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [showEvaluatorsTable, setShowEvaluatorsTable] = useState(false);
 
@@ -166,44 +165,10 @@ export function CreateCampaignModal({
     setLaunchError(null);
     setIsSubmitting(true);
     try {
-      // 1. Sauvegarder les fichiers dans la structure de campagne
+      // 1. Ne pas conserver les copies volumineuses des fichiers sources dans la campagne (état décoché par défaut)
       const rhCampaignFiles: CampaignFile[] = [];
       const pairsCampaignFiles: CampaignFile[] = [];
-      const otherCampaignFiles = keepSourceFiles ? [...otherFiles] : [];
-
-      const filePromises = [
-        { file: analyseJuryFile, cat: 'RH_EFFECTIFS' as const },
-        { file: profilFile, cat: 'AUTRE' as const },
-        { file: boondFile, cat: 'AUTRE' as const },
-        { file: primesFile, cat: 'PAIRS' as const }
-      ].filter(item => keepSourceFiles && !!item.file).map(async ({ file, cat }) => {
-        // Generate the id before entering the FileReader callback so errors reject
-        // the promise instead of leaving launch permanently pending.
-        const id = uuidv4();
-        return new Promise<CampaignFile>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onerror = () => reject(new Error(`Lecture impossible : ${file!.name}`));
-          reader.onabort = () => reject(new Error(`Lecture annulée : ${file!.name}`));
-          reader.onload = () => {
-            resolve({
-              id,
-              name: file!.name,
-              category: cat === 'PAIRS' ? 'AUTRE' : cat,
-              url: reader.result as string,
-              size: file!.size,
-              uploadedAt: new Date().toISOString()
-            });
-          };
-          reader.readAsDataURL(file!);
-        });
-      });
-
-      const uploadedFiles = await Promise.all(filePromises);
-      uploadedFiles.forEach(f => {
-        if (f.name === primesFile?.name) pairsCampaignFiles.push(f);
-        else if (f.category === 'RH_EFFECTIFS') rhCampaignFiles.push(f);
-        else otherCampaignFiles.push(f);
-      });
+      const otherCampaignFiles: CampaignFile[] = [];
 
       // 2. Exécuter l'initialisation des données (personnes, participants RH, dossiers avec évaluateurs assignés)
       const res = await CampaignInitializationService.executeCampaignInitialization(
@@ -221,7 +186,7 @@ export function CreateCampaignModal({
         }
       );
 
-      onShowToast('success', `Campagne ${newYear} initialisée : ${res.created + res.updated} dossiers créés/mis à jour et ${res.evaluatorsInitialized} membres du jury/évaluateurs configurés.`);
+      onShowToast('success', `Campagne ${newYear} initialisée : ${res.created + res.updated} dossiers créés/mis à jour et ${res.evaluatorsInitialized} évaluateur(s) configuré(s).`);
       onClose();
     } catch (err: any) {
       console.error("Initialization error:", err);
@@ -473,7 +438,7 @@ export function CreateCampaignModal({
                     <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold uppercase">Optionnel</span>
                   </div>
                   <p className="text-xs text-purple-800/80 leading-relaxed">
-                    Assigne les dossiers selon les primes actives au <strong>01/07/{newYear}</strong> : Matricule Évaluateur (Col A), Matricule Candidat (Col B), Date Fin (Col E). Si la prime est échue avant le 01/07/{newYear}, pas d'assignation automatique.
+                    Assigne les dossiers selon les primes actives au <strong>01/07/{newYear}</strong> : Matricule Évaluateur (Col A), Matricule Candidat (Col B), Type (Col C), Date Fin (Col E). Les primes contenant <em>Freelance</em> sans <em>Commerciale</em> en Col C ainsi que les primes échues avant le 01/07/{newYear} sont automatiquement ignorées.
                   </p>
 
                   {primesFile ? (
@@ -801,15 +766,6 @@ export function CreateCampaignModal({
                     </div>
                   </div>
                 )}
-
-                <label className="flex items-start gap-3 rounded-xl border border-accent/20 p-4 text-sm">
-                  <input type="checkbox" checked={keepSourceFiles} disabled={isSubmitting}
-                    onChange={event => setKeepSourceFiles(event.target.checked)} className="mt-1" />
-                  <span>
-                    <span className="font-semibold">Conserver les fichiers sources dans la campagne</span>
-                    <span className="block text-xs text-accent/70 mt-1">Si l’espace local est insuffisant, décochez cette option puis relancez. Les utilisateurs, leurs rôles, les affectations et les dossiers seront importés ; les copies des fichiers joints ne seront pas conservées.</span>
-                  </span>
-                </label>
 
                 {launchError && (
                   <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 whitespace-pre-wrap break-words">
