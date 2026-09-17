@@ -603,7 +603,7 @@ export function JuryDossierViewer({
         highlight
       >
         <div>
-          {(dossier.status === 'COMPLET' || profile.roles.includes('JURY')) ? (
+          {(dossier.status === 'COMPLET' && profile.roles.includes('JURY')) ? (
             <div key={dossier.id}>
               <JuryDecisionForm 
                 dossier={dossier} 

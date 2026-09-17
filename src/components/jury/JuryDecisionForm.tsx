@@ -15,6 +15,7 @@ import {
 interface JuryDecisionFormProps {
   dossier: Dossier;
   candidate: UserProfile | null;
+  profile: UserProfile;
   onDone: () => void;
   referenceDate?: string | Date | null;
   readOnly?: boolean;
@@ -24,6 +25,7 @@ interface JuryDecisionFormProps {
 export function JuryDecisionForm({ 
   dossier, 
   candidate, 
+  profile,
   onDone,
   referenceDate,
   readOnly = false,
