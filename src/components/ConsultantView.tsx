@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot } from '../lib/localDatabase';
+import { collection, query, onSnapshot, deleteDoc, doc } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, ConsultantFeedback, ConsultationType, EvaluationRelationType, Campaign } from '../types';
 import { UserDirectoryService } from '../services/userDirectoryService';
 import { LocalDatabaseService } from '../services/localDatabaseService';
-import { User, MessageSquare, CheckCircle2, Search, AlertCircle, Building2, Briefcase, Plus, ShieldCheck, History, Clock, FileEdit, Check, AlertTriangle } from 'lucide-react';
+import { User, MessageSquare, CheckCircle2, Search, AlertCircle, Building2, Briefcase, Plus, ShieldCheck, History, Clock, FileEdit, Check, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ConsultantViewProps {
@@ -75,16 +75,51 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
     return true;
   });
 
+  // Détection robuste si un dossier est assigné à l'évaluateur connecté
+  const checkIsAssigned = (d: Dossier) => {
+    // 1. Directement dans la liste des consultants assignés au dossier
+    const inAssignedList = (d.assignedConsultantIds || []).some(id => 
+      id === profile.id || 
+      (profile.idProfil && id === profile.idProfil) ||
+      (profile.matricule && id === profile.matricule) ||
+      (profile.email && id.toLowerCase() === profile.email.toLowerCase())
+    );
+    if (inAssignedList) return true;
+
+    // 2. Directement dans les candidats assignés au profil évaluateur
+    const inProfileCandidates = (profile.assignedCandidateIds || []).some(cid =>
+      cid === d.candidateId || 
+      (d.idProfil && cid === d.idProfil) ||
+      (candidates[d.candidateId]?.matricule && cid === candidates[d.candidateId]?.matricule)
+    );
+    if (inProfileCandidates) return true;
+
+    // 3. Détection historique / rétroactive : s'il a déjà un avis rattaché dans le dossier
+    const hasExistingFeedback = Object.values(d.consultantFeedbacks || {}).some(f => {
+      const matchId = f.evaluatorUid === profile.id || f.consultantId === profile.id;
+      const matchIdProfil = profile.idProfil && (f.evaluatorIdProfil === profile.idProfil || f.consultantId === profile.idProfil || f.evaluatorUid === profile.idProfil);
+      const matchMatricule = profile.matricule && (f.evaluatorIdProfil === profile.matricule || f.consultantId === profile.matricule);
+      const matchName = profile.displayName && f.consultantName && f.consultantName.trim().toLowerCase() === profile.displayName.trim().toLowerCase();
+      return matchId || matchIdProfil || matchMatricule || matchName;
+    });
+
+    return hasExistingFeedback;
+  };
+
+  const getMyFeedbacks = (d: Dossier) => {
+    return Object.entries(d.consultantFeedbacks || {}).filter(([_, f]) => {
+      const matchId = f.evaluatorUid === profile.id || f.consultantId === profile.id;
+      const matchIdProfil = profile.idProfil && (f.evaluatorIdProfil === profile.idProfil || f.consultantId === profile.idProfil || f.evaluatorUid === profile.idProfil);
+      const matchMatricule = profile.matricule && (f.evaluatorIdProfil === profile.matricule || f.consultantId === profile.matricule);
+      const matchName = profile.displayName && f.consultantName && f.consultantName.trim().toLowerCase() === profile.displayName.trim().toLowerCase();
+      return matchId || matchIdProfil || matchMatricule || matchName;
+    });
+  };
+
   // Filter based on "ASSIGNED", "TO_TREAT" vs "ALL"
   const filteredDossiers = campaignDossiers.filter(d => {
-    const isAssigned = (d.assignedConsultantIds || []).some(id => 
-      id === profile.id || (profile.idProfil && id === profile.idProfil)
-    ) || (profile.assignedCandidateIds || []).some(cid =>
-      cid === d.candidateId || (d.idProfil && cid === d.idProfil)
-    );
-    const myFeedbacks = Object.entries(d.consultantFeedbacks || {}).filter(([_, f]) => {
-      return f.evaluatorUid === profile.id || f.consultantId === profile.id || (profile.idProfil && (f.evaluatorUid === profile.idProfil || f.consultantId === profile.idProfil));
-    });
+    const isAssigned = checkIsAssigned(d);
+    const myFeedbacks = getMyFeedbacks(d);
 
     if (filterStatus === 'ASSIGNED') {
       return isAssigned;
@@ -98,7 +133,44 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
     return true;
   });
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const selectedDossier = dossiers.find(d => d.id === selectedDossierId) || null;
+
+  // Campagne ciblée et dossiers rattachés à supprimer
+  const targetCampaign = campaigns.find(c => c.id === selectedCampaignId);
+  const campaignYear = targetCampaign?.year;
+  const campaignDossiersToDelete = dossiers.filter(d => {
+    if (d.campaignId === selectedCampaignId) return true;
+    if (campaignYear && (d.campaignYear === campaignYear || d.campaignId === `campaign_${campaignYear}`)) return true;
+    return false;
+  });
+
+  const handleDeleteCampaignDossiers = async () => {
+    if (!profile.roles?.includes('ADMIN') || selectedCampaignId === 'ALL') return;
+    setIsDeleting(true);
+    try {
+      // 1. Suppression via LocalDatabaseService
+      LocalDatabaseService.deleteDossiersByCampaign(selectedCampaignId, campaignYear);
+
+      // 2. Suppression explicite de chaque document
+      for (const d of campaignDossiersToDelete) {
+        if (d.id) {
+          await deleteDoc(doc(db, 'dossiers', d.id));
+        }
+      }
+
+      setSelectedDossierId(null);
+      setSelectedEvaluationKey(null);
+      setIsCreatingNewEvaluation(false);
+      setShowDeleteModal(false);
+    } catch (err) {
+      console.error("Erreur lors de la suppression des dossiers de la campagne:", err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Auto-select first dossier if none selected
   useEffect(() => {
@@ -121,7 +193,7 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select
             value={selectedCampaignId}
             onChange={(e) => {
@@ -138,6 +210,18 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
               </option>
             ))}
           </select>
+
+          {/* Bouton visible UNIQUEMENT pour les administrateurs pour une campagne spécifique */}
+          {profile.roles?.includes('ADMIN') && selectedCampaignId !== 'ALL' && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-xs"
+              title="Effacer tous les dossiers de cette campagne"
+            >
+              <Trash2 className="w-4 h-4 text-red-600 shrink-0" />
+              <span>Effacer les dossiers ({campaignDossiersToDelete.length})</span>
+            </button>
+          )}
 
           {isCampaignClosed && (
             <span className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-lg flex items-center gap-1.5">
@@ -191,12 +275,8 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
 
           <div className="space-y-3 max-h-[750px] overflow-y-auto pr-1">
             {filteredDossiers.map(d => {
-              const isAssigned = (d.assignedConsultantIds || []).some(id => 
-                id === profile.id || (profile.idProfil && id === profile.idProfil)
-              );
-              const myFeedbacks = Object.entries(d.consultantFeedbacks || {}).filter(([_, f]) => {
-                return f.evaluatorUid === profile.id || f.consultantId === profile.id || (profile.idProfil && (f.evaluatorUid === profile.idProfil || f.consultantId === profile.idProfil));
-              });
+              const isAssigned = checkIsAssigned(d);
+              const myFeedbacks = getMyFeedbacks(d);
               const isOwnDossier = d.candidateId === profile.id || (profile.idProfil && d.idProfil === profile.idProfil);
               const isSelected = selectedDossierId === d.id;
 
@@ -336,6 +416,67 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
           )}
         </div>
       </div>
+
+      {/* Modale de confirmation de suppression (Admin uniquement) */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white max-w-md w-full rounded-2xl shadow-2xl border border-red-200 p-6 space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-red-600 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-accent">Supprimer les dossiers de la campagne</h3>
+                <p className="text-xs text-accent/60">
+                  {targetCampaign ? `${targetCampaign.title} (${targetCampaign.year})` : 'Campagne sélectionnée'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-50/70 border border-red-200/80 rounded-xl p-4 text-xs text-red-800 space-y-2">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                Action irréversible
+              </div>
+              <p>
+                Vous êtes sur le point de supprimer définitivement les <span className="font-extrabold underline">{campaignDossiersToDelete.length} dossier(s)</span> associés à cette campagne.
+              </p>
+              <p className="text-[11px] text-red-700/80">
+                Toutes les délibérations et évaluations de cette campagne pour ces dossiers seront effacées.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-accent/20 text-xs font-bold text-accent hover:bg-accent/5 transition-all cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting || campaignDossiersToDelete.length === 0}
+                onClick={handleDeleteCampaignDossiers}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Suppression...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Confirmer la suppression</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -384,7 +525,11 @@ function ConsultantFeedbackForm({
   // Each entry can have a unique key (e.g. feedbackId or consultant.id)
   const allFeedbacksDict = dossier.consultantFeedbacks || {};
   const myFeedbackEntries = Object.entries(allFeedbacksDict).filter(([key, f]) => {
-    return f.evaluatorUid === consultant.id || f.consultantId === consultant.id;
+    const matchId = f.evaluatorUid === consultant.id || f.consultantId === consultant.id;
+    const matchIdProfil = consultant.idProfil && (f.evaluatorIdProfil === consultant.idProfil || f.consultantId === consultant.idProfil || f.evaluatorUid === consultant.idProfil);
+    const matchMatricule = consultant.matricule && (f.evaluatorIdProfil === consultant.matricule || f.consultantId === consultant.matricule);
+    const matchName = consultant.displayName && f.consultantName && f.consultantName.trim().toLowerCase() === consultant.displayName.trim().toLowerCase();
+    return matchId || matchIdProfil || matchMatricule || matchName;
   });
 
   // Effective key selected:

@@ -15,21 +15,19 @@ import {
 interface JuryDecisionFormProps {
   dossier: Dossier;
   candidate: UserProfile | null;
-  profile: UserProfile;
+  profile?: UserProfile | null;
   onDone: () => void;
   referenceDate?: string | Date | null;
   readOnly?: boolean;
-  profile?: UserProfile | null;
 }
 
 export function JuryDecisionForm({ 
   dossier, 
   candidate, 
-  profile,
+  profile = null,
   onDone,
   referenceDate,
-  readOnly = false,
-  profile = null
+  readOnly = false
 }: JuryDecisionFormProps) {
   const [loading, setLoading] = useState(false);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
@@ -522,7 +520,7 @@ export function JuryDecisionForm({
 
         {!readOnly && (
           <button 
-            onClick={handleSubmit}
+            onClick={handleFinalizeMyReview}
             disabled={loading || !formData.unanimous}
             className="w-full bg-primary text-white py-6 rounded-xl font-black uppercase tracking-[0.3em] text-lg flex items-center justify-center gap-4 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed group shadow-2xl shadow-primary/30"
           >

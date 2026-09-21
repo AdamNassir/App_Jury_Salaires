@@ -5,8 +5,6 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import mammoth from "mammoth";
 import { JWT } from "google-auth-library";
-import { JsonFileStore } from './server/jsonFileStore';
-import { createDatabaseRouter } from './server/databaseRoutes';
 
 // Load Google Sheets config dynamically
 function getSheetsConfig() {
@@ -65,7 +63,6 @@ async function startServer() {
   // Larger payload body parsers for base64 file transfers
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  app.use('/api/database', createDatabaseRouter(new JsonFileStore(path.resolve(process.env.LOCAL_DATA_DIR || 'src/data'))));
 
   // API Route: healthcheck
   app.get("/api/health", (req, res) => {

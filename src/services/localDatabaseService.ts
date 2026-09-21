@@ -1,5 +1,4 @@
-import { Campaign, Dossier, CampaignParticipant, Personne, JuryDecision } from '../types';
-import { UserDirectoryService } from './userDirectoryService';
+import { Campaign, Dossier, CampaignParticipant, Personne } from '../types';
 import { CollectionName, readCollection, readRecord, commitMutations, subscribeLocal } from './localStore';
 
 class LocalDatabaseServiceImpl {
@@ -62,49 +61,50 @@ class LocalDatabaseServiceImpl {
     return this.getDossiers().filter(d => ids.includes(d.candidateId) || ids.includes(d.idProfil));
   }
   saveDossier(dossier: Dossier) { this.save('dossiers', dossier.id, dossier); }
-  updateDossier(id: string, updates: Partial<Dossier>) {
-    const current = this.getDossierById(id);
-    const next = { ...updates };
-    if (updates.juryDecision && !this.sameDecision(current?.juryDecision, updates.juryDecision)) {
-      next.juryFinalizations = {};
-      if (current?.status === 'VALIDE') next.status = 'COMPLET';
+  updateDossier(id: string, updates: Partial<Dossier>) { this.update('dossiers', id, updates); }
+  deleteDossier(id: string) {
+    commitMutations([{ collection: 'dossiers', id, kind: 'delete' }]);
+  }
+  deleteDossiersByCampaign(campaignId: string, year?: number) {
+    const dossiers = this.getDossiers();
+    const toDelete = dossiers.filter(d => {
+      if (d.campaignId === campaignId) return true;
+      if (year && (d.campaignYear === year || d.campaignId === `campaign_${year}`)) return true;
+      return false;
+    });
+    if (toDelete.length > 0) {
+      commitMutations(toDelete.map(d => ({ collection: 'dossiers', id: d.id, kind: 'delete' })));
     }
-    if (next.status === 'VALIDE') {
-      const members = UserDirectoryService.getJuryMembers();
-      const finalizations = next.juryFinalizations ?? current?.juryFinalizations ?? {};
-      if (!members.length || !members.every(member => Boolean(finalizations[member.id]))) {
-        throw new Error('Chaque membre du jury doit finaliser sa décision.');
+    return toDelete.length;
+  }
+  syncEvaluatorAssignments(): void {
+    const dossiers = this.getDossiers();
+    const mutations: Array<{ collection: CollectionName; id: string; kind: 'set'; data: any; merge: true }> = [];
+
+    dossiers.forEach(d => {
+      const assignedSet = new Set<string>(d.assignedConsultantIds || []);
+      const prevCount = assignedSet.size;
+
+      Object.values(d.consultantFeedbacks || {}).forEach(f => {
+        if (f.evaluatorUid) assignedSet.add(f.evaluatorUid);
+        if (f.consultantId) assignedSet.add(f.consultantId);
+        if (f.evaluatorIdProfil) assignedSet.add(f.evaluatorIdProfil);
+      });
+
+      if (assignedSet.size > prevCount) {
+        mutations.push({
+          collection: 'dossiers',
+          id: d.id,
+          kind: 'set',
+          data: { assignedConsultantIds: Array.from(assignedSet) },
+          merge: true
+        });
       }
+    });
+
+    if (mutations.length > 0) {
+      commitMutations(mutations);
     }
-    this.update('dossiers', id, next);
-  }
-  private sameDecision(a?: JuryDecision, b?: JuryDecision) {
-    const content = (decision?: JuryDecision) => Object.entries(decision || {})
-      .filter(([key, value]) => key !== 'date' && key !== 'unanimous' && value !== undefined)
-      .sort(([a], [b]) => a.localeCompare(b));
-    return JSON.stringify(content(a)) === JSON.stringify(content(b));
-  }
-  saveJuryDecision(id: string, decision: JuryDecision, expected?: JuryDecision) {
-    const current = this.getDossierById(id);
-    if (!current || current.status !== 'COMPLET') throw new Error('Le dossier doit être complet.');
-    if (!this.sameDecision(current.juryDecision, expected)) {
-      throw new Error('La décision a changé. Rechargez le dossier avant de continuer.');
-    }
-    this.updateDossier(id, { juryDecision: decision });
-  }
-  finalizeJuryDecision(id: string, memberId: string, decision: JuryDecision, expected?: JuryDecision) {
-    const members = UserDirectoryService.getJuryMembers();
-    if (!members.some(member => member.id === memberId)) throw new Error('Membre du jury introuvable.');
-    const current = this.getDossierById(id);
-    if (!current || current.status !== 'COMPLET') throw new Error('Le dossier doit être complet.');
-    if (!this.sameDecision(current.juryDecision, expected)) {
-      throw new Error('La décision a changé. Rechargez le dossier avant de continuer.');
-    }
-    const finalizations = this.sameDecision(current.juryDecision, decision) ? { ...current.juryFinalizations } : {};
-    finalizations[memberId] ||= new Date().toISOString();
-    const status = members.every(member => Boolean(finalizations[member.id])) ? 'VALIDE' : 'COMPLET';
-    this.update('dossiers', id, { juryDecision: decision, juryFinalizations: finalizations, status });
-    return status;
   }
   bulkSaveDossiers(rows: Dossier[]) { this.bulkSave('dossiers', rows); }
   bulkSaveParticipants(rows: CampaignParticipant[]) { this.bulkSave('campaign_participants', rows); }

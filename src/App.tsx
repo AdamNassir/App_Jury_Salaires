@@ -15,7 +15,7 @@ import { JuryView } from './components/JuryView';
 import { Dashboard } from './components/Dashboard';
 import { UserManagement } from './components/UserManagement';
 import { CampaignManagement } from './components/CampaignManagement';
-import { LogIn, ShieldAlert, Loader2, Settings, Users, User as UserIcon, FolderKanban, ShieldCheck } from 'lucide-react';
+import { LogIn, ShieldAlert, Loader2, Settings, Users, User as UserIcon, FolderKanban, ShieldCheck, Calendar } from 'lucide-react';
 
 type ActiveViewType = 'CANDIDATE' | 'EVALUATIONS' | 'JURY' | 'CAMPAIGNS' | 'ADMIN';
 
@@ -28,6 +28,7 @@ export default function App() {
   const [activeView, setActiveView] = useState<ActiveViewType | null>(null);
   const [candidateProfiles, setCandidateProfiles] = useState<UserProfile[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [signInError, setSignInError] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -191,6 +192,7 @@ export default function App() {
 
     // 1. Synchronisation instantanée depuis la base locale JSON
     const syncLocalDossiers = () => {
+      LocalDatabaseService.syncEvaluatorAssignments();
       if (isJuryOrAdmin || activeView === 'EVALUATIONS') {
         setAllDossiers(LocalDatabaseService.getDossiers());
       } else if (profile.roles?.includes('CANDIDATE') && activeView === 'CANDIDATE') {
@@ -474,7 +476,46 @@ export default function App() {
           const candidateOptions = Array.from(candidateMap.values());
           const activeCandidateId = selectedCandidateId || profile?.id || '';
           const activeCandidateProfile = candidateMap.get(activeCandidateId) || profile!;
-          const activeCandidateDossier = allDossiers.find(d => d.candidateId === activeCandidateId || (activeCandidateProfile.idProfil && (d.idProfil === activeCandidateProfile.idProfil || d.candidateId === activeCandidateProfile.idProfil)));
+
+          // Trouver tous les dossiers appartenant à ce candidat
+          const candidateDossiers = allDossiers.filter(d => 
+            d.candidateId === activeCandidateId || 
+            (activeCandidateProfile.id && d.candidateId === activeCandidateProfile.id) ||
+            (activeCandidateProfile.idProfil && (d.idProfil === activeCandidateProfile.idProfil || d.candidateId === activeCandidateProfile.idProfil)) ||
+            (activeCandidateProfile.matricule && d.matricule && d.matricule === activeCandidateProfile.matricule)
+          );
+
+          // Récupérer toutes les campagnes existantes
+          const allCampaigns = LocalDatabaseService.getCampaigns();
+
+          const getDossierYear = (d: Dossier): number => {
+            if (d.campaignYear && typeof d.campaignYear === 'number') return d.campaignYear;
+            if (d.campaignId) {
+              const m = d.campaignId.match(/\d{4}/);
+              if (m) return parseInt(m[0]);
+            }
+            return 2025;
+          };
+
+          // Répertorier les années de campagnes disponibles (priorité aux dossiers du candidat)
+          const candidateYears: number[] = Array.from(new Set(candidateDossiers.map(d => getDossierYear(d))));
+          const systemYears: number[] = allCampaigns.map(c => Number(c.year)).filter(y => !isNaN(y));
+          const combinedYears: number[] = Array.from(new Set([...candidateYears, ...systemYears]));
+          const availableYears: number[] = (combinedYears.length > 0 ? combinedYears : [2026, 2025, 2024]).sort((a: number, b: number) => b - a);
+
+          // La campagne par défaut est la plus récente en termes d'années
+          const currentSelectedYear = selectedCampaignId 
+            ? parseInt(selectedCampaignId.replace(/[^0-9]/g, '')) 
+            : availableYears[0];
+          
+          const activeCampaignYear = availableYears.includes(currentSelectedYear) ? currentSelectedYear : availableYears[0];
+
+          // Dossier correspondant exactement à la campagne / année choisie
+          const activeCandidateDossier = candidateDossiers.find(d => 
+            getDossierYear(d) === activeCampaignYear || 
+            d.campaignId === `campaign_${activeCampaignYear}` ||
+            d.campaignId === selectedCampaignId
+          ) || candidateDossiers[0];
 
           return (
             <>
@@ -523,21 +564,47 @@ export default function App() {
                     </div>
                   )}
 
-                  {activeView === 'CANDIDATE' && (profile?.roles?.includes('JURY') || isAdmin) && (
-                    <div className="flex items-center gap-3 bg-accent/5 p-2 px-4 rounded-xl border border-accent/10 shadow-sm">
-                      <UserIcon className="w-5 h-5 text-primary" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-accent/60">Candidat :</span>
-                      <select
-                        value={activeCandidateId}
-                        onChange={(e) => setSelectedCandidateId(e.target.value)}
-                        className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
-                      >
-                        {candidateOptions.map(c => (
-                          <option key={c.id} value={c.id}>
-                            {c.id === profile.id ? `Mon bilan personnel (${c.displayName || c.email})` : (c.displayName || c.email)}
-                          </option>
-                        ))}
-                      </select>
+                  {/* Conteneur des filtres / sélecteurs en haut à droite */}
+                  {activeView === 'CANDIDATE' && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Sélecteur de Campagne (le plus récent par défaut) */}
+                      <div className="flex items-center gap-2.5 bg-accent/5 p-2 px-3.5 rounded-xl border border-accent/10 shadow-sm">
+                        <Calendar className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-accent/60">Campagne :</span>
+                        <select
+                          value={activeCampaignYear}
+                          onChange={(e) => setSelectedCampaignId(`campaign_${e.target.value}`)}
+                          className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
+                        >
+                          {availableYears.map(yr => {
+                            const campObj = allCampaigns.find(c => c.year === yr);
+                            return (
+                              <option key={yr} value={yr}>
+                                Campagne {yr} {campObj?.status === 'CLÔTURÉE' ? '(Clôturée)' : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      {/* Sélecteur de Candidat pour Jury/Admin */}
+                      {(profile?.roles?.includes('JURY') || isAdmin) && (
+                        <div className="flex items-center gap-2.5 bg-accent/5 p-2 px-3.5 rounded-xl border border-accent/10 shadow-sm">
+                          <UserIcon className="w-4 h-4 text-primary shrink-0" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-accent/60">Candidat :</span>
+                          <select
+                            value={activeCandidateId}
+                            onChange={(e) => setSelectedCandidateId(e.target.value)}
+                            className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
+                          >
+                            {candidateOptions.map(c => (
+                              <option key={c.id} value={c.id}>
+                                {c.id === profile.id ? `Mon bilan personnel (${c.displayName || c.email})` : (c.displayName || c.email)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

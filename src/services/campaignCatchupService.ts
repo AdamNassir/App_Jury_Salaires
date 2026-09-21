@@ -15,9 +15,15 @@ import {
   EvaluationRelationType, 
   Campaign, 
   Personne,
-  UserProfile
+  UserProfile,
+  UserRole,
+  Grade,
+  AnnualReport,
+  CampaignParticipant
 } from '../types';
 import { cleanString, normalizeHeader, parseFrenchNumber } from './campaignInitializationService';
+import { UserDirectoryService } from './userDirectoryService';
+import { LocalDatabaseService } from './localDatabaseService';
 
 // Relations canoniques strictes incluant Coach et Logiclever
 export const VALID_RELATION_TYPES: EvaluationRelationType[] = [
@@ -38,6 +44,7 @@ export interface ProfileReferenceItem {
   prenom: string;
   displayName: string;
   email?: string;
+  grade?: string;
   idProfilBoond?: string;
   entryDate?: string;
   expertGradeDate?: string;
@@ -51,6 +58,10 @@ export interface DeliberationParsedRow {
   nomPrenom?: string;
   experience?: string;
   resolvedIdProfil?: string;
+  entryDate?: string;
+  expertGradeDate?: string;
+  ancienneteLL?: string | number;
+  yearsExpert?: string | number;
   newGrade?: string;
   tjVendu0107?: number;
   tjCible?: number;
@@ -58,6 +69,7 @@ export interface DeliberationParsedRow {
   wishedSalary0107?: number;
   investPercent?: number;
   missionPercent?: number;
+  proposedSalaryPercent0107?: number;
   proposedSalary0107?: number;
   maxSalaryIfTjVenduIncreases?: number;
   whyThisSalary?: string;
@@ -80,6 +92,7 @@ export interface EvaluationParsedRow {
   client: string;
   project: string;
   evaluatorName?: string;
+  evaluatorMatricule?: string;
   evaluatorIdProfil?: string;
   rawTypeEvaluation: string;
   mappedRelationType?: EvaluationRelationType;
@@ -229,7 +242,10 @@ export class CampaignCatchupService {
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
 
-    let targetSheetName = workbook.SheetNames.find(s => normalizeHeader(s) === 'profil' || normalizeHeader(s).includes('profil'));
+    let targetSheetName = workbook.SheetNames.find(s => {
+      const norm = normalizeHeader(s);
+      return norm === 'profils' || norm === 'profil' || norm.includes('profil');
+    });
     if (!targetSheetName) {
       targetSheetName = workbook.SheetNames[0];
     }
@@ -254,22 +270,35 @@ export class CampaignCatchupService {
       const rowArr = rawMatrix[i];
       if (!rowArr || rowArr.length === 0) continue;
 
-      // Col A (0) : Id_Profil
+      // Col A (index 0) : Id_Profil
       const idProfil = cleanString(rowArr[0]);
       if (!idProfil) continue;
 
-      // Col B (1) : Nom_Profil
+      // Col B (index 1) : Nom_Profil
       const nom = cleanString(rowArr[1]);
-      // Col C (2) : Prenom_Profil
+      // Col C (index 2) : Prenom_Profil
       const prenom = cleanString(rowArr[2]);
 
-      let matricule = '';
+      // Col H (index 7) : Matricule (selon classeur BDD_Profils, onglet Profils)
+      let matricule = cleanString(rowArr[7]);
+      let email = '';
+
       for (let c = 3; c < rowArr.length; c++) {
         const val = cleanString(rowArr[c]);
         const hName = normalizeHeader(String(rawMatrix[headerRowIndex]?.[c] || ''));
-        if (hName.includes('matricule')) {
+        if (!matricule && hName.includes('matricule')) {
           matricule = val;
-          break;
+        }
+        if (!email && (hName.includes('mail') || val.includes('@'))) {
+          email = val.toLowerCase();
+        }
+      }
+
+      if (!email && (prenom || nom)) {
+        const normP = prenom.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normN = nom.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (normP && normN) {
+          email = `${normP}.${normN}@logiclever.com`;
         }
       }
 
@@ -280,7 +309,8 @@ export class CampaignCatchupService {
         matricule: matricule || undefined,
         nom,
         prenom,
-        displayName
+        displayName,
+        email: email || undefined
       });
     }
 
@@ -334,45 +364,75 @@ export class CampaignCatchupService {
       const rowArr = rawMatrix[i];
       if (!rowArr || rowArr.length === 0) continue;
 
-      // Col A (index 0) : Matricule
+      // Col A (index 0) : "Matricule"
       const matricule = cleanString(rowArr[0]);
-      // Col B (index 1) : Prénom
+      // Col B (index 1) : "Prénom"
       const prenom = cleanString(rowArr[1]);
-      // Col C (index 2) : Nom
+      // Col C (index 2) : "Nom"
       const nom = cleanString(rowArr[2]);
-      // Col D (index 3) : Exp.
+      // Col D (index 3) : "Exp.", total experience
       const experience = cleanString(rowArr[3]);
+      // Col E (index 4) : "Date entrée LL"
+      const entryDate = cleanString(rowArr[4]);
+      // Col F (index 5) : "Date de passage au grade expert (si concerné)"
+      const expertGradeDate = cleanString(rowArr[5]);
+      // Col G (index 6) : "Ancienneté chez LL"
+      const ancienneteLL = cleanString(rowArr[6]);
+      // Col H (index 7) : "Année en tant qu'expert"
+      const yearsExpert = cleanString(rowArr[7]);
 
       const nomPrenom = `${prenom} ${nom}`.trim() || nom || prenom || '';
       if (!nomPrenom && !matricule) continue;
 
-      // Col I (index 8) : "Nouveau Titre" (Grade textuel précis)
-      const newGrade = cleanString(rowArr[8]);
+      // Col J (index 9) : "Nouveau Titre" (Grade)
+      const newGrade = cleanString(rowArr[9]) || cleanString(rowArr[8]);
 
-      // Col J (index 9) : "TJ vendu (01/07)"
-      const tjVendu0107 = parseFrenchNumber(rowArr[9]);
+      // Col K (index 10) : "TJ vendu (01/07)"
+      const tjVendu0107 = parseFrenchNumber(rowArr[10]) ?? parseFrenchNumber(rowArr[9]);
 
-      // Col P (index 15) : "Salaire au 30/06/... (TJ salaire)"
+      // Col M (index 12) : "TJ Cible"
+      const tjCible = parseFrenchNumber(rowArr[12]);
+
+      // Col P (index 15) : "Salaire au 30/06/2025 (TJ salaire)"
       const salaire3006 = parseFrenchNumber(rowArr[15]);
 
-      let proposedSalary0107: number | undefined = undefined;
-      let wishedSalary0107: number | undefined = undefined;
-      let tjCible: number | undefined = undefined;
-      let whyThisSalary = '';
-      let referentJury = '';
+      // Col R (index 17) : "Salaire souhaité au 01/07/2026"
+      const wishedSalary0107 = parseFrenchNumber(rowArr[17]);
 
+      // Col U (index 20) : "% Investissement"
+      const investPercent = parseFrenchNumber(rowArr[20]);
+
+      // Col V (index 21) : "% Mission"
+      const missionPercent = parseFrenchNumber(rowArr[21]);
+
+      // Col W (index 22) : "% Salaire proposé au 01/07"
+      const proposedSalaryPercent0107 = parseFrenchNumber(rowArr[22]);
+
+      // Col AD (index 29) : "Salaire MAX proposé si TJ augmente"
+      const maxSalaryIfTjVenduIncreases = parseFrenchNumber(rowArr[29]);
+
+      // Col AF (index 31) : "Pourquoi ce salaire proposé"
+      const whyThisSalary = cleanString(rowArr[31]);
+
+      // Col AG (index 32) : "Ce qu'il faut faire pour avoir plus"
+      const whatToDoMore = cleanString(rowArr[32]);
+
+      // Col AH (index 33) : "Référent Jury de salaire"
+      const referentJury = cleanString(rowArr[33]);
+
+      // Col AI (index 34) : "Ressenti consultant"
+      const consultantFeeling = cleanString(rowArr[34]);
+
+      // Col AJ (index 35) : "Retour Second tour"
+      const secondTourFeedback = cleanString(rowArr[35]);
+
+      // Détection de secours par en-têtes si décalage de colonnes
+      let proposedSalary0107Val: number | undefined = undefined;
       for (let c = 0; c < rowArr.length; c++) {
         const h = normalizeHeader(String(rawMatrix[headerRowIndex]?.[c] || ''));
-        if (h.includes('propose') && !h.includes('max')) {
-          proposedSalary0107 = parseFrenchNumber(rowArr[c]);
-        } else if (h.includes('souhaite') || h.includes('pretention')) {
-          wishedSalary0107 = parseFrenchNumber(rowArr[c]);
-        } else if (h === 'tj_cible' || (h.includes('tj') && h.includes('cible'))) {
-          tjCible = parseFrenchNumber(rowArr[c]);
-        } else if (h.includes('pourquoi') || h.includes('justification')) {
-          whyThisSalary = cleanString(rowArr[c]);
-        } else if (h.includes('referent') || h.includes('jury')) {
-          referentJury = cleanString(rowArr[c]);
+        if (h.includes('propose') && !h.includes('max') && !h.includes('%') && proposedSalary0107Val === undefined) {
+          const val = parseFrenchNumber(rowArr[c]);
+          if (val && val > 1000) proposedSalary0107Val = val;
         }
       }
 
@@ -383,14 +443,25 @@ export class CampaignCatchupService {
         nom: nom || undefined,
         nomPrenom: nomPrenom || undefined,
         experience: experience || undefined,
+        entryDate: entryDate || undefined,
+        expertGradeDate: expertGradeDate || undefined,
+        ancienneteLL: ancienneteLL || undefined,
+        yearsExpert: yearsExpert || undefined,
         newGrade: newGrade || undefined,
         tjVendu0107: tjVendu0107 || undefined,
-        salaire3006: salaire3006 || undefined,
-        proposedSalary0107: proposedSalary0107 || undefined,
-        wishedSalary0107: wishedSalary0107 || undefined,
         tjCible: tjCible || undefined,
+        salaire3006: salaire3006 || undefined,
+        wishedSalary0107: wishedSalary0107 || undefined,
+        investPercent: investPercent || undefined,
+        missionPercent: missionPercent || undefined,
+        proposedSalaryPercent0107: proposedSalaryPercent0107 || undefined,
+        proposedSalary0107: proposedSalary0107Val || undefined,
+        maxSalaryIfTjVenduIncreases: maxSalaryIfTjVenduIncreases || undefined,
         whyThisSalary: whyThisSalary || undefined,
-        referentJury: referentJury || undefined
+        whatToDoMore: whatToDoMore || undefined,
+        referentJury: referentJury || undefined,
+        consultantFeeling: consultantFeeling || undefined,
+        secondTourFeedback: secondTourFeedback || undefined
       });
     }
 
@@ -463,13 +534,15 @@ export class CampaignCatchupService {
       const client = cleanString(rowArr[6]) || 'Client Historique';
       // Col H (7) : Projet
       const project = cleanString(rowArr[7]) || 'Mission Historique';
-      // Col I (8) : Evaluateur
-      const evaluatorName = cleanString(rowArr[8]);
+      // Col I (8) : Matricule de l'évaluateur (dans la feuille TJ Cible)
+      const rawEvaluatorColI = cleanString(rowArr[8]);
+      const evaluatorMatricule = rawEvaluatorColI;
+      const evaluatorName = rawEvaluatorColI;
 
       // Détecter le type de relation d'après les colonnes J à P
       const isChecked = (colIdx: number) => {
         const val = cleanString(rowArr[colIdx]).toLowerCase();
-        return val === 'x' || val === '1' || val === 'oui' || val === 'true' || val === 'vrai';
+        return val === 'x' || val === '1' || val === 'oui' || val === 'true' || val === 'vrai' || val.length > 0;
       };
 
       let detectedType: EvaluationRelationType = 'Collègue_Mission';
@@ -481,17 +554,25 @@ export class CampaignCatchupService {
       else if (isChecked(14)) detectedType = 'Logiclever';
       else if (isChecked(15)) detectedType = 'Collègue_Mission';
 
-      let tjCibleMin: number | undefined;
-      let tjCibleMax: number | undefined;
-      let justification = '';
-      let improvementAxes = '';
+      // Col S (index 18) : "TJ Cible Min"
+      let tjCibleMin = parseFrenchNumber(rowArr[18]);
+      // Col T (index 19) : "TJ Cible Max"
+      let tjCibleMax = parseFrenchNumber(rowArr[19]);
+      // Col U (index 20) : "Justification TJ Cible"
+      let justification = cleanString(rowArr[20]);
+      // Col V (index 21) : "Axes pour augmenter le TJ"
+      let improvementAxes = cleanString(rowArr[21]);
+      // Col W (index 22) : "Indice de confiance"
+      let confidenceIndex = parseFrenchNumber(rowArr[22]);
 
+      // Recherche de secours par en-têtes si décalage
       for (let c = 16; c < rowArr.length; c++) {
         const h = normalizeHeader(String(rawMatrix[headerRowIndex]?.[c] || ''));
-        if (h.includes('min') && h.includes('tj')) tjCibleMin = parseFrenchNumber(rowArr[c]);
-        else if (h.includes('max') && h.includes('tj')) tjCibleMax = parseFrenchNumber(rowArr[c]);
-        else if (h.includes('justification') || h.includes('argumentaire')) justification = cleanString(rowArr[c]);
-        else if (h.includes('axe') || h.includes('augmenter')) improvementAxes = cleanString(rowArr[c]);
+        if (h.includes('min') && h.includes('tj') && tjCibleMin === undefined) tjCibleMin = parseFrenchNumber(rowArr[c]);
+        else if (h.includes('max') && h.includes('tj') && tjCibleMax === undefined) tjCibleMax = parseFrenchNumber(rowArr[c]);
+        else if ((h.includes('justification') || h.includes('argumentaire')) && !justification) justification = cleanString(rowArr[c]);
+        else if ((h.includes('axe') || h.includes('augmenter')) && !improvementAxes) improvementAxes = cleanString(rowArr[c]);
+        else if ((h.includes('confiance') || h.includes('indice')) && confidenceIndex === undefined) confidenceIndex = parseFrenchNumber(rowArr[c]);
       }
 
       rows.push({
@@ -506,6 +587,7 @@ export class CampaignCatchupService {
         client,
         project,
         evaluatorName: evaluatorName || undefined,
+        evaluatorMatricule: evaluatorMatricule || undefined,
         rawTypeEvaluation: detectedType,
         mappedRelationType: detectedType,
         requiresTypeConversion: false,
@@ -513,7 +595,7 @@ export class CampaignCatchupService {
         tjCibleMax: tjCibleMax || undefined,
         justification: justification || undefined,
         improvementAxes: improvementAxes || undefined,
-        confidenceIndex: 5
+        confidenceIndex: confidenceIndex !== undefined && !isNaN(confidenceIndex) ? confidenceIndex : 5
       });
     }
 
@@ -642,9 +724,17 @@ export class CampaignCatchupService {
 
     // 6. Réconcilier les lignes d'Évaluation (TJ Cible)
     evaluations.forEach(e => {
-      const match = resolveIdProfil(e.matricule, e.candidateName, e.resolvedCandidateIdProfil);
-      if (match) {
-        e.resolvedCandidateIdProfil = match.idProfil;
+      // Candidat
+      const matchCandidate = resolveIdProfil(e.matricule, e.candidateName, e.resolvedCandidateIdProfil);
+      if (matchCandidate) {
+        e.resolvedCandidateIdProfil = matchCandidate.idProfil;
+      }
+
+      // Évaluateur (depuis la colonne I "Matricule" résolu vers Id_Profil de BDD_Profils)
+      const matchEvaluator = resolveIdProfil(e.evaluatorMatricule, e.evaluatorName, e.evaluatorIdProfil);
+      if (matchEvaluator) {
+        e.evaluatorIdProfil = matchEvaluator.idProfil;
+        e.evaluatorName = matchEvaluator.displayName || `${matchEvaluator.prenom} ${matchEvaluator.nom}`.trim() || matchEvaluator.nom || e.evaluatorName;
       }
     });
 
@@ -857,15 +947,64 @@ export class CampaignCatchupService {
         const profileItem = profileMap.get(idProfilNorm);
         const existingDossier = allDossiersMap.get(idProfilNorm);
 
+        // 1. Rattachement ou création du compte utilisateur CANDIDAT
+        let candidateUser = UserDirectoryService.getUserById(idProfilNorm) ||
+          (profileItem?.matricule ? UserDirectoryService.getUserByMatricule(profileItem.matricule) : undefined) ||
+          (conflict.matricule ? UserDirectoryService.getUserByMatricule(conflict.matricule) : undefined) ||
+          (profileItem?.email ? UserDirectoryService.getUserByEmail(profileItem.email) : undefined);
+
+        const candidateGrade = (['Junior', 'Confirmé', 'Senior', 'Expert'].includes(deliberation?.newGrade || '') ? deliberation?.newGrade as Grade : (profileItem?.grade as Grade) || 'Confirmé');
+        const expNum = deliberation?.experience ? Number(deliberation.experience) || undefined : undefined;
+        const ancienneteNum = deliberation?.ancienneteLL ? Number(deliberation.ancienneteLL) || undefined : undefined;
+        const yearsExpertNum = deliberation?.yearsExpert ? Number(deliberation.yearsExpert) || undefined : undefined;
+
+        if (!candidateUser) {
+          const defaultEmail = profileItem?.email || (profileItem ? `${profileItem.prenom.toLowerCase().replace(/[^a-z0-9]/g, '')}.${profileItem.nom.toLowerCase().replace(/[^a-z0-9]/g, '')}@logiclever.com` : `candidat_${idProfilNorm.toLowerCase()}@logiclever.com`);
+          candidateUser = UserDirectoryService.addUser({
+            id: idProfilNorm,
+            idProfil: idProfilNorm,
+            matricule: profileItem?.matricule || conflict.matricule || deliberation?.matricule || '',
+            displayName: profileItem?.displayName || conflict.candidateName,
+            email: defaultEmail,
+            roles: ['CANDIDATE'],
+            currentGrade: candidateGrade,
+            currentSalary: deliberation?.proposedSalary0107 || deliberation?.salaire3006 || 0,
+            currentTJM: deliberation?.tjVendu0107 || 0,
+            experienceYears: expNum,
+            entryDate: deliberation?.entryDate || profileItem?.entryDate,
+            expertGradeDate: deliberation?.expertGradeDate || profileItem?.expertGradeDate,
+            ancienneteLL: ancienneteNum,
+            yearsExpert: yearsExpertNum,
+          });
+        } else {
+          // Mettre à jour les informations du profil utilisateur
+          const updatedRoles: UserRole[] = candidateUser.roles.includes('CANDIDATE') 
+            ? candidateUser.roles 
+            : [...candidateUser.roles, 'CANDIDATE'];
+          UserDirectoryService.updateUser(candidateUser.id, {
+            roles: updatedRoles,
+            idProfil: idProfilNorm,
+            matricule: candidateUser.matricule || profileItem?.matricule || conflict.matricule || deliberation?.matricule || '',
+            ...(deliberation?.newGrade ? { currentGrade: candidateGrade } : {}),
+            ...(deliberation?.tjVendu0107 !== undefined ? { currentTJM: deliberation.tjVendu0107 } : {}),
+            ...(deliberation?.salaire3006 !== undefined ? { currentSalary: deliberation.salaire3006 } : {}),
+            ...(expNum !== undefined ? { experienceYears: expNum } : {}),
+            ...(deliberation?.entryDate ? { entryDate: deliberation.entryDate } : {}),
+            ...(deliberation?.expertGradeDate ? { expertGradeDate: deliberation.expertGradeDate } : {}),
+            ...(ancienneteNum !== undefined ? { ancienneteLL: ancienneteNum } : {}),
+            ...(yearsExpertNum !== undefined ? { yearsExpert: yearsExpertNum } : {}),
+          });
+        }
+
         const dossierId = existingDossier?.id || `${idProfilNorm}_${preview.year}`;
         const dossierRef = doc(db, 'dossiers', dossierId);
 
         const existingDecision = existingDossier?.juryDecision || ({} as JuryDecision);
         const updatedDecision: JuryDecision = {
           ...existingDecision,
-          verdict: existingDecision.verdict || (deliberation?.proposedSalary0107 ? `Augmentation ${preview.year}` : 'Délibéré'),
+          verdict: existingDecision.verdict || (deliberation?.proposedSalary0107 || deliberation?.proposedSalaryPercent0107 ? `Augmentation ${preview.year}` : 'Délibéré'),
           amount: deliberation?.proposedSalary0107 ?? existingDecision.amount ?? 0,
-          percentage: existingDecision.percentage ?? 0,
+          percentage: deliberation?.proposedSalaryPercent0107 ?? existingDecision.percentage ?? 0,
           advice: existingDecision.advice ?? '',
           conclusion: existingDecision.conclusion ?? '',
           date: existingDecision.date || serverTimestamp(),
@@ -874,21 +1013,101 @@ export class CampaignCatchupService {
           ...(deliberation?.tjVendu0107 !== undefined ? { tjVendu0107: deliberation.tjVendu0107 } : {}),
           ...(deliberation?.tjCible !== undefined ? { tjCibleDecision: deliberation.tjCible } : {}),
           ...(deliberation?.salaire3006 !== undefined ? { salaire3006: deliberation.salaire3006 } : {}),
+          ...(deliberation?.wishedSalary0107 !== undefined ? { wishedSalary0107: deliberation.wishedSalary0107 } : {}),
+          ...(deliberation?.investPercent !== undefined ? { investmentPercentage: deliberation.investPercent } : {}),
+          ...(deliberation?.missionPercent !== undefined ? { missionPercentage: deliberation.missionPercent } : {}),
           ...(deliberation?.proposedSalary0107 !== undefined ? { proposedSalary0107: deliberation.proposedSalary0107 } : {}),
+          ...(deliberation?.maxSalaryIfTjVenduIncreases !== undefined ? { maxSalaryIfTjVenduIncreases: deliberation.maxSalaryIfTjVenduIncreases } : {}),
           ...(deliberation?.whyThisSalary ? { whyThisSalary: deliberation.whyThisSalary } : {}),
-          ...(deliberation?.referentJury ? { referentJury: deliberation.referentJury } : {})
+          ...(deliberation?.whatToDoMore ? { whatToDoMore: deliberation.whatToDoMore } : {}),
+          ...(deliberation?.referentJury ? { referentJury: deliberation.referentJury } : {}),
+          ...(deliberation?.consultantFeeling ? { consultantFeeling: deliberation.consultantFeeling } : {}),
+          ...(deliberation?.secondTourFeedback ? { secondTourFeedback: deliberation.secondTourFeedback } : {})
+        };
+
+        const existingAnnualReport = existingDossier?.annualReport;
+        const updatedAnnualReport: Partial<AnnualReport> = {
+          ...(existingAnnualReport || {}),
+          currentGrade: (deliberation?.newGrade as Grade) || existingAnnualReport?.currentGrade || candidateGrade,
+          wishedGrade: (deliberation?.newGrade as Grade) || existingAnnualReport?.wishedGrade || candidateGrade,
+          currentTJM: deliberation?.tjVendu0107 ?? existingAnnualReport?.currentTJM ?? 0,
+          targetTJM: deliberation?.tjCible ?? existingAnnualReport?.targetTJM ?? 0,
+          currentSalary: deliberation?.salaire3006 ?? existingAnnualReport?.currentSalary ?? 0,
+          wishedSalary: deliberation?.wishedSalary0107 ?? existingAnnualReport?.wishedSalary ?? 0,
+          internalInvestment: deliberation?.investPercent ?? existingAnnualReport?.internalInvestment ?? 0,
+          yearSummary: existingAnnualReport?.yearSummary || `Bilan Campagne ${preview.year}`,
+          synthesis: existingAnnualReport?.synthesis || deliberation?.consultantFeeling || '',
+          previousObjectives: existingAnnualReport?.previousObjectives || [],
+          commercialActivities: existingAnnualReport?.commercialActivities || '',
+          training: existingAnnualReport?.training || '',
+          knowHow: existingAnnualReport?.knowHow || '',
+          progressionDetails: existingAnnualReport?.progressionDetails || '',
+          techDetails: existingAnnualReport?.techDetails || ''
         };
 
         const existingFeedbacks = { ...(existingDossier?.consultantFeedbacks || {}) };
+        const assignedConsultantIdsSet = new Set<string>(existingDossier?.assignedConsultantIds || []);
 
         candidateEvals.forEach(e => {
+          // 2. Rattachement ou création du compte utilisateur ÉVALUATEUR / JURY
+          let evaluatorUser = (e.evaluatorIdProfil ? UserDirectoryService.getUserById(e.evaluatorIdProfil) : undefined) ||
+            (e.evaluatorMatricule ? UserDirectoryService.getUserByMatricule(e.evaluatorMatricule) : undefined);
+
+          const evalProfileItem = (e.evaluatorIdProfil ? profileMap.get(e.evaluatorIdProfil.trim().toUpperCase()) : undefined) ||
+            (e.evaluatorMatricule ? Array.from(profileMap.values()).find(p => p.matricule === e.evaluatorMatricule) : undefined);
+
+          if (!evaluatorUser && evalProfileItem) {
+            const evalEmail = evalProfileItem.email || `${evalProfileItem.prenom.toLowerCase().replace(/[^a-z0-9]/g, '')}.${evalProfileItem.nom.toLowerCase().replace(/[^a-z0-9]/g, '')}@logiclever.com`;
+            evaluatorUser = UserDirectoryService.addUser({
+              id: evalProfileItem.idProfil,
+              idProfil: evalProfileItem.idProfil,
+              matricule: evalProfileItem.matricule || e.evaluatorMatricule || '',
+              displayName: evalProfileItem.displayName,
+              email: evalEmail,
+              roles: ['EVALUATOR']
+            });
+          } else if (evaluatorUser && !evaluatorUser.roles.includes('EVALUATOR') && !evaluatorUser.roles.includes('JURY')) {
+            UserDirectoryService.updateUser(evaluatorUser.id, {
+              roles: [...evaluatorUser.roles, 'EVALUATOR']
+            });
+          }
+
           const existingKey = Object.keys(existingFeedbacks).find(k => {
             const ef = existingFeedbacks[k];
-            const evalMatch = (ef.evaluatorIdProfil && ef.evaluatorIdProfil === e.evaluatorIdProfil) || ef.consultantId === e.evaluatorIdProfil;
+            const evalMatch = (ef.evaluatorIdProfil && ef.evaluatorIdProfil === e.evaluatorIdProfil) || 
+              ef.consultantId === e.evaluatorIdProfil ||
+              (evaluatorUser && (ef.consultantId === evaluatorUser.id || ef.evaluatorIdProfil === evaluatorUser.idProfil));
             return evalMatch && (ef.client || '').toLowerCase() === e.client.toLowerCase() && (ef.project || '').toLowerCase() === e.project.toLowerCase();
           });
 
-          const feedbackId = existingKey || `eval_${e.evaluatorIdProfil || 'jury'}_${encodeURIComponent(e.client)}_${Date.now()}`;
+          const finalEvaluatorIdProfil = evaluatorUser?.idProfil || e.evaluatorIdProfil || 'ANONYME';
+          const finalEvaluatorUserId = evaluatorUser?.id || e.evaluatorIdProfil || 'ANONYME';
+          const finalEvaluatorName = evaluatorUser?.displayName || e.evaluatorName || 'Jury';
+
+          // Assignation bidirectionnelle : ajouter l'évaluateur aux assignations du dossier
+          if (finalEvaluatorUserId && finalEvaluatorUserId !== 'ANONYME') {
+            assignedConsultantIdsSet.add(finalEvaluatorUserId);
+          }
+          if (finalEvaluatorIdProfil && finalEvaluatorIdProfil !== 'ANONYME') {
+            assignedConsultantIdsSet.add(finalEvaluatorIdProfil);
+          }
+          if (e.evaluatorMatricule) {
+            assignedConsultantIdsSet.add(e.evaluatorMatricule);
+          }
+
+          // Assigner le candidat au profil de l'évaluateur
+          if (evaluatorUser) {
+            const currentAssigned = new Set<string>(evaluatorUser.assignedCandidateIds || []);
+            currentAssigned.add(candidateUser.id);
+            if (idProfilNorm) currentAssigned.add(idProfilNorm);
+            if (profileItem?.matricule) currentAssigned.add(profileItem.matricule);
+            if (conflict.matricule) currentAssigned.add(conflict.matricule);
+            UserDirectoryService.updateUser(evaluatorUser.id, {
+              assignedCandidateIds: Array.from(currentAssigned)
+            });
+          }
+
+          const feedbackId = existingKey || `eval_${finalEvaluatorIdProfil}_${encodeURIComponent(e.client)}_${Date.now()}`;
           const prevFeedback = existingKey ? existingFeedbacks[existingKey] : undefined;
 
           if (existingKey) {
@@ -901,9 +1120,10 @@ export class CampaignCatchupService {
 
           existingFeedbacks[feedbackId] = {
             id: feedbackId,
-            consultantId: e.evaluatorIdProfil || 'ANONYME',
-            consultantName: e.evaluatorName || e.evaluatorIdProfil || 'Jury',
-            evaluatorIdProfil: e.evaluatorIdProfil || 'ANONYME',
+            consultantId: finalEvaluatorUserId,
+            consultantName: finalEvaluatorName,
+            evaluatorUid: finalEvaluatorUserId,
+            evaluatorIdProfil: finalEvaluatorIdProfil,
             type: mappedType,
             relationType: mappedType,
             campaignId: preview.campaignId,
@@ -926,19 +1146,48 @@ export class CampaignCatchupService {
         const dossierPayload: Partial<Dossier> = {
           id: dossierId,
           idProfil: idProfilNorm,
-          candidateId: existingDossier?.candidateId || idProfilNorm,
-          candidateName: existingDossier?.candidateName || profileItem?.displayName || conflict.candidateName,
-          candidateEmail: existingDossier?.candidateEmail || profileItem?.email || '',
+          candidateId: candidateUser.id,
+          candidateName: candidateUser.displayName || profileItem?.displayName || conflict.candidateName,
+          candidateEmail: candidateUser.email || profileItem?.email || '',
           campaignId: preview.campaignId,
           campaignYear: preview.year,
           status: finalStatus,
+          assignedConsultantIds: Array.from(assignedConsultantIdsSet),
+          annualReport: updatedAnnualReport as AnnualReport,
           juryDecision: updatedDecision,
           consultantFeedbacks: existingFeedbacks,
           updatedAt: serverTimestamp(),
           createdAt: existingDossier?.createdAt || serverTimestamp()
         };
 
+        // Sauvegarder également les métriques participant à la campagne
+        try {
+          LocalDatabaseService.bulkSaveParticipants([{
+            id: `${preview.campaignId}_${candidateUser.id}`,
+            campaignId: preview.campaignId,
+            campaignYear: preview.year,
+            idProfil: idProfilNorm,
+            displayName: candidateUser.displayName || conflict.candidateName,
+            email: candidateUser.email || '',
+            grade: (candidateGrade as Grade) || 'Confirmé',
+            salary: deliberation?.salaire3006 || candidateUser.currentSalary || 0,
+            tjm: deliberation?.tjVendu0107 || candidateUser.currentTJM || 0,
+            entryDate: deliberation?.entryDate || profileItem?.entryDate,
+            expertGradeDate: deliberation?.expertGradeDate || profileItem?.expertGradeDate,
+            totalExperienceYears: expNum,
+            ancienneteLL: ancienneteNum,
+            yearsExpert: yearsExpertNum,
+            isCandidate: true,
+            isEvaluator: false,
+            dossierId: dossierId,
+            createdAt: new Date().toISOString()
+          }]);
+        } catch (e) {
+          console.warn("Could not save participant record:", e);
+        }
+
         batch.set(dossierRef, dossierPayload, { merge: true });
+        LocalDatabaseService.saveDossier(dossierPayload as Dossier);
         dossiersUpdatedCount++;
       }
 

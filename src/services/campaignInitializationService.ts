@@ -2,7 +2,7 @@ import { defaultReportData } from '../data/defaultAnnualReport';
 import * as XLSX from 'xlsx';
 import { collection, getDocs, doc, writeBatch, query, where } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
-import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole } from '../types';
+import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole, ClientFeedback } from '../types';
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
 
@@ -17,6 +17,12 @@ export interface SheetParsingResult {
   headers: string[];
 }
 
+export interface MeteoLinkItem {
+  idProfil: string;
+  link: string;
+  rawRowIndex?: number;
+}
+
 export interface CandidateInitData {
   idProfil: string;
   matricule?: string;
@@ -25,20 +31,24 @@ export interface CandidateInitData {
   displayName: string;
   email: string;
   grade: Grade;
-  currentSalary: number; // Salaire_vendu (Col K)
-  currentTJM: number;    // TJ vendu (01/07) (Col J)
-  entryDate?: string;    // Date entrée LL (Col E)
-  expertPassageDate?: string; // Date de passage au grade expert (Col F)
-  ancienneteLL?: number; // Ancienneté chez LL (Col G)
-  anneesExpertise?: number; // Années Exp. si Expert (Col H)
-  experienceEmbauche?: number; // Déduit de Boond_Liste_Valeur via Id_Annees_Experience_A_Embauche
-  experienceYears?: number; // Total = Ancienneté LL + Expérience à l'embauche
+  currentSalary: number; // Salaire_Annuel (Col V)
+  currentTJM: number;    // TJ_Vendu (Col AF)
+  entryDate?: string;    // Date entrée LL
+  expertPassageDate?: string; // Date_Expert (Col U)
+  ancienneteLL?: number; // Anciennete_LL (Col AS)
+  experienceArrivee?: number; // Experience_Arrivee_Valorisee_LL (Col S)
+  anneesExpertise?: number; // Années Exp. si Expert
+  experienceEmbauche?: number;
+  experienceYears?: number; // Total = Experience_Arrivee_Valorisee_LL + Anciennete_LL
+  meteoLinks?: string[]; // Liens issus de Vues_Meteos (Col Q)
   isExistingPersonne: boolean;
   isExistingParticipant: boolean;
   isExistingUser: boolean;
   action: 'CREATE' | 'UPDATE' | 'SKIP';
   changes?: Record<string, { before: any; after: any }>;
   warnings: string[];
+  isEligibleCandidate?: boolean;
+  colAQValue?: string;
 }
 
 export interface PrimeAssignmentRow {
@@ -84,6 +94,8 @@ export interface CampaignInitPreview {
   totalPrimesParsed: number;
   activePrimesCount: number;
   expiredPrimesCount: number;
+  meteoLinksCount: number;
+  meteoLinksByCandidate: Record<string, string[]>;
   assignmentsByCandidate: Record<string, string[]>; // candidateIdProfil -> evaluatorIdProfils[]
   warnings: string[];
   blockingErrors: string[];
@@ -128,18 +140,52 @@ export function normalizePersonName(name: string): string {
 }
 
 /**
+ * Normalise un matricule pour matching robuste (enlève .0, espaces, etc.)
+ */
+export function normalizeMatricule(val: any): string {
+  if (val === null || val === undefined) return '';
+  let str = String(val).trim().toUpperCase();
+  if (str.endsWith('.0')) {
+    str = str.slice(0, -2);
+  }
+  return str;
+}
+
+/**
  * Tente de convertir une chaîne ou nombre en montant numérique
+ * Prend en compte la virgule décimale française
  */
 export function parseFrenchNumber(val: any): number {
   if (val === null || val === undefined) return 0;
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  const str = String(val)
-    .replace(/\s+/g, '')
+  if (typeof val === 'number') {
+    if (isNaN(val)) return 0;
+    // Sécurité : si un nombre comme 5800008 ou 4500050 a été produit
+    // par la suppression de la virgule décimale lors d'un parsing CSV préalable (ex: 58000,08 -> 5800008)
+    if (val >= 1000000 && val <= 30000000 && Number.isInteger(val)) {
+      return Math.round((val / 100) * 100) / 100;
+    }
+    return val;
+  }
+  let str = String(val)
+    .replace(/[\s\u00A0\u202F]+/g, '')
     .replace(/€/g, '')
-    .replace(/k€/i, '000')
-    .replace(',', '.');
+    .replace(/k€/i, '000');
+  
+  // Si présence simultanée d'un point et d'une virgule (ex: 45.000,50), le point sépare les milliers
+  if (str.includes('.') && str.includes(',')) {
+    str = str.replace(/\./g, '');
+  }
+  
+  // La virgule est la virgule décimale française
+  str = str.replace(',', '.');
   const num = parseFloat(str);
-  return isNaN(num) ? 0 : num;
+  if (isNaN(num)) return 0;
+
+  // Sécurité supplémentaire si la chaîne d'origine avait déjà été altérée en entier > 1M
+  if (num >= 1000000 && num <= 30000000 && Number.isInteger(num)) {
+    return Math.round((num / 100) * 100) / 100;
+  }
+  return num;
 }
 
 /**
@@ -176,7 +222,7 @@ export function parseExcelDate(val: any): Date | null {
  */
 export async function parseFileToSheets(file: File): Promise<SheetParsingResult[]> {
   const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+  const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
   const results: SheetParsingResult[] = [];
 
   for (const sheetName of workbook.SheetNames) {
@@ -235,7 +281,7 @@ export class CampaignInitializationService {
    */
   static async parsePrimesFile(file: File, campaignYear: number): Promise<PrimeAssignmentRow[]> {
     const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
 
     let targetSheetName = workbook.SheetNames.find(s => {
       const norm = normalizeHeader(s);
@@ -250,43 +296,73 @@ export class CampaignInitializationService {
     const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
     if (!rawMatrix || rawMatrix.length === 0) return [];
 
-    let headerRowIndex = 0;
-    for (let i = 0; i < Math.min(5, rawMatrix.length); i++) {
-      const row = rawMatrix[i] || [];
-      const colA = normalizeHeader(String(row[0] || ''));
-      if (colA.includes('matricule') || colA.includes('prime')) {
+    let headerRowIndex = -1;
+    let colEvalIndex = 0; // Col A par défaut
+    let colCandIndex = 1; // Col B par défaut
+    let colTypeIndex = 2; // Col C par défaut
+    let colDebutIndex = 3; // Col D par défaut
+    let colFinIndex = 4; // Col E par défaut
+    let colProjectIndex = 6; // Col G par défaut
+
+    for (let i = 0; i < Math.min(10, rawMatrix.length); i++) {
+      const row = (rawMatrix[i] || []).map(c => normalizeHeader(String(c)));
+      const hasKeywords = row.some(h => 
+        h.includes('matricule') || h.includes('prime') || h.includes('percoit') || h.includes('place')
+      );
+      if (hasKeywords) {
         headerRowIndex = i;
+        row.forEach((h, colIdx) => {
+          if (
+            (h.includes('matricule') && (h.includes('percoit') || h.includes('beneficiaire') || h.includes('evaluat') || h.includes('manager') || h.includes('parrain'))) ||
+            (h.includes('percoit') && h.includes('prime'))
+          ) {
+            colEvalIndex = colIdx;
+          } else if (
+            (h.includes('matricule') && (h.includes('place') || h.includes('candidat') || h.includes('consultant') || h.includes('filleul'))) ||
+            (h.includes('consultant') && h.includes('place'))
+          ) {
+            colCandIndex = colIdx;
+          } else if (h.includes('type') && (h.includes('prime') || h.includes('commission'))) {
+            colTypeIndex = colIdx;
+          } else if (h.includes('debut')) {
+            colDebutIndex = colIdx;
+          } else if (h.includes('fin')) {
+            colFinIndex = colIdx;
+          } else if (h.includes('projet') || h.includes('mission')) {
+            colProjectIndex = colIdx;
+          }
+        });
         break;
       }
     }
 
     const rows: PrimeAssignmentRow[] = [];
-    const thresholdDate = new Date(campaignYear, 6, 1); // 01/07 de l'année de campagne
+    const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
 
-    for (let i = headerRowIndex + 1; i < rawMatrix.length; i++) {
+    for (let i = startIndex; i < rawMatrix.length; i++) {
       const rowArr = rawMatrix[i];
       if (!rowArr || rowArr.length === 0) continue;
 
-      // Col A (0) : Matricule_Percoit_Prime (Evaluateur)
-      const evaluatorMatricule = cleanString(rowArr[0]);
-      // Col B (1) : Matricule_Consultant_Place (Candidat)
-      const candidateMatricule = cleanString(rowArr[1]);
+      // Col Evaluateur (perçoit prime)
+      const evaluatorMatricule = normalizeMatricule(rowArr[colEvalIndex]);
+      // Col Candidat (consultant placé)
+      const candidateMatricule = normalizeMatricule(rowArr[colCandIndex]);
       if (!evaluatorMatricule || !candidateMatricule) continue;
 
-      // Col C (2) : Type_Prime
-      const typePrime = cleanString(rowArr[2]);
-      // Col D (3) : Debut_Prime
-      const debutRaw = rowArr[3];
-      // Col E (4) : Fin_Prime
-      const finRaw = rowArr[4];
-      // Col G (6) : Projet
-      const project = cleanString(rowArr[6]);
+      // Type_Prime
+      const typePrime = cleanString(rowArr[colTypeIndex]);
+      // Debut_Prime
+      const debutRaw = rowArr[colDebutIndex];
+      // Fin_Prime
+      const finRaw = rowArr[colFinIndex];
+      // Projet
+      const project = cleanString(rowArr[colProjectIndex]);
 
       const finDate = parseExcelDate(finRaw);
       let isActive = true;
       let explanation = 'Prime active';
 
-      // Règle spécifique : Si Col C contient "Freelance" ET ne contient PAS "Commerciale",
+      // Règle spécifique : Si Col Type contient "Freelance" ET ne contient PAS "Commerciale",
       // alors ignorer la prime et l'attribution de dossier
       const normalizedType = normalizeHeader(typePrime);
       const containsFreelance = normalizedType.includes('freelance');
@@ -295,9 +371,12 @@ export class CampaignInitializationService {
       if (containsFreelance && !containsCommerciale) {
         isActive = false;
         explanation = 'Prime Freelance non commerciale ignorée : aucune obligation ni attribution de dossier.';
-      } else if (finDate && finDate.getTime() < thresholdDate.getTime()) {
-        isActive = false;
-        explanation = `Prime expirée au ${finDate.toLocaleDateString('fr-FR')} (antérieure au 01/07/${campaignYear}) : aucune obligation d'évaluation.`;
+      } else if (finDate) {
+        // Si la prime s'est terminée strictement avant l'année de campagne en cours, elle est expirée
+        if (finDate.getFullYear() < campaignYear) {
+          isActive = false;
+          explanation = `Prime expirée au ${finDate.toLocaleDateString('fr-FR')} (antérieure à l'année de campagne ${campaignYear}).`;
+        }
       }
 
       rows.push({
@@ -314,6 +393,216 @@ export class CampaignInitializationService {
     }
 
     return rows;
+  }
+
+  /**
+   * Parse le fichier "Rapport_RH_Query_Salaries" :
+   * - "Id_Profil", column C (index 2), unique identifier for users
+   * - "Consultant", column I (index 8), contains name and surname (split par espace, 2ème et 3ème éléments)
+   * - "Matricule", column L (index 11)
+   * - "Grade", column M (index 12), split par espace et dernier élément
+   * - "Experience_Arrivee_Valorisee_LL", column S (index 18)
+   * - "Date_Expert", column U (index 20)
+   * - "Salaire_Annuel", column V (index 21)
+   * - "TJ_Vendu", column AF (index 31)
+   * - "Anciennete_LL", column AS (index 44)
+   * -> Expérience Totale = Experience_Arrivee_Valorisee_LL + Anciennete_LL
+   */
+  static async parseRapportRhSalariesFile(file: File): Promise<CandidateInitData[]> {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+    if (!rawMatrix || rawMatrix.length === 0) return [];
+
+    let headerRowIndex = -1;
+    for (let i = 0; i < Math.min(10, rawMatrix.length); i++) {
+      const row = (rawMatrix[i] || []).map(c => normalizeHeader(String(c)));
+      if (row.some(h => h.includes('id_profil') || h.includes('consultant') || h.includes('matricule') || h.includes('salaire'))) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+
+    const candidates: CandidateInitData[] = [];
+    const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
+
+    for (let i = startIndex; i < rawMatrix.length; i++) {
+      const row = rawMatrix[i];
+      if (!row || row.length === 0) continue;
+
+      // Col C (index 2) : Id_Profil
+      const idProfil = cleanString(row[2]).toUpperCase();
+      if (!idProfil) continue;
+
+      // Col I (index 8) : Consultant (nom et prénom)
+      const consultantRaw = cleanString(row[8]);
+      const consultantParts = consultantRaw.trim().split(/\s+/).filter(Boolean);
+      let prenom = '';
+      let nom = '';
+      if (consultantParts.length >= 3) {
+        prenom = consultantParts[1];
+        nom = consultantParts.slice(2).join(' ');
+      } else if (consultantParts.length === 2) {
+        prenom = consultantParts[0];
+        nom = consultantParts[1];
+      } else {
+        nom = consultantParts[0] || consultantRaw;
+      }
+      const displayName = `${prenom} ${nom}`.trim() || consultantRaw;
+
+      // Col L (index 11) : Matricule
+      const matricule = cleanString(row[11]).toUpperCase();
+
+      // Col M (index 12) : Grade (split par espace et dernier élément)
+      const gradeRaw = cleanString(row[12]);
+      const gradeParts = gradeRaw.trim().split(/\s+/).filter(Boolean);
+      const lastGradeWord = (gradeParts[gradeParts.length - 1] || '').toLowerCase();
+      let grade: Grade = 'Confirmé';
+      if (lastGradeWord.includes('expert')) grade = 'Expert';
+      else if (lastGradeWord.includes('senior')) grade = 'Senior';
+      else if (lastGradeWord.includes('junior')) grade = 'Junior';
+      else if (lastGradeWord.includes('confirm')) grade = 'Confirmé';
+
+      // Helper pour récupérer la valeur textuelle brute de la cellule (préserve la virgule décimale française)
+      const getRawCellVal = (colIdx: number) => {
+        if (worksheet) {
+          const cellAddress = XLSX.utils.encode_cell({ r: i, c: colIdx });
+          const cell = worksheet[cellAddress];
+          if (cell) {
+            return cell.w ?? cell.v ?? row[colIdx];
+          }
+        }
+        return row[colIdx];
+      };
+
+      // Col S (index 18) : Experience_Arrivee_Valorisee_LL
+      const experienceArrivee = parseFrenchNumber(getRawCellVal(18));
+
+      // Col U (index 20) : Date_Expert
+      const dateExpertRaw = getRawCellVal(20);
+      const dExpert = parseExcelDate(dateExpertRaw);
+      const expertPassageDate = dExpert ? dExpert.toISOString().split('T')[0] : (dateExpertRaw ? cleanString(dateExpertRaw) : undefined);
+
+      // Col V (index 21) : Salaire_Annuel (la virgule est la virgule décimale française)
+      const currentSalary = parseFrenchNumber(getRawCellVal(21));
+
+      // Col AE (index 30) : TJ_Salaire (au lieu de Col AF)
+      const currentTJM = parseFrenchNumber(getRawCellVal(30));
+
+      // Col AS (index 44) : Anciennete_LL
+      const ancienneteLL = parseFrenchNumber(getRawCellVal(44));
+
+      // Col AQ (index 42 en base 0) : Seuls ceux dont la colonne AQ est vide/nulle sont des candidats potentiels
+      const colAQRaw = getRawCellVal(42);
+      const colAQValue = cleanString(colAQRaw);
+      const isEligibleCandidate = !colAQValue || colAQValue === '';
+
+      // Expérience Totale = Experience_Arrivee_Valorisee_LL + Anciennete_LL
+      const experienceYears = Math.round((experienceArrivee + ancienneteLL) * 10) / 10;
+
+      const email = `${prenom.toLowerCase().replace(/[^a-z0-9]/g, '')}.${nom.toLowerCase().replace(/[^a-z0-9]/g, '')}@logiclever.com`;
+
+      candidates.push({
+        idProfil,
+        matricule: matricule ? normalizeMatricule(matricule) : undefined,
+        nom,
+        prenom,
+        displayName,
+        email,
+        grade,
+        currentSalary,
+        currentTJM,
+        expertPassageDate,
+        ancienneteLL,
+        experienceArrivee,
+        experienceYears,
+        isExistingPersonne: false,
+        isExistingParticipant: false,
+        isExistingUser: false,
+        action: 'CREATE',
+        warnings: [],
+        isEligibleCandidate,
+        colAQValue: colAQValue || undefined
+      });
+    }
+
+    return candidates;
+  }
+
+  /**
+   * Parse le fichier "Vues_Meteos" :
+   * - "Id_Profil", column B (index 1), savoir à quel consultant la météo est rattachée
+   * - "Liens_Meteo", column Q (index 16), lien vers le document de la météo
+   */
+  static async parseVuesMeteosFile(file: File): Promise<MeteoLinkItem[]> {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+    if (!rawMatrix || rawMatrix.length === 0) return [];
+
+    let headerRowIndex = -1;
+    let colProfilIndex = 1; // Col B (1) par défaut
+    let colLienIndex = 16;  // Col Q (16) par défaut
+
+    for (let i = 0; i < Math.min(10, rawMatrix.length); i++) {
+      const row = (rawMatrix[i] || []).map(c => normalizeHeader(String(c)));
+      if (row.some(h => h.includes('id_profil') || h.includes('lien') || h.includes('meteo'))) {
+        headerRowIndex = i;
+        row.forEach((h, colIdx) => {
+          if (h.includes('id_profil') || (h.includes('profil') && h.includes('id'))) {
+            colProfilIndex = colIdx;
+          } else if (h.includes('lien') || h.includes('meteo')) {
+            colLienIndex = colIdx;
+          }
+        });
+        break;
+      }
+    }
+
+    const items: MeteoLinkItem[] = [];
+    const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
+
+    for (let i = startIndex; i < rawMatrix.length; i++) {
+      const row = rawMatrix[i];
+      if (!row || row.length === 0) continue;
+
+      // Col B (ou colProfilIndex) : Id_Profil
+      const idProfil = cleanString(row[colProfilIndex]).toUpperCase();
+      
+      // Col Q (ou colLienIndex) : Prendre la valeur de la cellule comme texte brut (sans extraction de lien hypertexte sous-jacent)
+      let linkValue = '';
+      if (worksheet) {
+        const cellAddress = XLSX.utils.encode_cell({ r: i, c: colLienIndex });
+        const cell = worksheet[cellAddress];
+        if (cell) {
+          const rawCellVal = cell.w ?? cell.v ?? row[colLienIndex] ?? '';
+          linkValue = String(rawCellVal).trim();
+        }
+      }
+      if (!linkValue) {
+        linkValue = cleanString(row[colLienIndex]);
+      }
+
+      linkValue = linkValue.replace(/^["']|["']$/g, '').trim();
+
+      if (idProfil && linkValue) {
+        // Découpage si la cellule contient plusieurs liens séparés par un saut de ligne
+        const splitLinks = linkValue.split(/\r?\n/).map(l => l.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
+        for (const singleLink of splitLinks) {
+          items.push({
+            idProfil,
+            link: singleLink,
+            rawRowIndex: i + 1
+          });
+        }
+      }
+    }
+
+    return items;
   }
 
   /**
@@ -351,322 +640,86 @@ export class CampaignInitializationService {
   static async prepareCampaignPreview(
     year: number,
     files: {
+      rapportRhFile?: File | null;
+      primesFile?: File | null;
+      vuesMeteosFile?: File | null;
+      // Compatibilité
+      rhFile?: File | null;
       profilFile?: File | null;
       boondFile?: File | null;
       analyseJuryFile?: File | null;
-      rhFile?: File | null;
-      primesFile?: File | null;
     }
   ): Promise<CampaignInitPreview> {
     const warnings: string[] = [];
     const blockingErrors: string[] = [];
 
-    const jurySpreadsheet = files.analyseJuryFile || files.rhFile;
-
     if (!year || year < 2020 || year > 2100) {
       blockingErrors.push(`L'année de campagne spécifiée (${year}) est invalide.`);
     }
 
-    if (!files.profilFile) {
-      blockingErrors.push("Le fichier BDD_LL_NEW_DRIVE (onglet 'Profil') est obligatoire (Col A: Id_Profil, Col B: Nom, Col C: Prénom).");
+    const rapportRhSpreadsheet = files.rapportRhFile || files.rhFile || files.analyseJuryFile;
+    const primesSpreadsheet = files.primesFile;
+    const vuesMeteosSpreadsheet = files.vuesMeteosFile;
+
+    // Vérification des 3 fichiers obligatoires
+    if (!rapportRhSpreadsheet) {
+      blockingErrors.push("Le fichier 'Rapport_RH_Query_Salaries' est obligatoire (Col C: Id_Profil, Col I: Consultant, Col L: Matricule, Col M: Grade, Col S: Exp. Arrivée, Col U: Date Expert, Col V: Salaire Annuel, Col AF: TJ Vendu, Col AS: Ancienneté LL).");
     }
 
-    if (!jurySpreadsheet) {
-      blockingErrors.push("Le fichier Analyse_Jury_Salaires (onglet 'Analyse_Jury') est obligatoire.");
+    if (!primesSpreadsheet) {
+      blockingErrors.push("Le fichier 'Primes' est obligatoire pour déterminer les obligations d'évaluation.");
     }
 
-    // 1. Lire BDD_LL_NEW_DRIVE (feuille "Profil")
-    interface ProfilItem {
-      idProfil: string;
-      nom: string;
-      prenom: string;
-    }
-    const profilsById = new Map<string, ProfilItem>();
-    const profilsByName = new Map<string, ProfilItem[]>();
-
-    if (files.profilFile) {
-      const data = await files.profilFile.arrayBuffer();
-      const wb = XLSX.read(data, { type: 'array', cellDates: true });
-      const sheetName = wb.SheetNames.find(s => s.toLowerCase().includes('profil')) || wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-      const matrix = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
-
-      // Recherche de la ligne d'en-tête
-      let headerRow = 0;
-      for (let r = 0; r < Math.min(5, matrix.length); r++) {
-        const row = matrix[r] || [];
-        const normA = normalizeHeader(String(row[0] || ''));
-        if (normA.includes('id_profil') || normA.includes('profil') || normA.includes('id')) {
-          headerRow = r;
-          break;
-        }
-      }
-
-      for (let r = headerRow + 1; r < matrix.length; r++) {
-        const row = matrix[r] || [];
-        const idProfil = cleanString(row[0]);
-        const nom = cleanString(row[1]);
-        const prenom = cleanString(row[2]);
-
-        if (!idProfil && !nom && !prenom) continue;
-
-        if (idProfil) {
-          const item: ProfilItem = { idProfil, nom, prenom };
-          profilsById.set(idProfil, item);
-          const nameKey = `${normalizePersonName(prenom)}_${normalizePersonName(nom)}`;
-          if (nameKey !== '_') {
-            if (!profilsByName.has(nameKey)) profilsByName.set(nameKey, []);
-            profilsByName.get(nameKey)!.push(item);
-          }
-        }
-      }
-
-      if (profilsById.size === 0) {
-        blockingErrors.push("Aucun Id_Profil trouvé dans le fichier BDD_LL_NEW_DRIVE (feuille 'Profil', Colonne A).");
-      }
+    if (!vuesMeteosSpreadsheet) {
+      blockingErrors.push("Le fichier 'Vues_Meteos' est obligatoire (Col B: Id_Profil, Col Q: Liens_Meteo).");
     }
 
-    // 2. Lire BDD_API_BOOND_NEW_DRIVE (feuilles "Boond_Liste_Valeur" et "Boond_Ressources")
-    const boondValuesExperienceMap = new Map<string, number>(); // id_valeur ou string -> number d'années
-    interface BoondResourceItem {
-      prenom: string;
-      nom: string;
-      matricule: string;
-      grade: string;
-      experienceYearsEmbauche: number;
-    }
-    const boondByMatricule = new Map<string, BoondResourceItem>();
-    const boondByName = new Map<string, BoondResourceItem[]>();
-
-    if (files.boondFile) {
-      const data = await files.boondFile.arrayBuffer();
-      const wb = XLSX.read(data, { type: 'array', cellDates: true });
-
-      // A. Feuille "Boond_Liste_Valeur" :
-      // Col B : Nom_Valeur ("Annees_Experience_A_Embauche")
-      // Col D : Libelle_Valeur (ex: "3 ans", "2", etc.)
-      // Clé d'ID : Col A ou Col C (index de la valeur)
-      const listValSheetName = wb.SheetNames.find(s => {
-        const n = normalizeHeader(s);
-        return n.includes('liste_valeur') || n.includes('valeur') || n.includes('liste');
-      });
-
-      if (listValSheetName) {
-        const ws = wb.Sheets[listValSheetName];
-        const matrix = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
-        let hRow = 0;
-        for (let r = 0; r < Math.min(5, matrix.length); r++) {
-          const row = matrix[r] || [];
-          if (row.some(c => normalizeHeader(String(c)).includes('valeur'))) {
-            hRow = r;
-            break;
-          }
-        }
-
-        for (let r = hRow + 1; r < matrix.length; r++) {
-          const row = matrix[r] || [];
-          const idValA = cleanString(row[0]);
-          const nomValeur = normalizeHeader(String(row[1] || '')); // Col B
-          const idValC = cleanString(row[2]);
-          const libelleValeur = cleanString(row[3]); // Col D
-
-          if (nomValeur.includes('annees_experience_a_embauche') || nomValeur.includes('experience_a_embauche') || nomValeur.includes('experience')) {
-            const expYears = parseFrenchNumber(libelleValeur);
-            if (idValA) boondValuesExperienceMap.set(idValA, expYears);
-            if (idValC) boondValuesExperienceMap.set(idValC, expYears);
-            // Par sécurité, indexer aussi le libellé brut
-            if (libelleValeur) boondValuesExperienceMap.set(cleanString(libelleValeur), expYears);
-          }
-        }
-      }
-
-      // B. Feuille "Boond_Ressources" :
-      // Col C (2) : Prenom_Ressource
-      // Col D (3) : Nom_Ressource
-      // Col E (4) : Matricule_Ressource
-      // Col H (7) : Titre_Ressource (Grade actuel)
-      // Col M (12) : Id_Annees_Experience_A_Embauche
-      const resSheetName = wb.SheetNames.find(s => {
-        const n = normalizeHeader(s);
-        return n.includes('ressource') || n.includes('boond_ressources');
-      }) || wb.SheetNames[0];
-
-      if (resSheetName) {
-        const ws = wb.Sheets[resSheetName];
-        const matrix = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
-        let hRow = 0;
-        for (let r = 0; r < Math.min(5, matrix.length); r++) {
-          const row = matrix[r] || [];
-          if (row.some(c => normalizeHeader(String(c)).includes('ressource') || normalizeHeader(String(c)).includes('matricule'))) {
-            hRow = r;
-            break;
-          }
-        }
-
-        for (let r = hRow + 1; r < matrix.length; r++) {
-          const row = matrix[r] || [];
-          const prenom = cleanString(row[2]); // Col C
-          const nom = cleanString(row[3]);    // Col D
-          const matricule = cleanString(row[4]).toUpperCase(); // Col E
-          const gradeTitre = cleanString(row[7]); // Col H
-          const idExpEmbauche = cleanString(row[12]); // Col M
-
-          if (!prenom && !nom && !matricule) continue;
-
-          let expEmbauche = 0;
-          if (idExpEmbauche && boondValuesExperienceMap.has(idExpEmbauche)) {
-            expEmbauche = boondValuesExperienceMap.get(idExpEmbauche) || 0;
-          } else if (idExpEmbauche) {
-            expEmbauche = parseFrenchNumber(idExpEmbauche);
-          }
-
-          const resItem: BoondResourceItem = {
-            prenom,
-            nom,
-            matricule,
-            grade: gradeTitre,
-            experienceYearsEmbauche: expEmbauche
-          };
-
-          if (matricule) boondByMatricule.set(matricule, resItem);
-          const nameKey = `${normalizePersonName(prenom)}_${normalizePersonName(nom)}`;
-          if (nameKey !== '_') {
-            if (!boondByName.has(nameKey)) boondByName.set(nameKey, []);
-            boondByName.get(nameKey)!.push(resItem);
-          }
-        }
-      }
-    }
-
-    // 3. Lire Analyse_Jury_Salaires (feuille "Analyse_Jury", en-têtes à la ligne 2 / index 1)
-    interface RawJuryRow {
-      matricule: string;     // Col A
-      prenom: string;        // Col B
-      nom: string;           // Col C
-      dateEntreeLL?: string; // Col E
-      datePassageExpert?: string; // Col F
-      ancienneteLL: number;  // Col G
-      anneesExpertise: number; // Col H
-      tjVendu0107: number;   // Col J
-      salaireVendu: number;  // Col K
-      salaireActuel: number; // Col P
-    }
-    const rawJuryRows: RawJuryRow[] = [];
-
-    if (jurySpreadsheet) {
-      const data = await jurySpreadsheet.arrayBuffer();
-      const wb = XLSX.read(data, { type: 'array', cellDates: true });
-      
-      // Recherche de l'onglet :
-      // 1. Recherche par nom (insensible aux accents, espaces, tirets, underscores)
-      let targetSheetName = wb.SheetNames.find(s => {
-        const clean = s.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return clean.includes('analysejury') || clean.includes('jury') || clean.includes('salaires');
-      });
-
-      // 2. Si pas trouvé par nom, recherche heuristique par contenu (recherche de la feuille contenant "matricule" et "salaire" ou "anciennete")
-      if (!targetSheetName) {
-        for (const sName of wb.SheetNames) {
-          const testWs = wb.Sheets[sName];
-          const testMatrix = XLSX.utils.sheet_to_json<any[]>(testWs, { header: 1, defval: '' });
-          const hasJuryHeaders = testMatrix.slice(0, 5).some(row => {
-            if (!Array.isArray(row)) return false;
-            const rowStr = row.map(c => normalizeHeader(String(c))).join(' ');
-            return rowStr.includes('matricule') && (rowStr.includes('salaire') || rowStr.includes('expert') || rowStr.includes('anciennete'));
-          });
-          if (hasJuryHeaders) {
-            targetSheetName = sName;
-            break;
-          }
-        }
-      }
-
-      // 3. Fallback sur la première feuille si aucune autre n'est trouvée
-      if (!targetSheetName && wb.SheetNames.length > 0) {
-        targetSheetName = wb.SheetNames[0];
-      }
-
-      if (!targetSheetName) {
-        blockingErrors.push(`Le classeur Analyse_Jury_Salaires ne contient aucune feuille lisible.`);
-      } else {
-        const ws = wb.Sheets[targetSheetName];
-        const matrix = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
-
-        // Ligne 2 (index 1) : En-têtes spécifiés
-        // Données à partir de la ligne 3 (index 2)
-        let startRow = 2;
-        let detectedHeaderRow = -1;
-
-        for (let r = 0; r < Math.min(6, matrix.length); r++) {
-          const norm = (matrix[r] || []).map(c => normalizeHeader(String(c)));
-          if (norm.includes('matricule') || (norm.includes('prenom') && norm.includes('nom')) || norm.some(x => x.includes('matricule'))) {
-            detectedHeaderRow = r;
-            break;
-          }
-        }
-
-        if (detectedHeaderRow >= 0) {
-          startRow = detectedHeaderRow + 1;
-        } else if (matrix.length > 2) {
-          startRow = 2;
-        }
-
-        for (let r = startRow; r < matrix.length; r++) {
-          const row = matrix[r] || [];
-          if (!row || row.length === 0) continue;
-
-          const matricule = cleanString(row[0]).toUpperCase(); // Col A
-          const prenom = cleanString(row[1]); // Col B
-          const nom = cleanString(row[2]);    // Col C
-
-          if (!matricule && !prenom && !nom) continue;
-
-          const dateEntreeLLRaw = row[4]; // Col E
-          const dateExpertRaw = row[5];   // Col F
-          const ancienneteLL = parseFrenchNumber(row[6]); // Col G
-          const anneesExpertise = parseFrenchNumber(row[7]); // Col H : Années Exp. (si Expert)
-          const tjVendu0107 = parseFrenchNumber(row[9]);  // Col J
-          const salaireVendu = parseFrenchNumber(row[10]); // Col K
-          const salaireActuel = parseFrenchNumber(row[15]); // Col P : Salaire Actuel au 30/06
-
-          const dEntree = parseExcelDate(dateEntreeLLRaw);
-          const dExpert = parseExcelDate(dateExpertRaw);
-
-          rawJuryRows.push({
-            matricule,
-            prenom,
-            nom,
-            dateEntreeLL: dEntree ? dEntree.toISOString().split('T')[0] : (dateEntreeLLRaw ? cleanString(dateEntreeLLRaw) : undefined),
-            datePassageExpert: dExpert ? dExpert.toISOString().split('T')[0] : (dateExpertRaw ? cleanString(dateExpertRaw) : undefined),
-            ancienneteLL,
-            anneesExpertise,
-            tjVendu0107,
-            salaireVendu,
-            salaireActuel: salaireActuel || salaireVendu
-          });
-        }
-
-        if (rawJuryRows.length === 0) {
-          blockingErrors.push(
-            `Aucune donnée exploitable trouvée dans l'onglet '${targetSheetName}'. ` +
-            `Onglets présents dans votre fichier : [${wb.SheetNames.join(', ')}]. ` +
-            `Veuillez vérifier que les données commencent à la ligne 3 avec Matricule en Col A, Prénom en Col B, Nom en Col C.`
-          );
-        }
-      }
-    }
-
-    // 4. Lire Primes (optionnel)
-    let primeRows: PrimeAssignmentRow[] = [];
-    if (files.primesFile) {
+    // 1. Lire Rapport_RH_Query_Salaries
+    let parsedCandidates: CandidateInitData[] = [];
+    if (rapportRhSpreadsheet) {
       try {
-        primeRows = await this.parsePrimesFile(files.primesFile, year);
+        parsedCandidates = await this.parseRapportRhSalariesFile(rapportRhSpreadsheet);
       } catch (e: any) {
-        warnings.push(`Erreur lors de la lecture du fichier Primes : ${e.message}`);
+        blockingErrors.push(`Erreur lors de la lecture du fichier Rapport_RH_Query_Salaries : ${e.message}`);
       }
     }
 
-    // 5. Charger données existantes LocalStorage pour rapprochement & préservation
+    // 2. Lire Primes
+    let primeRows: PrimeAssignmentRow[] = [];
+    if (primesSpreadsheet) {
+      try {
+        primeRows = await this.parsePrimesFile(primesSpreadsheet, year);
+      } catch (e: any) {
+        blockingErrors.push(`Erreur lors de la lecture du fichier Primes : ${e.message}`);
+      }
+    }
+
+    // 3. Lire Vues_Meteos
+    const meteoLinksByCandidate: Record<string, string[]> = {};
+    let totalMeteoLinksCount = 0;
+    if (vuesMeteosSpreadsheet) {
+      try {
+        const meteoItems = await this.parseVuesMeteosFile(vuesMeteosSpreadsheet);
+        totalMeteoLinksCount = meteoItems.length;
+        meteoItems.forEach(item => {
+          if (!meteoLinksByCandidate[item.idProfil]) {
+            meteoLinksByCandidate[item.idProfil] = [];
+          }
+          if (!meteoLinksByCandidate[item.idProfil].includes(item.link)) {
+            meteoLinksByCandidate[item.idProfil].push(item.link);
+          }
+        });
+      } catch (e: any) {
+        blockingErrors.push(`Erreur lors de la lecture du fichier Vues_Meteos : ${e.message}`);
+      }
+    }
+
+    // Associer les liens météos aux candidats
+    parsedCandidates.forEach(cand => {
+      cand.meteoLinks = meteoLinksByCandidate[cand.idProfil] || [];
+    });
+
+    // 4. Charger données existantes LocalStorage pour rapprochement & préservation
     const existingPersonnesSnap = await getDocs(collection(db, 'personnes'));
     const existingPersonnes: Personne[] = existingPersonnesSnap.docs.map(d => ({
       ...d.data(),
@@ -702,26 +755,87 @@ export class CampaignInitializationService {
       }
     });
 
-    // 6. Croisement et construction des Candidats à initialiser
+    // 5. Indexation globale de TOUS les salariés de Rapport_RH_Query_Salaries
+    const matriculeToIdProfil = new Map<string, string>();
+    const detailsByMatricule = new Map<string, { idProfil: string; nom: string; prenom: string; grade?: Grade; email?: string }>();
+    const allEmployeesByIdProfil = new Map<string, CandidateInitData>();
+
+    const registerMatriculeMapping = (rawMat: string, idProfil: string, details: { idProfil: string; nom: string; prenom: string; grade?: Grade; email?: string }) => {
+      const norm = normalizeMatricule(rawMat);
+      if (!norm) return;
+      matriculeToIdProfil.set(norm, idProfil);
+      detailsByMatricule.set(norm, details);
+
+      const num = parseInt(norm, 10);
+      if (!isNaN(num)) {
+        const numStr = num.toString();
+        matriculeToIdProfil.set(numStr, idProfil);
+        detailsByMatricule.set(numStr, details);
+
+        const padStr = numStr.padStart(5, '0');
+        matriculeToIdProfil.set(padStr, idProfil);
+        detailsByMatricule.set(padStr, details);
+      }
+    };
+
+    parsedCandidates.forEach(cand => {
+      if (cand.idProfil) {
+        allEmployeesByIdProfil.set(cand.idProfil, cand);
+        const details = {
+          idProfil: cand.idProfil,
+          nom: cand.nom,
+          prenom: cand.prenom,
+          grade: cand.grade,
+          email: cand.email
+        };
+        if (cand.matricule) {
+          registerMatriculeMapping(cand.matricule, cand.idProfil, details);
+        }
+        matriculeToIdProfil.set(cand.idProfil.toUpperCase(), cand.idProfil);
+        detailsByMatricule.set(cand.idProfil.toUpperCase(), details);
+      }
+    });
+
+    existingPersonnes.forEach(p => {
+      if (p.matricule && p.idProfil) {
+        const details = {
+          idProfil: p.idProfil,
+          nom: p.nom,
+          prenom: p.prenom,
+          email: p.email
+        };
+        registerMatriculeMapping(p.matricule, p.idProfil, details);
+      }
+      if (p.idProfil) {
+        matriculeToIdProfil.set(p.idProfil.trim().toUpperCase(), p.idProfil);
+      }
+    });
+
+    // 6. Croisement et enrichissement des Candidats à initialiser
+    // RÈGLE : Seuls ceux dont la colonne AQ est vide ou nulle sont des candidats potentiels
     const candidatesToProcess: CandidateInitData[] = [];
     const processedIdProfils = new Set<string>();
 
-    for (let i = 0; i < rawJuryRows.length; i++) {
-      const jury = rawJuryRows[i];
-      const nameKey = `${normalizePersonName(jury.prenom)}_${normalizePersonName(jury.nom)}`;
-      const nameKeyInv = `${normalizePersonName(jury.nom)}_${normalizePersonName(jury.prenom)}`;
+    for (const cand of parsedCandidates) {
+      if (!cand.idProfil) continue;
+      if (processedIdProfils.has(cand.idProfil)) continue;
 
-      // A. Recherche du Profil canonique dans BDD_LL_NEW_DRIVE (Col B & C) ou LocalStorage
-      let matchedProfil: ProfilItem | undefined;
-      const profCandidates = profilsByName.get(nameKey) || profilsByName.get(nameKeyInv);
-      if (profCandidates && profCandidates.length > 0) {
-        matchedProfil = profCandidates[0];
+      // FILTRE COLONNE AQ : S'il y a une valeur en colonne AQ, ce n'est PAS un candidat potentiel
+      if (cand.isEligibleCandidate === false) {
+        continue;
       }
+
+      processedIdProfils.add(cand.idProfil);
+
+      const nameKey = `${normalizePersonName(cand.prenom)}_${normalizePersonName(cand.nom)}`;
+      const nameKeyInv = `${normalizePersonName(cand.nom)}_${normalizePersonName(cand.prenom)}`;
 
       // Recherche dans Personnes existantes
       let matchedPersonne: Personne | undefined;
-      if (jury.matricule && personnesByMatricule.has(jury.matricule)) {
-        matchedPersonne = personnesByMatricule.get(jury.matricule);
+      if (cand.matricule && personnesByMatricule.has(cand.matricule)) {
+        matchedPersonne = personnesByMatricule.get(cand.matricule);
+      } else if (personnesById.has(cand.idProfil)) {
+        matchedPersonne = personnesById.get(cand.idProfil);
       } else {
         const persCandidates = personnesByName.get(nameKey) || personnesByName.get(nameKeyInv);
         if (persCandidates && persCandidates.length > 0) {
@@ -729,179 +843,65 @@ export class CampaignInitializationService {
         }
       }
 
-      // B. Résolution de l'Id_Profil canonique (Col A de BDD_LL_NEW_DRIVE prioritaire)
-      let resolvedIdProfil = '';
-      if (matchedProfil) {
-        resolvedIdProfil = matchedProfil.idProfil;
-      } else if (matchedPersonne && matchedPersonne.idProfil) {
-        resolvedIdProfil = matchedPersonne.idProfil;
-      } else if (jury.matricule) {
-        resolvedIdProfil = `PROF_${jury.matricule}`;
-        warnings.push(`Id_Profil non trouvé dans BDD_LL_NEW_DRIVE pour ${jury.prenom} ${jury.nom} (Matricule: ${jury.matricule}). Identifiant généré : ${resolvedIdProfil}.`);
-      } else {
-        resolvedIdProfil = `PROF_${normalizePersonName(jury.nom).toUpperCase()}_${normalizePersonName(jury.prenom).toUpperCase()}`;
-        warnings.push(`Id_Profil non trouvé dans BDD_LL_NEW_DRIVE pour ${jury.prenom} ${jury.nom}. Identifiant généré : ${resolvedIdProfil}.`);
+      if (!cand.email && matchedPersonne?.email) {
+        cand.email = matchedPersonne.email;
+      }
+      if (!cand.email && cand.prenom && cand.nom) {
+        cand.email = `${normalizePersonName(cand.prenom)}.${normalizePersonName(cand.nom)}@logiclever.com`;
       }
 
-      if (processedIdProfils.has(resolvedIdProfil)) {
-        continue;
-      }
-      processedIdProfils.add(resolvedIdProfil);
+      const existingParticipant = existingParticipants.find(
+        p => p.idProfil === cand.idProfil || (cand.matricule && p.matricule === cand.matricule)
+      );
+      const existingUser = existingUsers.find(
+        (u: any) =>
+          u.idProfil === cand.idProfil ||
+          (cand.matricule && u.matricule === cand.matricule) ||
+          (cand.email && u.email && u.email.toLowerCase() === cand.email.toLowerCase())
+      );
 
-      // C. Recherche Boond pour le Grade (Col H) et Expérience à l'embauche (Col M / Col D)
-      let matchedBoond: BoondResourceItem | undefined;
-      if (jury.matricule && boondByMatricule.has(jury.matricule)) {
-        matchedBoond = boondByMatricule.get(jury.matricule);
-      } else {
-        const boondCandidates = boondByName.get(nameKey) || boondByName.get(nameKeyInv);
-        if (boondCandidates && boondCandidates.length > 0) {
-          matchedBoond = boondCandidates[0];
-        }
-      }
+      cand.isExistingPersonne = !!matchedPersonne;
+      cand.isExistingParticipant = !!existingParticipant;
+      cand.isExistingUser = !!existingUser;
+      cand.action = existingParticipant ? 'UPDATE' : 'CREATE';
 
-      // Normalisation du Grade (issu de Boond Titre_Ressource Col H)
-      let finalGrade: Grade | undefined = undefined;
-      const rawGradeTitle = matchedBoond?.grade?.trim().toLowerCase() || '';
-      if (rawGradeTitle.includes('expert')) finalGrade = 'Expert';
-      else if (rawGradeTitle.includes('senior')) finalGrade = 'Senior';
-      else if (rawGradeTitle.includes('confirm') || rawGradeTitle.includes('confirme')) finalGrade = 'Confirmé';
-      else if (rawGradeTitle.includes('junior')) finalGrade = 'Junior';
-
-      // D. Calcul de l'Expérience Totale :
-      // Ancienneté chez LL (Col G de Analyse_Jury) + Expérience à l'embauche (Boond)
-      const expEmbauche = matchedBoond?.experienceYearsEmbauche || matchedPersonne?.experienceYearsEmbauche || 0;
-      const anciennete = jury.ancienneteLL || 0;
-      const totalExp = Math.round((expEmbauche + anciennete) * 10) / 10;
-
-      const prenomFinal = matchedProfil?.prenom || jury.prenom || matchedPersonne?.prenom || 'Collaborateur';
-      const nomFinal = matchedProfil?.nom || jury.nom || matchedPersonne?.nom || 'Logiclever';
-      const displayNameFinal = `${prenomFinal} ${nomFinal}`.trim();
-      let emailFinal = matchedPersonne?.email || '';
-      if (!emailFinal && prenomFinal && nomFinal) {
-        emailFinal = `${normalizePersonName(prenomFinal)}.${normalizePersonName(nomFinal)}@logiclever.com`;
-      }
-
-      const existingParticipant = existingParticipants.find(p => p.idProfil === resolvedIdProfil || (p.matricule && p.matricule === jury.matricule));
-      const existingUser = existingUsers.find((u: any) => u.idProfil === resolvedIdProfil || (u.matricule && u.matricule === jury.matricule) || (u.email && u.email.toLowerCase() === emailFinal.toLowerCase()));
-
-      candidatesToProcess.push({
-        idProfil: resolvedIdProfil,
-        matricule: jury.matricule || matchedBoond?.matricule || matchedPersonne?.matricule || undefined,
-        nom: nomFinal,
-        prenom: prenomFinal,
-        displayName: displayNameFinal,
-        email: emailFinal,
-        grade: finalGrade,
-        currentSalary: jury.salaireActuel || jury.salaireVendu || existingParticipant?.salary || (existingUser as any)?.currentSalary || 0,
-        currentTJM: jury.tjVendu0107 || existingParticipant?.tjm || (existingUser as any)?.currentTJM || 0,
-        entryDate: jury.dateEntreeLL || matchedPersonne?.entryDate || undefined,
-        expertPassageDate: jury.datePassageExpert || (matchedPersonne as any)?.expertGradeDate || undefined,
-        ancienneteLL: anciennete,
-        anneesExpertise: jury.anneesExpertise,
-        experienceEmbauche: expEmbauche,
-        experienceYears: totalExp,
-        isExistingPersonne: !!matchedPersonne,
-        isExistingParticipant: !!existingParticipant,
-        isExistingUser: !!existingUser,
-        action: existingParticipant ? 'UPDATE' : 'CREATE',
-        warnings: []
-      });
+      candidatesToProcess.push(cand);
     }
 
     // 7. Calculer les affectations d'évaluateurs via la feuille Primes
-    const matriculeToIdProfil = new Map<string, string>();
-    const detailsByMatricule = new Map<string, { idProfil: string; nom: string; prenom: string; grade?: Grade; email?: string }>();
+    const lookupMatricule = (rawMatricule: string): string | null => {
+      const norm = normalizeMatricule(rawMatricule);
+      if (!norm) return null;
+      if (matriculeToIdProfil.has(norm)) return matriculeToIdProfil.get(norm)!;
 
-    candidatesToProcess.forEach(c => {
-      if (c.matricule) {
-        const m = c.matricule.trim().toUpperCase();
-        matriculeToIdProfil.set(m, c.idProfil);
-        detailsByMatricule.set(m, {
-          idProfil: c.idProfil,
-          nom: c.nom,
-          prenom: c.prenom,
-          grade: c.grade,
-          email: c.email
-        });
+      const num = parseInt(norm, 10);
+      if (!isNaN(num)) {
+        const numStr = num.toString();
+        if (matriculeToIdProfil.has(numStr)) return matriculeToIdProfil.get(numStr)!;
+        const padStr = numStr.padStart(5, '0');
+        if (matriculeToIdProfil.has(padStr)) return matriculeToIdProfil.get(padStr)!;
       }
-    });
 
-    existingPersonnes.forEach(p => {
-      if (p.matricule) {
-        const m = p.matricule.trim().toUpperCase();
-        if (!matriculeToIdProfil.has(m)) {
-          matriculeToIdProfil.set(m, p.idProfil);
-          detailsByMatricule.set(m, {
-            idProfil: p.idProfil,
-            nom: p.nom,
-            prenom: p.prenom,
-            email: p.email
-          });
-        }
-      }
-    });
+      const existingPers = personnesByMatricule.get(norm);
+      if (existingPers?.idProfil) return existingPers.idProfil;
 
-    // Helper pour résoudre un matricule présent dans Primes mais pas dans Analyse_Jury
-    // En utilisant Boond_Ressources (Col E Matricule, Col C Prenom, Col D Nom, Col H Grade)
-    // puis BDD_LL_NEW_DRIVE (feuille "Profil" Col B Nom, Col C Prenom -> Col A Id_Profil)
+      return null;
+    };
+
     const resolveMatriculeThroughBoondAndProfil = (rawMatricule: string) => {
-      const mat = rawMatricule.trim().toUpperCase();
-      if (matriculeToIdProfil.has(mat)) {
-        return matriculeToIdProfil.get(mat)!;
-      }
+      const found = lookupMatricule(rawMatricule);
+      if (found) return found;
 
-      // Recherche dans Boond
-      const boondItem = boondByMatricule.get(mat);
-      let nom = '';
-      let prenom = '';
-      let grade: Grade | undefined = undefined;
-
-      if (boondItem) {
-        nom = boondItem.nom;
-        prenom = boondItem.prenom;
-        const rawG = (boondItem.grade || '').toLowerCase();
-        if (rawG.includes('expert')) grade = 'Expert';
-        else if (rawG.includes('senior')) grade = 'Senior';
-        else if (rawG.includes('confirm') || rawG.includes('confirme')) grade = 'Confirmé';
-        else if (rawG.includes('junior')) grade = 'Junior';
-      }
-
-      // Recherche dans BDD_LL_NEW_DRIVE (Profil)
-      let resolvedIdProfil = '';
-      if (prenom && nom) {
-        const nameKey = `${normalizePersonName(prenom)}_${normalizePersonName(nom)}`;
-        const nameKeyInv = `${normalizePersonName(nom)}_${normalizePersonName(prenom)}`;
-        const profMatches = profilsByName.get(nameKey) || profilsByName.get(nameKeyInv);
-        if (profMatches && profMatches.length > 0) {
-          resolvedIdProfil = profMatches[0].idProfil;
-        }
-      }
-
-      // Si toujours pas trouvé, recherche dans les Personnes LocalStorage existantes
-      if (!resolvedIdProfil && prenom && nom) {
-        const nameKey = `${normalizePersonName(prenom)}_${normalizePersonName(nom)}`;
-        const nameKeyInv = `${normalizePersonName(nom)}_${normalizePersonName(prenom)}`;
-        const persMatches = personnesByName.get(nameKey) || personnesByName.get(nameKeyInv);
-        if (persMatches && persMatches.length > 0 && persMatches[0].idProfil) {
-          resolvedIdProfil = persMatches[0].idProfil;
-        }
-      }
-
-      // Fallback si pas de correspondance dans Profil
-      if (!resolvedIdProfil) {
-        resolvedIdProfil = `PROF_${mat}`;
-      }
-
-      matriculeToIdProfil.set(mat, resolvedIdProfil);
+      const mat = normalizeMatricule(rawMatricule);
+      const fallbackIdProfil = `PROF_${mat}`;
+      matriculeToIdProfil.set(mat, fallbackIdProfil);
       detailsByMatricule.set(mat, {
-        idProfil: resolvedIdProfil,
-        nom: nom || 'Collaborateur',
-        prenom: prenom || mat,
-        grade,
-        email: prenom && nom ? `${normalizePersonName(prenom)}.${normalizePersonName(nom)}@logiclever.com` : undefined
+        idProfil: fallbackIdProfil,
+        nom: 'Collaborateur',
+        prenom: mat,
+        email: undefined
       });
-
-      return resolvedIdProfil;
+      return fallbackIdProfil;
     };
 
     const assignmentsByCandidate: Record<string, string[]> = {};
@@ -910,11 +910,11 @@ export class CampaignInitializationService {
     let expiredPrimesCount = 0;
 
     primeRows.forEach(pr => {
-      const candMat = pr.candidateMatricule.trim().toUpperCase();
-      const evalMat = pr.evaluatorMatricule.trim().toUpperCase();
+      const candMat = normalizeMatricule(pr.candidateMatricule);
+      const evalMat = normalizeMatricule(pr.evaluatorMatricule);
 
-      const candIdProfil = matriculeToIdProfil.get(candMat) || resolveMatriculeThroughBoondAndProfil(candMat);
-      const evalIdProfil = matriculeToIdProfil.get(evalMat) || resolveMatriculeThroughBoondAndProfil(evalMat);
+      const candIdProfil = lookupMatricule(candMat) || resolveMatriculeThroughBoondAndProfil(candMat);
+      const evalIdProfil = lookupMatricule(evalMat) || resolveMatriculeThroughBoondAndProfil(evalMat);
 
       if (candIdProfil) pr.resolvedCandidateIdProfil = candIdProfil;
       if (evalIdProfil) pr.resolvedEvaluatorIdProfil = evalIdProfil;
@@ -965,17 +965,28 @@ export class CampaignInitializationService {
           grade = candObj.grade;
         }
       } else {
-        // Rechercher par idProfil dans detailsByMatricule
-        for (const [m, det] of detailsByMatricule.entries()) {
-          if (det.idProfil === evalIdProfil) {
-            matricule = m;
-            nom = det.nom;
-            prenom = det.prenom;
-            grade = det.grade;
-            email = det.email || `${normalizePersonName(prenom)}.${normalizePersonName(nom)}@logiclever.com`;
-            break;
+        // 1. Chercher dans l'annuaire complet de Rapport_RH_Query_Salaries
+        const emp = allEmployeesByIdProfil.get(evalIdProfil);
+        if (emp) {
+          nom = emp.nom;
+          prenom = emp.prenom;
+          matricule = emp.matricule || '';
+          email = emp.email;
+          grade = emp.grade;
+        } else {
+          // 2. Chercher dans detailsByMatricule
+          for (const [m, det] of detailsByMatricule.entries()) {
+            if (det.idProfil === evalIdProfil) {
+              matricule = m;
+              nom = det.nom;
+              prenom = det.prenom;
+              grade = det.grade;
+              email = det.email || `${normalizePersonName(prenom)}.${normalizePersonName(nom)}@logiclever.com`;
+              break;
+            }
           }
         }
+        // 3. Chercher dans les Personnes existantes
         if (!nom) {
           const matchedPers = personnesById.get(evalIdProfil);
           if (matchedPers) {
@@ -1016,7 +1027,7 @@ export class CampaignInitializationService {
 
     return {
       year,
-      totalCandidatesParsed: rawJuryRows.length,
+      totalCandidatesParsed: candidatesToProcess.length,
       candidatesToProcess,
       evaluatorsToProcess,
       newPersonnesCount,
@@ -1029,6 +1040,8 @@ export class CampaignInitializationService {
       totalPrimesParsed: primeRows.length,
       activePrimesCount,
       expiredPrimesCount,
+      meteoLinksCount: totalMeteoLinksCount,
+      meteoLinksByCandidate,
       assignmentsByCandidate,
       warnings,
       blockingErrors,
@@ -1153,6 +1166,10 @@ export class CampaignInitializationService {
       const assignedEvaluators = preview.assignmentsByCandidate[cand.idProfil] || [];
 
       const existingDossier = LocalDatabaseService.getDossierById(dossierId);
+      // Liens météo issus de Vues_Meteos (valeur réelle dans la cellule, sans fabrication de faux feedbacks)
+      const meteoLinks = cand.meteoLinks || [];
+      const mergedMeteoLinks = Array.from(new Set([...(existingDossier?.meteoLinks || []), ...meteoLinks]));
+
       const dossierObj: Dossier = {
         id: dossierId,
         candidateId: cand.idProfil,
@@ -1169,14 +1186,16 @@ export class CampaignInitializationService {
           currentTJM: cand.currentTJM,
           currentSalary: cand.currentSalary,
         },
-        clientFeedbacks: [],
-        documents: [],
-        consultantFeedbacks: {},
-        createdAt: new Date().toISOString(),
+        meteoLinks: mergedMeteoLinks,
+        clientFeedbacks: existingDossier?.clientFeedbacks || [],
+        documents: existingDossier?.documents || [],
+        consultantFeedbacks: existingDossier?.consultantFeedbacks || {},
+        createdAt: existingDossier?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         ...(existingDossier ? {
           status: existingDossier.status,
           annualReport: { ...defaultReportData, currentGrade: cand.grade, currentTJM: cand.currentTJM, currentSalary: cand.currentSalary, ...existingDossier.annualReport },
+          meteoLinks: mergedMeteoLinks,
           clientFeedbacks: existingDossier.clientFeedbacks || [],
           documents: existingDossier.documents || [],
           consultantFeedbacks: existingDossier.consultantFeedbacks || {},

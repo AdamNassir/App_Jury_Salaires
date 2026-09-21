@@ -27,59 +27,6 @@ const { LocalDatabaseService } = await import('../src/services/localDatabaseServ
 const { UserDirectoryService } = await import('../src/services/userDirectoryService');
 const { CampaignInitializationService } = await import('../src/services/campaignInitializationService');
 import type { CampaignInitPreview } from '../src/services/campaignInitializationService';
-import type { Dossier, JuryDecision } from '../src/types';
-
-function juryFixture() {
-  const decision: JuryDecision = { verdict: 'Favorable', amount: 50000, percentage: 0, advice: '', conclusion: '', date: '2026-01-01' };
-  storage.setItem(DATABASE_KEY, JSON.stringify({
-    campaigns: [], personnes: [], campaign_participants: [],
-    users: ['jury-a', 'jury-b', 'jury-c'].map(id => ({ id, email: `${id}@example.test`, roles: ['JURY'] })),
-    dossiers: [{ id: 'jury-dossier', status: 'COMPLET', juryDecision: decision }],
-  }));
-  return decision;
-}
-
-test('only the final required jury member validates a dossier; repeat clicks do not add votes', () => {
-  const decision = juryFixture();
-  for (const id of ['jury-a', 'jury-a', 'jury-b']) {
-    assert.equal(LocalDatabaseService.finalizeJuryDecision('jury-dossier', id, decision, decision), 'COMPLET');
-  }
-  assert.equal(Object.keys(LocalDatabaseService.getDossierById('jury-dossier')!.juryFinalizations!).length, 2);
-  assert.equal(LocalDatabaseService.finalizeJuryDecision('jury-dossier', 'jury-c', decision, decision), 'VALIDE');
-});
-
-test('editing the shared decision resets confirmations, but timestamp changes do not', () => {
-  const decision = juryFixture();
-  LocalDatabaseService.finalizeJuryDecision('jury-dossier', 'jury-a', decision, decision);
-  LocalDatabaseService.saveJuryDecision('jury-dossier', { ...decision, date: '2026-02-01' }, decision);
-  assert.ok(LocalDatabaseService.getDossierById('jury-dossier')!.juryFinalizations!['jury-a']);
-  const edited = { ...decision, amount: 55000 };
-  LocalDatabaseService.saveJuryDecision('jury-dossier', edited, decision);
-  assert.deepEqual(LocalDatabaseService.getDossierById('jury-dossier')!.juryFinalizations, {});
-  assert.throws(() => LocalDatabaseService.finalizeJuryDecision('jury-dossier', 'jury-b', decision, decision), /changé/);
-  assert.equal(LocalDatabaseService.finalizeJuryDecision('jury-dossier', 'jury-c', edited, edited), 'COMPLET');
-});
-
-test('jury validation rejects missing members, non-members, and incomplete dossiers', () => {
-  const decision = juryFixture();
-  assert.throws(() => LocalDatabaseService.updateDossier('jury-dossier', { status: 'VALIDE' }));
-  assert.throws(() => LocalDatabaseService.finalizeJuryDecision('jury-dossier', 'outsider', decision, decision));
-  LocalDatabaseService.updateDossier('jury-dossier', { status: 'OUVERT' });
-  assert.throws(() => LocalDatabaseService.finalizeJuryDecision('jury-dossier', 'jury-a', decision, decision));
-  const database = JSON.parse(storage.getItem(DATABASE_KEY)!);
-  database.users = [];
-  storage.setItem(DATABASE_KEY, JSON.stringify(database));
-  assert.throws(() => LocalDatabaseService.updateDossier('jury-dossier', { status: 'VALIDE' }));
-});
-
-test('jury storage failure does not record a finalization or validate the dossier', () => {
-  const decision = juryFixture();
-  storage.failWrites = true;
-  assert.throws(() => LocalDatabaseService.finalizeJuryDecision('jury-dossier', 'jury-a', decision, decision));
-  const dossier = LocalDatabaseService.getDossierById('jury-dossier') as Dossier;
-  assert.equal(dossier.status, 'COMPLET');
-  assert.equal(dossier.juryFinalizations, undefined);
-});
 
 function preview(year = 2031): CampaignInitPreview {
   return {
@@ -89,6 +36,7 @@ function preview(year = 2031): CampaignInitPreview {
     assignmentsByCandidate: { 'test-candidate': ['test-evaluator'] },
     newPersonnesCount: 2, existingPersonnesCount: 0, participantsToCreateCount: 2, participantsToUpdateCount: 0,
     evaluatorsCount: 1, newEvaluatorsOnlyCount: 1, newUsersCount: 2, totalPrimesParsed: 1, activePrimesCount: 1, expiredPrimesCount: 0,
+    meteoLinksCount: 0, meteoLinksByCandidate: {},
     warnings: [], blockingErrors: [], canProceed: true,
   };
 }

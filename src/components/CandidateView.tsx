@@ -75,6 +75,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   });
 
   const [feedbacks, setFeedbacks] = useState<ClientFeedback[]>(dossier?.clientFeedbacks || []);
+  const [meteoLinks, setMeteoLinks] = useState<string[]>(dossier?.meteoLinks || []);
 
   const [showSubmitTooltip, setShowSubmitTooltip] = useState(false);
   const isFirstRenderForAutosave = useRef(true);
@@ -106,6 +107,12 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     } else {
       setFeedbacks([]);
     }
+
+    if (dossier?.meteoLinks) {
+      setMeteoLinks(dossier.meteoLinks);
+    } else {
+      setMeteoLinks([]);
+    }
   }, [profile.id, dossier?.id]);
 
   // Autosave when reportData or feedbacks change
@@ -121,7 +128,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [reportData, feedbacks, isLockedForEditing]);
+  }, [reportData, feedbacks, meteoLinks, isLockedForEditing]);
 
   // Prevent default window drag-and-drop behavior to avoid standard browser navigation / file download
   useEffect(() => {
@@ -320,48 +327,43 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   };
 
   const calculateCompleteness = () => {
-    // heuristics for completeness
-    const totalFields = 30; // Increased count
+    // heuristics for completeness based on candidate evaluation fields
+    const totalFields = 20;
     let filledCount = 0;
-    if (reportData.synthesis) filledCount++;
     if (reportData.yearSummary) filledCount++;
-    if (reportData.previousObjectives.length > 0) filledCount++;
-    if (reportData.knowHow) filledCount++;
-    if (reportData.missionAutonomy) filledCount++;
-    if (reportData.careerGoals) filledCount++;
-    if (reportData.nextObjectives.length > 0) filledCount++;
-    if (reportData.wishedSalary > 0) filledCount++;
-    if (reportData.targetTJM > 0) filledCount++;
-    if (reportData.commercialActivities) filledCount++;
-    if (reportData.training) filledCount++;
     if (reportData.progressionDetails) filledCount++;
     if (reportData.techDetails) filledCount++;
+    if (reportData.certificationsDetail) filledCount++;
+    if (reportData.meetingPrep) filledCount++;
     if (reportData.deliverables) filledCount++;
+    if (reportData.missionAutonomies && reportData.missionAutonomies.some(m => m.client)) filledCount += 2;
+    if (reportData.commercialPresentation) filledCount++;
+    if (reportData.commercialAdvice) filledCount++;
+    if (reportData.commercialProposition) filledCount++;
+    if (reportData.commercialOffers) filledCount++;
     if (reportData.lifeKnowledgeSharing) filledCount++;
+    if (reportData.lifeSlack) filledCount++;
     if (reportData.lifeTeamSpirit) filledCount++;
-    if (reportData.squadContributions) filledCount++;
+    if (reportData.lifeBusinessModel) filledCount++;
     if (reportData.recruitmentPromotion) filledCount++;
+    if (reportData.recruitmentInterviews) filledCount++;
     if (reportData.encadrementCoach) filledCount++;
-    if (feedbacks.length > 0) filledCount += 5; 
+    if (reportData.encadrementManager) filledCount++;
+    if (reportData.squadEntries && reportData.squadEntries.some(s => s.squad)) filledCount++;
+    if (reportData.careerGoal1 || reportData.careerGoals) filledCount++;
+    if (reportData.nextObjectives && reportData.nextObjectives.some(o => o.objective)) filledCount++;
+    if (feedbacks.length > 0) filledCount += 2;
     
     return Math.min(100, Math.round((filledCount / totalFields) * 100));
   };
 
   const isComplete = 
     !!reportData.yearSummary && 
-    !!reportData.synthesis && 
-    !!reportData.knowHow && 
-    !!reportData.commercialActivities &&
-    !!reportData.training &&
     !!reportData.progressionDetails &&
     !!reportData.techDetails &&
     !!reportData.deliverables &&
-    !!reportData.autonomyJustification &&
-    !!reportData.careerGoals &&
-    reportData.wishedSalary > 0 &&
-    reportData.targetTJM > 0 &&
-    reportData.nextObjectives.length > 0 &&
-    feedbacks.length > 0;
+    (!!reportData.careerGoal1 || !!reportData.careerGoals) &&
+    reportData.nextObjectives.length > 0;
 
   const handleSave = async (submit: boolean = false, isSilent: boolean = false) => {
     if (isLockedForEditing && !isSilent) {
@@ -431,6 +433,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           campaignYear: 2025,
           status: status,
           annualReport: reportData,
+          meteoLinks: meteoLinks,
           clientFeedbacks: feedbacks,
           documents: updatedDocs,
           assignedConsultantIds: assignedConsultantIds,
@@ -446,6 +449,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         const dossierUpdates: Partial<Dossier> = {
           status: status,
           annualReport: reportData,
+          meteoLinks: meteoLinks,
           clientFeedbacks: feedbacks,
           documents: updatedDocs,
           updatedAt: new Date().toISOString()
@@ -563,7 +567,9 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           <div className="w-24 h-24 bg-green-50 rounded-base flex items-center justify-center mb-10 shadow-inner">
             <CheckCircle2 className="w-12 h-12 text-green-600" />
           </div>
-          <h1 className="text-green-600 mb-4 px-4 py-1 bg-green-50 rounded-base inline-block">Campagne 2025 Clôturée</h1>
+          <h1 className="text-green-600 mb-4 px-4 py-1 bg-green-50 rounded-base inline-block">
+            Campagne {dossier?.campaignYear || (dossier?.campaignId ? dossier.campaignId.replace(/[^0-9]/g, '') : '2025')} Clôturée
+          </h1>
           <h2 className="text-accent mb-8">Dossier Validé</h2>
           <p className="text-xl text-accent/60 mb-12 font-light leading-relaxed max-w-2xl">
             Félicitations. Les délibérations du Jury sont terminées. <br/>
@@ -647,7 +653,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => setActiveTab('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
           <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Missions & Expertises" required />
           <TabButton active={activeTab === 'ENGAGEMENT'} onClick={() => setActiveTab('ENGAGEMENT')} label="Engagement & Autonomie" required />
-          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={feedbacks.length} required />
+          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={meteoLinks.length} />
           {isDossierComplet && (
             <>
               <TabButton 
@@ -818,12 +824,9 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
           {activeTab === 'METEOS' && (
             <MeteosTab
+              meteoLinks={meteoLinks}
+              setMeteoLinks={setMeteoLinks}
               feedbacks={feedbacks}
-              setFeedbacks={setFeedbacks}
-              meteoSubTab={meteoSubTab}
-              setMeteoSubTab={setMeteoSubTab}
-              selectedMeteoIndex={selectedMeteoIndex}
-              setSelectedMeteoIndex={setSelectedMeteoIndex}
             />
           )}
 

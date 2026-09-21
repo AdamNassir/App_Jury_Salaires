@@ -14,7 +14,8 @@ import {
   UserCheck, 
   Info,
   Loader2,
-  Award
+  Award,
+  FileSpreadsheet
 } from 'lucide-react';
 import { CampaignFile } from '../../types';
 import { 
@@ -41,11 +42,10 @@ export function CreateCampaignModal({
   const [newTitle, setNewTitle] = useState<string>(`Campagne Annuelle ${currentYear + 1}`);
   const [newDescription, setNewDescription] = useState<string>('');
 
-  // Fichiers d'entrée
-  const [profilFile, setProfilFile] = useState<File | null>(null);
-  const [boondFile, setBoondFile] = useState<File | null>(null);
-  const [analyseJuryFile, setAnalyseJuryFile] = useState<File | null>(null);
+  // Fichiers d'entrée obligatoires
+  const [rapportRhFile, setRapportRhFile] = useState<File | null>(null);
   const [primesFile, setPrimesFile] = useState<File | null>(null);
+  const [vuesMeteosFile, setVuesMeteosFile] = useState<File | null>(null);
   const [otherFiles, setOtherFiles] = useState<CampaignFile[]>([]);
 
   // Étape d'aperçu et d'analyse
@@ -117,8 +117,18 @@ export function CreateCampaignModal({
       return;
     }
 
-    if (!analyseJuryFile) {
-      onShowToast('error', "Le fichier 'Analyse_Jury_Salaires' (onglet Analyse_Jury) est obligatoire.");
+    if (!rapportRhFile) {
+      onShowToast('error', "Le fichier 'Rapport_RH_Query_Salaries' est obligatoire.");
+      return;
+    }
+
+    if (!primesFile) {
+      onShowToast('error', "Le fichier 'Primes' est obligatoire pour l'attribution des jurys.");
+      return;
+    }
+
+    if (!vuesMeteosFile) {
+      onShowToast('error', "Le fichier 'Vues_Meteos' est obligatoire pour les fiches météo.");
       return;
     }
 
@@ -127,11 +137,9 @@ export function CreateCampaignModal({
       const previewResult = await CampaignInitializationService.prepareCampaignPreview(
         Number(newYear),
         {
-          profilFile,
-          boondFile,
-          analyseJuryFile,
-          rhFile: analyseJuryFile,
-          primesFile
+          rapportRhFile,
+          primesFile,
+          vuesMeteosFile
         }
       );
 
@@ -295,152 +303,69 @@ export function CreateCampaignModal({
                   <div className="flex items-center gap-2 mb-1">
                     <Database className="w-4 h-4 text-primary" />
                     <h3 className="text-sm font-black uppercase tracking-wider text-secondary">
-                      Feuilles de Calcul de Référence & Participants
+                      Les 3 Fichiers de Données Obligatoires
                     </h3>
                   </div>
                   <p className="text-xs text-accent/60 mb-4">
-                    Les 4 classeurs sources pour l'identification pérenne, le grade, l'expérience cumulée et l'attribution des dossiers.
+                    Les 3 classeurs requis pour initialiser la campagne : informations collaborateurs, attributions des jurys et fiches météo.
                   </p>
                 </div>
 
-                {/* Fichier 1: BDD Profils */}
-                <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-secondary">1. Référentiel Profils (BDD_LL_NEW_DRIVE)</span>
-                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase">Requis</span>
-                    </div>
-                    <span className="text-[10px] text-accent/50 font-medium">Onglet "Profil" (Col A: Id_Profil, Col B: Nom, Col C: Prénom)</span>
-                  </div>
-                  {profilFile ? (
-                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-accent/15 text-xs font-semibold shadow-sm">
-                      <div className="flex items-center gap-2 truncate">
-                        <FileText className="w-4 h-4 text-primary shrink-0" />
-                        <span className="truncate text-secondary font-bold">{profilFile.name}</span>
-                        <span className="text-accent/40">({formatFileSize(profilFile.size)})</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setProfilFile(null)}
-                        className="p-1 text-accent/40 hover:text-rose-500 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="block border-2 border-dashed border-accent/20 hover:border-primary bg-white p-4 rounded-xl text-center cursor-pointer transition-colors">
-                      <FileUp className="w-6 h-6 text-primary mx-auto mb-1 opacity-70" />
-                      <span className="text-xs font-bold text-primary">Sélectionner BDD_LL_NEW_DRIVE (onglet Profil)</span>
-                      <span className="text-[10px] text-accent/50 block mt-0.5">Identifiant canonique Id_Profil pour chaque collaborateur</span>
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        className="hidden"
-                        onChange={(e) => handleSingleFileUpload(e, setProfilFile)}
-                      />
-                    </label>
-                  )}
-                </div>
-
-                {/* Fichier 2: BoondManager */}
-                <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-secondary">2. BoondManager (BDD_API_BOOND_NEW_DRIVE)</span>
-                      <span className="text-[10px] bg-accent/10 text-accent/70 px-2 py-0.5 rounded font-bold uppercase">Optionnel</span>
-                    </div>
-                    <span className="text-[10px] text-accent/50 font-medium">Onglets "Boond_Ressources" & "Boond_Liste_Valeur"</span>
-                  </div>
-                  <p className="text-[11px] text-accent/60">
-                    Grade actuel (Col H) et Années d'expérience à l'embauche (Col M croisée avec Liste_Valeur).
-                  </p>
-                  {boondFile ? (
-                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-accent/15 text-xs font-semibold shadow-sm">
-                      <div className="flex items-center gap-2 truncate">
-                        <FileText className="w-4 h-4 text-primary shrink-0" />
-                        <span className="truncate text-secondary font-bold">{boondFile.name}</span>
-                        <span className="text-accent/40">({formatFileSize(boondFile.size)})</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setBoondFile(null)}
-                        className="p-1 text-accent/40 hover:text-rose-500 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="block border-2 border-dashed border-accent/20 hover:border-primary bg-white p-4 rounded-xl text-center cursor-pointer transition-colors">
-                      <FileUp className="w-6 h-6 text-primary mx-auto mb-1 opacity-60" />
-                      <span className="text-xs font-bold text-primary">Déposer l'export BDD_API_BOOND_NEW_DRIVE</span>
-                      <span className="text-[10px] text-accent/50 block mt-0.5">XLSX / CSV avec les onglets Ressources et Liste_Valeur</span>
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        className="hidden"
-                        onChange={(e) => handleSingleFileUpload(e, setBoondFile)}
-                      />
-                    </label>
-                  )}
-                </div>
-
-                {/* Fichier 3: Analyse_Jury_Salaires */}
-                <div className="p-5 bg-primary/5 rounded-xl border border-primary/25 space-y-3">
+                {/* Fichier 1: Rapport_RH_Query_Salaries */}
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/25 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-secondary font-bold text-sm">
                       <UserCheck className="w-5 h-5 text-primary" />
-                      3. Analyse Jury des Salaires * (Analyse_Jury_Salaires)
+                      1. Rapport RH Query Salariés *
                     </div>
                     <span className="text-xs bg-primary text-white px-2.5 py-0.5 rounded-full font-bold uppercase">Requis</span>
                   </div>
                   <p className="text-xs text-accent/70 leading-relaxed">
-                    <strong>Onglet "Analyse_Jury" (en-têtes ligne 2, données ligne 3) :</strong> Matricule (A), Prénom (B), Nom (C), Date Entrée (E), Date Passage Expert (F), Ancienneté LL (G), TJ vendu (J), Salaire vendu (K).
+                    <strong>Colonnes requises :</strong> Id_Profil (Col C), Consultant (Col I), Matricule (Col L), Grade (Col M), Exp. Arrivée (Col S), Date Expert (Col U), Salaire Annuel (Col V), TJ Salaire (Col AE), Ancienneté LL (Col AS).
                   </p>
-
-                  {analyseJuryFile ? (
+                  {rapportRhFile ? (
                     <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-primary text-xs font-semibold shadow-sm">
                       <div className="flex items-center gap-2 truncate">
                         <FileText className="w-4 h-4 text-primary shrink-0" />
-                        <span className="truncate text-secondary font-bold">{analyseJuryFile.name}</span>
-                        <span className="text-accent/40">({formatFileSize(analyseJuryFile.size)})</span>
+                        <span className="truncate text-secondary font-bold">{rapportRhFile.name}</span>
+                        <span className="text-accent/40">({formatFileSize(rapportRhFile.size)})</span>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setAnalyseJuryFile(null)}
+                        onClick={() => setRapportRhFile(null)}
                         className="p-1 text-accent/40 hover:text-rose-500 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
-                    <label className="block border-2 border-dashed border-primary/30 hover:border-primary bg-white p-5 rounded-xl text-center cursor-pointer transition-colors">
-                      <FileUp className="w-8 h-8 text-primary mx-auto mb-2" />
-                      <span className="text-sm font-bold text-primary">Sélectionner le classeur Analyse_Jury_Salaires</span>
-                      <span className="text-xs text-accent/50 block mt-1">XLSX (onglet Analyse_Jury) ou export CSV</span>
+                    <label className="block border-2 border-dashed border-primary/30 hover:border-primary bg-white p-4 rounded-xl text-center cursor-pointer transition-colors">
+                      <FileUp className="w-7 h-7 text-primary mx-auto mb-1 opacity-80" />
+                      <span className="text-xs font-bold text-primary">Sélectionner Rapport_RH_Query_Salaries</span>
+                      <span className="text-[10px] text-accent/50 block mt-0.5">XLSX / CSV (Col C, I, L, M, S, U, V, AF, AS)</span>
                       <input
                         type="file"
                         required
                         accept=".xlsx,.xls,.csv"
                         className="hidden"
-                        onChange={(e) => handleSingleFileUpload(e, setAnalyseJuryFile)}
+                        onChange={(e) => handleSingleFileUpload(e, setRapportRhFile)}
                       />
                     </label>
                   )}
                 </div>
 
-                {/* Fichier 4: Fichier Primes & Affectations (Pairing) */}
-                <div className="p-5 bg-purple-50/60 rounded-xl border border-purple-200 space-y-2.5">
+                {/* Fichier 2: Primes */}
+                <div className="p-4 bg-purple-50/70 rounded-xl border border-purple-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-purple-900 font-bold text-sm">
-                      <Award className="w-4 h-4 text-purple-600" />
-                      4. Classeur Primes (Attribution des dossiers aux Évaluateurs)
+                      <Award className="w-5 h-5 text-purple-600" />
+                      2. Fichier Primes (Attribution des Jurys) *
                     </div>
-                    <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold uppercase">Optionnel</span>
+                    <span className="text-xs bg-purple-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase">Requis</span>
                   </div>
                   <p className="text-xs text-purple-800/80 leading-relaxed">
-                    Assigne les dossiers selon les primes actives au <strong>01/07/{newYear}</strong> : Matricule Évaluateur (Col A), Matricule Candidat (Col B), Type (Col C), Date Fin (Col E). Les primes contenant <em>Freelance</em> sans <em>Commerciale</em> en Col C ainsi que les primes échues avant le 01/07/{newYear} sont automatiquement ignorées.
+                    Assigne les dossiers selon les primes actives au <strong>01/07/{newYear}</strong> : Matricule Évaluateur (Col A), Matricule Candidat (Col B), Type (Col C), Date Fin (Col E).
                   </p>
-
                   {primesFile ? (
                     <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-purple-300 text-xs font-semibold shadow-sm">
                       <div className="flex items-center gap-2 truncate">
@@ -458,14 +383,58 @@ export function CreateCampaignModal({
                     </div>
                   ) : (
                     <label className="block border-2 border-dashed border-purple-300 hover:border-purple-500 bg-white p-4 rounded-xl text-center cursor-pointer transition-colors">
-                      <FileUp className="w-6 h-6 text-purple-600 mx-auto mb-1 opacity-80" />
-                      <span className="text-xs font-bold text-purple-700">Déposer le classeur Primes</span>
-                      <span className="text-[10px] text-accent/40 block mt-0.5">XLSX / CSV</span>
+                      <FileUp className="w-7 h-7 text-purple-600 mx-auto mb-1 opacity-80" />
+                      <span className="text-xs font-bold text-purple-700">Sélectionner le fichier Primes</span>
+                      <span className="text-[10px] text-accent/50 block mt-0.5">XLSX / CSV</span>
                       <input
                         type="file"
+                        required
                         accept=".xlsx,.xls,.csv"
                         className="hidden"
                         onChange={(e) => handleSingleFileUpload(e, setPrimesFile)}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Fichier 3: Vues_Meteos */}
+                <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                      <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                      3. Fichier Vues_Meteos (Retours Météo Collaborateurs) *
+                    </div>
+                    <span className="text-xs bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase">Requis</span>
+                  </div>
+                  <p className="text-xs text-emerald-800/80 leading-relaxed">
+                    Associe les fiches météos à chaque candidat : <strong>Id_Profil (Col B)</strong> et <strong>Liens_Meteo (Col Q)</strong>.
+                  </p>
+                  {vuesMeteosFile ? (
+                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-emerald-300 text-xs font-semibold shadow-sm">
+                      <div className="flex items-center gap-2 truncate">
+                        <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="truncate text-emerald-900 font-bold">{vuesMeteosFile.name}</span>
+                        <span className="text-accent/40">({formatFileSize(vuesMeteosFile.size)})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setVuesMeteosFile(null)}
+                        className="p-1 text-accent/40 hover:text-rose-500 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="block border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-white p-4 rounded-xl text-center cursor-pointer transition-colors">
+                      <FileUp className="w-7 h-7 text-emerald-600 mx-auto mb-1 opacity-80" />
+                      <span className="text-xs font-bold text-emerald-700">Sélectionner Vues_Meteos</span>
+                      <span className="text-[10px] text-accent/50 block mt-0.5">XLSX / CSV (Col B: Id_Profil, Col Q: Liens_Meteo)</span>
+                      <input
+                        type="file"
+                        required
+                        accept=".xlsx,.xls,.csv"
+                        className="hidden"
+                        onChange={(e) => handleSingleFileUpload(e, setVuesMeteosFile)}
                       />
                     </label>
                   )}
@@ -508,7 +477,7 @@ export function CreateCampaignModal({
                   <button
                     type="button"
                     onClick={handleAnalyzeAndPreview}
-                    disabled={isAnalyzing || !analyseJuryFile}
+                    disabled={isAnalyzing || !rapportRhFile || !primesFile || !vuesMeteosFile}
                     className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-md hover:bg-primary-hover disabled:opacity-50 transition-colors cursor-pointer"
                   >
                     {isAnalyzing ? (
@@ -610,7 +579,7 @@ export function CreateCampaignModal({
                           <th className="p-2.5">Expérience Totale</th>
                           <th className="p-2.5">Dates Clés</th>
                           <th className="p-2.5">Salaire</th>
-                          <th className="p-2.5">TJM</th>
+                          <th className="p-2.5">TJ Salaire</th>
                           <th className="p-2.5">Évaluateurs Assignés</th>
                           <th className="p-2.5">Action</th>
                         </tr>

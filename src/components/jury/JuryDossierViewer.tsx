@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dossier, UserProfile } from '../../types';
-import { CheckCircle2, Briefcase, Calendar, Download, Clock, Maximize2 } from 'lucide-react';
+import { CheckCircle2, Briefcase, Calendar, Download, Clock, Maximize2, ExternalLink, FileSpreadsheet, Copy, Check } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { AccordionSection, ReportSection, SatisfactionDisplay } from './JuryUI';
 import { JuryDecisionForm } from './JuryDecisionForm';
@@ -16,6 +16,41 @@ interface JuryDossierViewerProps {
   isAssigned?: boolean;
 }
 
+function getValidUrl(url: string): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^\/\//.test(trimmed)) return `https:${trimmed}`;
+  return `https://${trimmed}`;
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fallback to execCommand
+  }
+
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    textArea.remove();
+    return successful;
+  } catch {
+    return false;
+  }
+}
+
 export function JuryDossierViewer({
   dossier,
   candidate,
@@ -26,6 +61,40 @@ export function JuryDossierViewer({
   onDoneDecision,
   isAssigned = true
 }: JuryDossierViewerProps) {
+  const [copiedMeteoIndex, setCopiedMeteoIndex] = useState<number | null>(null);
+
+  const handleOpenAndCopy = async (link: string, idx: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const validUrl = getValidUrl(link);
+    await copyToClipboard(validUrl || link);
+    setCopiedMeteoIndex(idx);
+    setTimeout(() => {
+      setCopiedMeteoIndex(prev => (prev === idx ? null : prev));
+    }, 3000);
+
+    try {
+      window.open(validUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      // Ignoré si bloqué par l'iframe
+    }
+  };
+
+  const handleCopyOnly = async (link: string, idx: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const validUrl = getValidUrl(link);
+    await copyToClipboard(validUrl || link);
+    setCopiedMeteoIndex(idx);
+    setTimeout(() => {
+      setCopiedMeteoIndex(prev => (prev === idx ? null : prev));
+    }, 3000);
+  };
+
   const isAdmin = profile.roles?.includes('ADMIN') || 
     profile.email?.toLowerCase() === 'adam.nassir@logiclever.com' ||
     profile.email?.toLowerCase() === 'guillaume.best@logiclever.com';
@@ -204,12 +273,98 @@ export function JuryDossierViewer({
         label="Météos Client" 
         isOpen={!!expandedTabs['METEOS']} 
         onToggle={() => toggleTab('METEOS')}
-        count={dossier.clientFeedbacks?.length || 0}
+        count={(dossier.meteoLinks?.length || 0) + (dossier.clientFeedbacks?.length || 0)}
       >
-        <div className="space-y-12">
-          {dossier.clientFeedbacks && dossier.clientFeedbacks.length > 0 ? (
+        <div className="space-y-8">
+          {/* Fiches météos issues de la colonne Q de Vues_Meteos */}
+          {dossier.meteoLinks && dossier.meteoLinks.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-black text-accent/40 uppercase tracking-[0.2em]">Fiches Météo Client ({dossier.meteoLinks.length})</h4>
+                <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase">Source Vues_Meteos (Col Q)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {dossier.meteoLinks.map((link, idx) => {
+                  const validUrl = getValidUrl(link);
+                  return (
+                    <div key={idx} className="p-5 bg-white border border-accent/10 rounded-xl shadow-xs hover:border-primary/40 transition-all flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                          <FileSpreadsheet className="w-5 h-5" />
+                        </div>
+                        <div className="truncate min-w-0">
+                          <div className="text-xs font-bold text-accent">Météo {idx + 1}</div>
+                          <div className="flex items-center gap-2">
+                            <a 
+                              href={validUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyOnly(link, idx);
+                              }}
+                              className="text-[11px] text-primary hover:text-secondary hover:underline font-mono truncate select-all inline-flex items-center gap-1 cursor-pointer transition-colors text-left"
+                              title="Ouvrir le lien dans un nouvel onglet"
+                            >
+                              <span>{link}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                            </a>
+                            {copiedMeteoIndex === idx && (
+                              <span className="inline-flex items-center gap-1 text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full shrink-0 animate-in fade-in duration-150">
+                                <Check className="w-2.5 h-2.5" /> Copié !
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => handleCopyOnly(link, idx, e)}
+                          className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                            copiedMeteoIndex === idx
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                              : 'bg-white border-accent/20 text-accent/70 hover:bg-accent/5 hover:text-accent'
+                          }`}
+                          title="Copier le lien"
+                        >
+                          {copiedMeteoIndex === idx ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+
+                        <a 
+                          href={validUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyOnly(link, idx);
+                          }}
+                          className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all shadow-xs cursor-pointer ${
+                            copiedMeteoIndex === idx
+                              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                              : 'bg-primary text-white hover:brightness-110'
+                          }`}
+                          title="Ouvrir le lien dans un nouvel onglet"
+                        >
+                          <span>{copiedMeteoIndex === idx ? 'Copié' : 'Ouvrir'}</span>
+                          {copiedMeteoIndex === idx ? <Check className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {dossier.clientFeedbacks && dossier.clientFeedbacks.length > 0 && (
             <div className="space-y-8">
-              <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">Retours Clients (Météos)</h4>
+              <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">Retours Clients (Météos détaillées)</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {dossier.clientFeedbacks.map((cf, idx) => (
                   <div key={idx} className="p-8 bg-white border border-accent/10 rounded-xl shadow-sm hover:border-primary/30 transition-all flex flex-col gap-6">
@@ -306,7 +461,9 @@ export function JuryDossierViewer({
                 ))}
               </div>
             </div>
-          ) : (
+          )}
+
+          {(!dossier.meteoLinks || dossier.meteoLinks.length === 0) && (!dossier.clientFeedbacks || dossier.clientFeedbacks.length === 0) && (
             <div className="p-12 border border-dashed border-accent/10 rounded-xl text-center text-accent/30 italic">Aucune météo client renseignée.</div>
           )}
         </div>
