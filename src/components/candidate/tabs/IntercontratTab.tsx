@@ -48,7 +48,6 @@ export function IntercontratTab({ reportData, setReportData }: IntercontratTabPr
                 label="Description des réalisations et contributions pendant l'intercontrat" 
                 value={reportData.intercontratAchievements || ''} 
                 onChange={v => setReportData(prev => ({ ...prev, intercontratAchievements: v }))} 
-                placeholder="Renseignez vos contributions (projets internes, certifications, formations, proposition commerciale...) durant vos périodes d'intercontrat." 
               />
             </motion.div>
           )}

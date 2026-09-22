@@ -417,7 +417,6 @@ export function JuryDecisionForm({
                 className="w-full bg-white border border-accent/10 rounded-lg p-4 text-sm font-light h-24 outline-none focus:ring-2 focus:ring-primary/20 resize-none shadow-sm disabled:bg-gray-50 disabled:text-accent/70"
                 value={formData.whyThisSalary}
                 onChange={e => setFormData({...formData, whyThisSalary: e.target.value})}
-                placeholder="Justification technique ou RH..."
               />
             </div>
             <div>
@@ -427,7 +426,6 @@ export function JuryDecisionForm({
                 className="w-full bg-white border border-accent/10 rounded-lg p-4 text-sm font-light h-24 outline-none focus:ring-2 focus:ring-primary/20 resize-none shadow-sm disabled:bg-gray-50 disabled:text-accent/70"
                 value={formData.whatToDoMore}
                 onChange={e => setFormData({...formData, whatToDoMore: e.target.value})}
-                placeholder="Ce que le collaborateur doit faire de plus..."
               />
             </div>
           </div>
@@ -512,7 +510,6 @@ export function JuryDecisionForm({
           <textarea 
             disabled={readOnly}
             className="w-full bg-accent/5 border border-accent/10 rounded-xl p-8 text-lg font-light min-h-[180px] outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 resize-none shadow-inner transition-all leading-relaxed disabled:bg-gray-100 disabled:text-accent/70"
-            placeholder="Éléments de feedback consolidés..."
             value={formData.conclusion}
             onChange={e => setFormData({...formData, conclusion: e.target.value})}
           />

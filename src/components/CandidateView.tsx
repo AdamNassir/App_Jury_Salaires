@@ -10,15 +10,15 @@ import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateYears, calculateSalaryFormule, getPrimeAnciennete } from '../lib/salaryUtils';
 import { generateDossierPDF } from '../utils/pdfGenerator';
+import { requestGoogleDriveAccess } from '../lib/firebase';
+import { DriveObjectivesService } from '../services/driveObjectivesService';
 import { TabButton, DataBox } from './candidate/CandidateUI';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
 import { SyntheseTab } from './candidate/tabs/SyntheseTab';
 import { ObjectivesTab } from './candidate/tabs/ObjectivesTab';
 import { ExpertisesTab } from './candidate/tabs/ExpertisesTab';
-import { EngagementTab } from './candidate/tabs/EngagementTab';
+import { EngagementTab, engagementSections, EngagementSection, isEngagementSection } from './candidate/tabs/EngagementTab';
 import { MeteosTab } from './candidate/tabs/MeteosTab';
-import { IntercontratTab } from './candidate/tabs/IntercontratTab';
-import { ReferentTab } from './candidate/tabs/ReferentTab';
 import { PretentionsTab } from './candidate/tabs/PretentionsTab';
 import { SalaryCalculatorTab } from './candidate/tabs/SalaryCalculatorTab';
 import { PeerFeedbacksTab } from './candidate/tabs/PeerFeedbacksTab';
@@ -55,11 +55,11 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [isObjectParsing, setIsObjectParsing] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingPastObjectives, setIsImportingPastObjectives] = useState(false);
+  const [pastImportSuccessMessage, setPastImportSuccessMessage] = useState<string | null>(null);
+  const [pastImportErrorMessage, setPastImportErrorMessage] = useState<string | null>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
-  const [activeTab, setActiveTab] = useState<'SYNTHESE' | 'OBJECTIFS_PASSES' | 'EXPERTISES' | 'ENGAGEMENT' | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'INTERCONTRAT' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
+  const [activeTab, setActiveTab] = useState<'SYNTHESE' | 'OBJECTIFS_PASSES' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
     hasUploadedDocsInitial ? 'SYNTHESE' : 'DOCUMENTS'
   );
   const [meteoSubTab, setMeteoSubTab] = useState<'LIST' | 'CHART'>('LIST');
@@ -75,7 +75,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   });
 
   const [feedbacks, setFeedbacks] = useState<ClientFeedback[]>(dossier?.clientFeedbacks || []);
-  const [meteoLinks, setMeteoLinks] = useState<string[]>(dossier?.meteoLinks || []);
 
   const [showSubmitTooltip, setShowSubmitTooltip] = useState(false);
   const isFirstRenderForAutosave = useRef(true);
@@ -107,12 +106,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     } else {
       setFeedbacks([]);
     }
-
-    if (dossier?.meteoLinks) {
-      setMeteoLinks(dossier.meteoLinks);
-    } else {
-      setMeteoLinks([]);
-    }
   }, [profile.id, dossier?.id]);
 
   // Autosave when reportData or feedbacks change
@@ -128,7 +121,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [reportData, feedbacks, meteoLinks, isLockedForEditing]);
+  }, [reportData, feedbacks, isLockedForEditing]);
 
   // Prevent default window drag-and-drop behavior to avoid standard browser navigation / file download
   useEffect(() => {
@@ -175,195 +168,118 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }
   };
 
-  const processFile = async (file: File) => {
-    const targetDossierId = dossier?.id || `${profile.id}_2025`;
+  const handleImportPastYearObjectives = async () => {
+    setIsImportingPastObjectives(true);
+    setPastImportSuccessMessage(null);
+    setPastImportErrorMessage(null);
 
-    if (file.size > 15 * 1024 * 1024) {
-      console.error("Le document est trop volumineux. La taille maximale est de 15 Mo.");
-      return;
-    }
-
-    setIsObjectParsing(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const result = event.target?.result as string;
-          if (!result) throw new Error("Erreur de lecture locale du fichier.");
-          
-          const base64Content = result.split(',')[1];
-          const fileExt = file.name.split('.').pop()?.toLowerCase();
-          const mimeType = file.type || (fileExt === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      // 1. Obtenir l'accès Google Drive avec les scopes de lecture
+      const accessToken = await requestGoogleDriveAccess();
+      if (!accessToken) {
+        throw new Error("L'autorisation d'accès à Google Drive n'a pas pu être obtenue.");
+      }
 
-          console.log("Transmission du fichier au serveur pour analyse...", file.name, mimeType);
+      // 2. Récupérer l'année de campagne et le matricule du candidat
+      const campaignYear = dossier?.campaignYear || (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, '')) : 2026) || 2026;
+      const targetDossierId = dossier?.id || `${profile.id}_${campaignYear}`;
+      const matricule = profile.matricule || profile.idProfil || profile.id || profile.displayName;
 
-          const backendRes = await fetch("/api/parse-document", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              name: file.name,
-              mimeType: mimeType,
-              base64: base64Content
-            })
-          });
+      if (!matricule) {
+        throw new Error("Aucun matricule ou identifiant collaborateur n'est renseigné sur votre profil.");
+      }
 
-          if (!backendRes.ok) {
-            const errData = await backendRes.json();
-            throw new Error(errData.error || "Une erreur est survenue lors de l'extraction.");
-          }
+      // 3. Rechercher le bilan N-1 et extraire les objectifs futurs définis l'an passé
+      const result = await DriveObjectivesService.importPastYearObjectives(accessToken, campaignYear, matricule);
 
-          const resData = await backendRes.json();
-          if (resData.success && resData.data) {
-            const extracted = resData.data;
-            
-            setReportData(prev => {
-              const updated = {
-                ...prev,
-                yearSummary: extracted.yearSummary || prev.yearSummary,
-                synthesis: extracted.synthesis || prev.synthesis,
-                knowHow: extracted.knowHow || prev.knowHow,
-                commercialActivities: extracted.commercialActivities || prev.commercialActivities,
-                training: extracted.training || prev.training,
-                progressionDetails: extracted.progressionDetails || prev.progressionDetails,
-                techDetails: extracted.techDetails || prev.techDetails,
-                deliverables: extracted.deliverables || prev.deliverables,
-                autonomyJustification: extracted.autonomyJustification || prev.autonomyJustification,
-                careerGoals: extracted.careerGoals || prev.careerGoals,
-              };
+      if (!result.success || result.objectives.length === 0) {
+        throw new Error(result.error || "Aucun objectif n'a pu être extrait du bilan de l'année passée.");
+      }
 
-              setDoc(doc(db, 'dossiers', targetDossierId), {
-                annualReport: sanitizeForStorage(updated)
-              }, { merge: true }).catch(err => console.error("Auto-saved annualReport err:", err));
+      // 4. Mettre à jour les objectifs de l'année passée dans le rapport annuel
+      setReportData(prev => {
+        const updated = {
+          ...prev,
+          previousObjectives: result.objectives
+        };
 
-              return updated;
-            });
+        setDoc(doc(db, 'dossiers', targetDossierId), {
+          annualReport: sanitizeForStorage(updated)
+        }, { merge: true }).catch(err => console.error("Auto-saved previousObjectives err:", err));
 
-            const newDocMockUrl = `local-file://${encodeURIComponent(file.name)}`;
-            const newDocs = [
-              ...(dossier?.documents || []),
-              {
-                type: fileExt?.toUpperCase() === 'PDF' ? 'PDF' : 'DOCX',
-                name: file.name,
-                url: newDocMockUrl,
-                uploadedAt: new Date().toISOString(),
-                fieldsPopulated: true
-              }
-            ];
+        return updated;
+      });
 
-            await setDoc(doc(db, 'dossiers', targetDossierId), {
-              documents: newDocs
-            }, { merge: true });
+      // 5. Enregistrer le document importé comme justificatif de référence dans le dossier
+      if (result.file) {
+        const driveDocItem: DossierDocument = {
+          type: result.file.name.endsWith('.docx') ? 'DOCX' : 'GOOGLE_DOC',
+          name: `Bilan Année Passée (${result.priorYear}) - ${result.file.name}`,
+          url: result.file.webViewLink || `https://drive.google.com/file/d/${result.file.id}/view`,
+          uploadedAt: new Date().toISOString(),
+          fieldsPopulated: true
+        };
 
-            console.log(`🎉 Succès ! Les champs de votre dossier de candidature ont été alimentés depuis le document de bilan "${file.name}".`);
-            // Petit hack pour un feedback visuel simple sans bloquer:
-            setIsObjectParsing(false);
-            const p = document.createElement("div");
-            p.innerText = "🎉 Succès ! Le document a été analysé et les champs ont été remplis.";
-            p.className = "fixed bottom-4 right-4 bg-emerald-500 text-white px-6 py-3 rounded-lg shadow-xl z-50 animate-bounce";
-            document.body.appendChild(p);
-            setTimeout(() => p.remove(), 4000);
-
-            return;
-          } else {
-            throw new Error("Aucune donnée n'a été retournée par le serveur d'intelligence artificielle de Logiclever.");
-          }
-        } catch (innerError: any) {
-          console.error("Inner load file err:", innerError);
-          console.error(`Erreur d'extraction : ${innerError.message || innerError}`);
-        } finally {
-          setIsObjectParsing(false);
+        const existingDocs = dossier?.documents || [];
+        const alreadyExists = existingDocs.some(d => d.name === driveDocItem.name);
+        if (!alreadyExists) {
+          await setDoc(doc(db, 'dossiers', targetDossierId), {
+            documents: [driveDocItem, ...existingDocs]
+          }, { merge: true });
         }
-      };
+      }
 
-      reader.onerror = () => {
-        console.error("Erreur de chargement local du fichier.");
-        setIsObjectParsing(false);
-      };
+      const successMsg = `🎉 Succès ! ${result.objectives.length} objectif(s) de l'année passée (${result.priorYear}) ont été importés depuis "${result.file?.name}". Les commentaires sont disponibles dans l'onglet "Objectifs Année Passée".`;
+      setPastImportSuccessMessage(successMsg);
 
-      reader.readAsDataURL(file);
+      // Notification toast
+      const toast = document.createElement("div");
+      toast.innerText = successMsg;
+      toast.className = "fixed bottom-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-xl z-50 max-w-md text-xs font-semibold leading-relaxed animate-bounce";
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 6000);
 
-    } catch (outerError: any) {
-      console.error("Outer parse error:", outerError);
-      console.error(`Erreur d'extraction : ${outerError.message || outerError}`);
-      setIsObjectParsing(false);
-    }
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await processFile(file);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      await processFile(file);
+    } catch (err: any) {
+      console.error("Erreur importation objectifs passés Drive:", err);
+      const errMsg = err.message || "Erreur lors de l'importation depuis Google Drive.";
+      setPastImportErrorMessage(errMsg);
+    } finally {
+      setIsImportingPastObjectives(false);
     }
   };
 
   const calculateCompleteness = () => {
-    // heuristics for completeness based on candidate evaluation fields
-    const totalFields = 20;
+    // heuristics for completeness
+    const totalFields = 24; // Excludes the six removed Savoir-faire fields
     let filledCount = 0;
+    if (reportData.synthesis) filledCount++;
     if (reportData.yearSummary) filledCount++;
-    if (reportData.progressionDetails) filledCount++;
-    if (reportData.techDetails) filledCount++;
-    if (reportData.certificationsDetail) filledCount++;
-    if (reportData.meetingPrep) filledCount++;
-    if (reportData.deliverables) filledCount++;
-    if (reportData.missionAutonomies && reportData.missionAutonomies.some(m => m.client)) filledCount += 2;
-    if (reportData.commercialPresentation) filledCount++;
-    if (reportData.commercialAdvice) filledCount++;
-    if (reportData.commercialProposition) filledCount++;
-    if (reportData.commercialOffers) filledCount++;
+    if (reportData.previousObjectives.length > 0) filledCount++;
+    if (reportData.missionClients?.some(row => row.client.trim() && row.actions.trim() && row.grade && row.comment.trim())) filledCount++;
+    if (reportData.careerGoals) filledCount++;
+    if (reportData.nextObjectives.length > 0) filledCount++;
+    if (reportData.wishedSalary > 0) filledCount++;
+    if (reportData.targetTJM > 0) filledCount++;
     if (reportData.lifeKnowledgeSharing) filledCount++;
-    if (reportData.lifeSlack) filledCount++;
     if (reportData.lifeTeamSpirit) filledCount++;
-    if (reportData.lifeBusinessModel) filledCount++;
+    if (reportData.squadEntries ? reportData.squadEntries.some(entry => entry.contributions.trim()) : reportData.squadContributions) filledCount++;
     if (reportData.recruitmentPromotion) filledCount++;
-    if (reportData.recruitmentInterviews) filledCount++;
     if (reportData.encadrementCoach) filledCount++;
-    if (reportData.encadrementManager) filledCount++;
-    if (reportData.squadEntries && reportData.squadEntries.some(s => s.squad)) filledCount++;
-    if (reportData.careerGoal1 || reportData.careerGoals) filledCount++;
-    if (reportData.nextObjectives && reportData.nextObjectives.some(o => o.objective)) filledCount++;
-    if (feedbacks.length > 0) filledCount += 2;
+    if (feedbacks.length > 0) filledCount += 5; 
     
     return Math.min(100, Math.round((filledCount / totalFields) * 100));
   };
 
   const isComplete = 
     !!reportData.yearSummary && 
-    !!reportData.progressionDetails &&
-    !!reportData.techDetails &&
-    !!reportData.deliverables &&
-    (!!reportData.careerGoal1 || !!reportData.careerGoals) &&
-    reportData.nextObjectives.length > 0;
+    !!reportData.synthesis && 
+    !!reportData.missionClients?.length &&
+    reportData.missionClients.every(row => row.client.trim() && row.actions.trim() && row.grade && row.comment.trim()) &&
+    !!reportData.careerGoals &&
+    reportData.wishedSalary > 0 &&
+    reportData.targetTJM > 0 &&
+    reportData.nextObjectives.length > 0 &&
+    feedbacks.length > 0;
 
   const handleSave = async (submit: boolean = false, isSilent: boolean = false) => {
     if (isLockedForEditing && !isSilent) {
@@ -433,7 +349,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           campaignYear: 2025,
           status: status,
           annualReport: reportData,
-          meteoLinks: meteoLinks,
           clientFeedbacks: feedbacks,
           documents: updatedDocs,
           assignedConsultantIds: assignedConsultantIds,
@@ -449,7 +364,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         const dossierUpdates: Partial<Dossier> = {
           status: status,
           annualReport: reportData,
-          meteoLinks: meteoLinks,
           clientFeedbacks: feedbacks,
           documents: updatedDocs,
           updatedAt: new Date().toISOString()
@@ -567,9 +481,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           <div className="w-24 h-24 bg-green-50 rounded-base flex items-center justify-center mb-10 shadow-inner">
             <CheckCircle2 className="w-12 h-12 text-green-600" />
           </div>
-          <h1 className="text-green-600 mb-4 px-4 py-1 bg-green-50 rounded-base inline-block">
-            Campagne {dossier?.campaignYear || (dossier?.campaignId ? dossier.campaignId.replace(/[^0-9]/g, '') : '2025')} Clôturée
-          </h1>
+          <h1 className="text-green-600 mb-4 px-4 py-1 bg-green-50 rounded-base inline-block">Campagne 2025 Clôturée</h1>
           <h2 className="text-accent mb-8">Dossier Validé</h2>
           <p className="text-xl text-accent/60 mb-12 font-light leading-relaxed max-w-2xl">
             Félicitations. Les délibérations du Jury sont terminées. <br/>
@@ -651,9 +563,13 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           />
           <TabButton active={activeTab === 'SYNTHESE'} onClick={() => setActiveTab('SYNTHESE')} label="Introduction & Synthèse" required />
           <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => setActiveTab('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
-          <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Missions & Expertises" required />
-          <TabButton active={activeTab === 'ENGAGEMENT'} onClick={() => setActiveTab('ENGAGEMENT')} label="Engagement & Autonomie" required />
-          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={meteoLinks.length} />
+          <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Savoir-faire" required />
+          {engagementSections.map(section => (
+            <div key={section.id}>
+              <TabButton active={activeTab === section.id} onClick={() => setActiveTab(section.id)} label={section.label} required={section.id === 'AUTONOMIE'} />
+            </div>
+          ))}
+          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={feedbacks.length} required />
           {isDossierComplet && (
             <>
               <TabButton 
@@ -670,11 +586,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
               />
             </>
           )}
-          <TabButton active={activeTab === 'INTERCONTRAT'} onClick={() => setActiveTab('INTERCONTRAT')} label="Intercontrat" />
-          {profile.currentGrade === 'Senior' || profile.currentGrade === 'Expert' || reportData.isReferentOrAspiring ? (
-            <TabButton active={activeTab === 'REFERENT'} onClick={() => setActiveTab('REFERENT')} label="Référents / Experts" />
-          ) : null}
-          <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => setActiveTab('PRETENTIONS')} label="Futur & Prétentions" required />
+          <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => setActiveTab('PRETENTIONS')} label="Objectifs" required />
           <TabButton active={activeTab === 'CALCULATRICE'} onClick={() => setActiveTab('CALCULATRICE')} label="Calculette du salaire" />
 
           <div className="pt-8 mt-8 border-t border-accent/10">
@@ -780,15 +692,12 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             <DocumentsTab
               profile={profile}
               dossier={dossier}
-              isDragging={isDragging}
-              isObjectParsing={isObjectParsing}
               isLockedForEditing={isLockedForEditing}
-              handleFileSelect={handleFileSelect}
-              handleDragOver={handleDragOver}
-              handleDragEnter={handleDragEnter}
-              handleDragLeave={handleDragLeave}
-              handleDrop={handleDrop}
               handleViewDocument={handleViewDocument}
+              handleImportPastYearObjectives={handleImportPastYearObjectives}
+              isImportingPastObjectives={isImportingPastObjectives}
+              pastImportSuccessMessage={pastImportSuccessMessage}
+              pastImportErrorMessage={pastImportErrorMessage}
             />
           )}
 
@@ -810,23 +719,26 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             <ExpertisesTab
               reportData={reportData}
               setReportData={setReportData}
+              isLockedForEditing={isLockedForEditing}
             />
           )}
 
-          {activeTab === 'ENGAGEMENT' && (
+          {isEngagementSection(activeTab) && (
             <EngagementTab
+              section={activeTab}
               reportData={reportData}
               setReportData={setReportData}
-              effectiveCurrentGrade={effectiveCurrentGrade}
-              gradeOrder={gradeOrder}
             />
           )}
 
           {activeTab === 'METEOS' && (
             <MeteosTab
-              meteoLinks={meteoLinks}
-              setMeteoLinks={setMeteoLinks}
               feedbacks={feedbacks}
+              setFeedbacks={setFeedbacks}
+              meteoSubTab={meteoSubTab}
+              setMeteoSubTab={setMeteoSubTab}
+              selectedMeteoIndex={selectedMeteoIndex}
+              setSelectedMeteoIndex={setSelectedMeteoIndex}
             />
           )}
 
@@ -836,20 +748,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
           {activeTab === 'AVIS_JURY' && isDossierComplet && (
             <JuryFeedbacksTab dossier={dossier} />
-          )}
-
-          {activeTab === 'INTERCONTRAT' && (
-            <IntercontratTab
-              reportData={reportData}
-              setReportData={setReportData}
-            />
-          )}
-
-          {activeTab === 'REFERENT' && (
-            <ReferentTab
-              reportData={reportData}
-              setReportData={setReportData}
-            />
           )}
 
           {activeTab === 'PRETENTIONS' && (

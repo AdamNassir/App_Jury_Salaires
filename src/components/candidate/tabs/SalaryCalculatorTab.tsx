@@ -84,6 +84,81 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
           </div>
         </div>
 
+        {/* Grille de référence */}
+        <div className="border border-accent/10 rounded-2xl p-6 bg-accent/[0.02] space-y-4">
+          <h3 className="text-sm font-bold text-accent">
+            Attendu en fonction du grade / de l'expérience / du TJ / du salaire
+          </h3>
+          <div className="overflow-x-auto rounded-xl border border-accent/10 bg-white">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-accent/5 border-b border-accent/10 text-accent/70 font-semibold whitespace-nowrap">
+                  <th className="p-3">Grade</th>
+                  <th className="p-3">Expérience</th>
+                  <th className="p-3">TJ</th>
+                  <th className="p-3 text-center">Autonome en mission</th>
+                  <th className="p-3 text-center">Vente / Commercial</th>
+                  <th className="p-3 text-center">Vie Logiclever</th>
+                  <th className="p-3 text-center">Recrutement</th>
+                  <th className="p-3 text-center">Encadrement</th>
+                  <th className="p-3 text-right">Brut annuel<br /><span className="text-[10px] font-normal text-accent/50">(k€)</span></th>
+                  <th className="p-3 text-right">Prix revient Logiclever<br /><span className="text-[10px] font-normal text-accent/50">(k€)</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-accent/5 text-accent whitespace-nowrap">
+                <tr className="hover:bg-accent/[0.02] transition-colors">
+                  <td className="p-3 font-bold text-accent">Junior</td>
+                  <td className="p-3 text-accent/80">0 - 2 ans</td>
+                  <td className="p-3 text-accent/80">&lt;= 530</td>
+                  <td className="p-3 text-center font-bold text-primary">+</td>
+                  <td className="p-3 text-center font-bold text-primary">+</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center text-accent/20"></td>
+                  <td className="p-3 text-right font-semibold text-accent">39 → 45</td>
+                  <td className="p-3 text-right text-accent/70">64 → 73</td>
+                </tr>
+                <tr className="hover:bg-accent/[0.02] transition-colors">
+                  <td className="p-3 font-bold text-accent">Confirmé</td>
+                  <td className="p-3 text-accent/80">2 - 5 ans</td>
+                  <td className="p-3 text-accent/80">535 - 565</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center font-bold text-primary">+++</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center text-accent/20"></td>
+                  <td className="p-3 text-right font-semibold text-accent">46 → 50</td>
+                  <td className="p-3 text-right text-accent/70">75 → 79</td>
+                </tr>
+                <tr className="hover:bg-accent/[0.02] transition-colors">
+                  <td className="p-3 font-bold text-accent">Sénior</td>
+                  <td className="p-3 text-accent/80">5 - 8 ans</td>
+                  <td className="p-3 text-accent/80">570 - 645</td>
+                  <td className="p-3 text-center font-bold text-primary">+++</td>
+                  <td className="p-3 text-center font-bold text-primary">+++</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center font-bold text-primary">+</td>
+                  <td className="p-3 text-right font-semibold text-accent">51 → 59</td>
+                  <td className="p-3 text-right text-accent/70">82 → 93</td>
+                </tr>
+                <tr className="hover:bg-accent/[0.02] transition-colors">
+                  <td className="p-3 font-bold text-accent">Expert</td>
+                  <td className="p-3 text-accent/80">&gt; 8 ans</td>
+                  <td className="p-3 text-accent/80">&gt;= 650</td>
+                  <td className="p-3 text-center font-bold text-primary">++++</td>
+                  <td className="p-3 text-center font-bold text-primary">+++</td>
+                  <td className="p-3 text-center font-bold text-primary">++</td>
+                  <td className="p-3 text-center font-bold text-primary">+++</td>
+                  <td className="p-3 text-center font-bold text-primary">+++</td>
+                  <td className="p-3 text-right font-semibold text-accent">&gt;60</td>
+                  <td className="p-3 text-right text-accent/70">&gt;96</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div className="space-y-6">
             <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Valeurs de base (Modifiables)</div>

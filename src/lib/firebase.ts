@@ -29,7 +29,42 @@ sheetsProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
+const driveProvider = new GoogleAuthProvider();
+driveProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
+driveProvider.addScope('https://www.googleapis.com/auth/documents.readonly');
+driveProvider.setCustomParameters({
+  prompt: 'select_account',
+});
+
 let inMemoryToken: string | null = null;
+let inMemoryDriveToken: string | null = null;
+
+export const getGoogleDriveAccessToken = (): string | null => {
+  if (inMemoryDriveToken) return inMemoryDriveToken;
+  try {
+    const stored = sessionStorage.getItem('g_drive_token');
+    if (stored) {
+      inMemoryDriveToken = stored;
+      return stored;
+    }
+  } catch (error) {
+    console.warn('Google drive token cache unavailable:', error);
+  }
+  return null;
+};
+
+export const setGoogleDriveAccessToken = (token: string | null) => {
+  inMemoryDriveToken = token;
+  try {
+    if (token) {
+      sessionStorage.setItem('g_drive_token', token);
+    } else {
+      sessionStorage.removeItem('g_drive_token');
+    }
+  } catch (error) {
+    console.warn('Google drive token session storage unavailable:', error);
+  }
+};
 
 export const getGoogleAccessToken = (): string | null => {
   if (inMemoryToken) return inMemoryToken;
@@ -112,7 +147,26 @@ export const requestGoogleSheetsAccess =
     }
   };
 
+export const requestGoogleDriveAccess = async (): Promise<string | null> => {
+  const existing = getGoogleDriveAccessToken();
+  if (existing) return existing;
+
+  try {
+    const result = await signInWithPopup(auth, driveProvider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      setGoogleDriveAccessToken(credential.accessToken);
+      return credential.accessToken;
+    }
+    return null;
+  } catch (error: any) {
+    console.error('Error requesting Google Drive authorization:', error);
+    throw error;
+  }
+};
+
 export const logout = () => {
   setGoogleAccessToken(null);
+  setGoogleDriveAccessToken(null);
   return signOut(auth);
 };

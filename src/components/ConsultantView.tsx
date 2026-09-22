@@ -904,7 +904,6 @@ function ConsultantFeedbackForm({
               disabled={isReadOnly}
               value={formData.justification || ''}
               onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
-              placeholder="Justifiez l'estimation ou positionnement du TJ cible, vos observations techniques et valeur apportée..."
               className="w-full p-4 bg-white/5 border border-white/15 rounded-xl text-white text-sm font-light resize-none h-28 outline-none focus:border-primary transition-all disabled:opacity-50"
             />
           </div>
@@ -917,7 +916,6 @@ function ConsultantFeedbackForm({
               disabled={isReadOnly}
               value={formData.improvementAxes || ''}
               onChange={(e) => setFormData({ ...formData, improvementAxes: e.target.value })}
-              placeholder="Actions de progrès, formations, certifications ou axes pour augmenter le TJ..."
               className="w-full p-4 bg-white/5 border border-white/15 rounded-xl text-white text-sm font-light resize-none h-24 outline-none focus:border-primary transition-all disabled:opacity-50"
             />
           </div>

@@ -119,7 +119,7 @@ export function FormField({
   label: string;
   value: string;
   onChange: (v: string) => void;
-  placeholder: string;
+  placeholder?: string;
   disabled?: boolean;
   tooltip?: string;
   required?: boolean;

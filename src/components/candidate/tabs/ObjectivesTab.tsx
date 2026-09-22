@@ -45,7 +45,6 @@ export function ObjectivesTab({ reportData, setReportData }: ObjectivesTabProps)
                       return { ...prev, previousObjectives: newObjs };
                     });
                   }}
-                  placeholder="Ex: Recruter un nouveau membre..."
                 />
                 <FormField 
                   label="Commentaires" 
@@ -57,7 +56,6 @@ export function ObjectivesTab({ reportData, setReportData }: ObjectivesTabProps)
                       return { ...prev, previousObjectives: newObjs };
                     });
                   }}
-                  placeholder="Points de blocage, succès..."
                 />
               </div>
               <div className="mt-6 flex items-center gap-4">

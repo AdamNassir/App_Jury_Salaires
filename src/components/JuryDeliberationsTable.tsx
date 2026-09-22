@@ -431,7 +431,6 @@ export function JuryDeliberationsTable({ dossiers, candidates, profile }: JuryDe
                             <textarea
                               value={editValues.whyThisSalary}
                               onChange={e => setEditValues({ ...editValues, whyThisSalary: e.target.value })}
-                              placeholder="Saisissez votre justification du TJ Cible..."
                               rows={3}
                               autoFocus
                               className="w-full p-2.5 bg-white border border-secondary/40 rounded-xl text-xs focus:ring-2 focus:ring-secondary/20 outline-none resize-y text-accent shadow-inner"
@@ -515,7 +514,6 @@ export function JuryDeliberationsTable({ dossiers, candidates, profile }: JuryDe
                             <textarea
                               value={editValues.whatToDoMore}
                               onChange={e => setEditValues({ ...editValues, whatToDoMore: e.target.value })}
-                              placeholder="Saisissez vos actions ou axes pour augmenter le TJ..."
                               rows={3}
                               className="w-full p-2.5 bg-white border border-secondary/40 rounded-xl text-xs focus:ring-2 focus:ring-secondary/20 outline-none resize-y text-accent shadow-inner"
                             />

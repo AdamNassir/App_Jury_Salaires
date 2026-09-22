@@ -261,6 +261,101 @@ ${text}
     }
   });
 
+  // API Route: Extract Past Objectives from Word (.docx) stored in Drive
+  app.post("/api/drive/extract-word-objectives", async (req, res) => {
+    try {
+      const { fileId, accessToken } = req.body;
+      if (!fileId || !accessToken) {
+        return res.status(400).json({ error: "fileId et accessToken obligatoires." });
+      }
+
+      // 1. Download file bytes from Google Drive API
+      const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      if (!driveRes.ok) {
+        const errText = await driveRes.text();
+        return res.status(driveRes.status).json({ error: `Erreur Drive lors du téléchargement: ${errText}` });
+      }
+
+      const arrayBuffer = await driveRes.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // 2. Convert Word to HTML with mammoth to parse tables reliably
+      const conversion = await mammoth.convertToHtml({ buffer });
+      const html = conversion.value || "";
+
+      // 3. Extract table rows under "objectifs pour l'année prochaine"
+      const objectives: string[] = [];
+
+      // Regex matching table containing "objectif"
+      const tableMatches = html.match(/<table[\s\S]*?<\/table>/gi) || [];
+
+      for (const tableHtml of tableMatches) {
+        const rowMatches = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi) || [];
+        if (rowMatches.length > 1) {
+          const firstRow = rowMatches[0].toLowerCase();
+          if (firstRow.includes("objectif")) {
+            // Found objectives table! Extract 1st cell of each subsequent row
+            for (let r = 1; r < rowMatches.length; r++) {
+              const cellMatches = rowMatches[r].match(/<td[\s\S]*?<\/td>/gi) || [];
+              if (cellMatches.length > 0) {
+                // Strip HTML tags
+                const cleanText = cellMatches[0].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                if (cleanText && cleanText.length > 2 && !cleanText.toLowerCase().startsWith("objectif")) {
+                  objectives.push(cleanText);
+                }
+              }
+            }
+            if (objectives.length > 0) break;
+          }
+        }
+      }
+
+      // If no table matched by "objectif" header, fallback to Gemini with the raw text to locate the objectives
+      if (objectives.length === 0) {
+        const rawText = (await mammoth.extractRawText({ buffer })).value || "";
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (apiKey && rawText.trim()) {
+          const ai = new GoogleGenAI({
+            apiKey: apiKey,
+            httpOptions: { headers: { "User-Agent": "aistudio-build" } },
+          });
+
+          const geminiRes = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [
+              {
+                text: `Extrais uniquement la liste des objectifs fixés pour l'année prochaine depuis la section "Les objectifs pour l’année prochaine" du document suivant. Ne renvoie rien d'autre que les énoncés d'objectifs sous forme d'un tableau JSON de chaînes de caractères.
+                
+Document:
+${rawText}`
+              }
+            ],
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              }
+            }
+          });
+
+          const list = JSON.parse(geminiRes.text?.trim() || "[]");
+          if (Array.isArray(list) && list.length > 0) {
+            objectives.push(...list);
+          }
+        }
+      }
+
+      return res.json({ success: true, objectives });
+    } catch (error: any) {
+      console.error("Extract Word objectives error:", error);
+      return res.status(500).json({ error: error.message || "Erreur lors de l'extraction du document Word." });
+    }
+  });
+
   // Helper: Obtain access token using Google Service Account JWT
   async function getServiceAccountAccessToken(): Promise<string> {
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "sheets-backend@sheets-backend-508208.iam.gserviceaccount.com";

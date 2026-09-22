@@ -168,8 +168,8 @@ export interface ClientFeedback {
   clientRating?: number; // Note sur 10 Client
   consultantRating?: number; // Note sur 10 Consultant
   realizationDate?: string; // Date de réalisation de la météo
-  fileUrl?: string; // Lien vers le document/fichier de la météo
-  liensMeteo?: string; // Lien direct issu de Vues_Meteos
+  liensMeteo?: string;
+  fileUrl?: string;
 }
 
 export interface PreviousObjective {
@@ -184,40 +184,6 @@ export interface NextObjective {
   means: string;
   measures: string;
   result?: string;
-}
-
-export interface MissionAutonomyEntry {
-  id?: string;
-  client: string;
-  actions: string;
-  grade: 'Junior' | 'Confirmé' | 'Senior' | 'Expert' | '';
-  comment: string;
-}
-
-export interface SquadEntry {
-  id?: string;
-  squad: string;
-  roleAndContributions: string;
-}
-
-export interface ReferentMeteoFollowUp {
-  id?: string;
-  clients: string;
-  meteosConducted: string;
-  keyPointsRaised: string;
-}
-
-export interface ReferentDonorNetwork {
-  id?: string;
-  clientsProspects: string;
-  keyActions: string;
-}
-
-export interface ReferentEncadrement {
-  id?: string;
-  client: string;
-  coachedPerson: string;
-  commentContext: string;
 }
 
 export interface Satisfaction {
@@ -241,6 +207,13 @@ export interface AnnualReport {
   training: string;
   
   // Savoir-faire
+  cv?: { name: string; url: string };
+  skillsProfileType?: string;
+  skillsExperience?: string;
+  skillsDeliverables?: string;
+  skillsProjectStage?: string;
+  skillsCategory?: string;
+  skillsDetails?: Record<string, { exp?: string; level?: string; summary?: string; role?: string }>;
   knowHow: string; 
   progressionDetails: string; // Sur quelles compétences métier / applicatifs ?
   techDetails: string; // Sur quels logiciels / technologies ?
@@ -250,9 +223,10 @@ export interface AnnualReport {
   
   // Autonomy
   missionAutonomy: string;
+  missionAutonomies?: any[];
+  missionClients?: { client: string; actions: string; grade: Grade | ''; comment: string }[];
   autonomyLevel: Grade | 'Junior'; // Level claimed by candidate
   autonomyJustification: string;
-  missionAutonomies?: MissionAutonomyEntry[];
   
   // Vente / Commercial
   commercialPresentation: string; // Présenté Logiclever ?
@@ -262,11 +236,11 @@ export interface AnnualReport {
   
   // Vie Logiclever
   lifeLogiclever: string;
+  lifeOther?: string;
   lifeKnowledgeSharing: string; // Capitalisation (Drive)
   lifeSlack: string; // Partage d'information (SLACK)
   lifeTeamSpirit: string; // Lien entre consultants
   lifeBusinessModel: string; // Maîtrise business model
-  lifeOther?: string; // Autres
   internalInvestment?: number; // Estimation de l'investissement interne (0-100)
 
   // Intercontrat
@@ -284,10 +258,10 @@ export interface AnnualReport {
   encadrementManager: string; // Sollicité mon encadrant ?
   
   // Amélioration Continue (SQUAD)
+  squadEntries?: { squad: string; contributions: string }[];
   squadName: string;
   squadRole: string;
   squadContributions: string;
-  squadEntries?: SquadEntry[];
   
   // Specific for Referents or Aspiring Referents
   isReferentOrAspiring: boolean;
@@ -299,14 +273,21 @@ export interface AnnualReport {
   donorNetworkActions: string;
   encadrementMissionDetails: string;
   encadrementCoachingDetails: string;
-  referentMeteos?: ReferentMeteoFollowUp[];
-  referentNetworks?: ReferentDonorNetwork[];
-  referentEncadrements?: ReferentEncadrement[];
+  referentMissionFollowUps?: { client: string; meteosMenees: string; pointsRemontes: string }[];
+  referentNetworkEntries?: { clientProspect: string; actions: string }[];
+  referentMissionEncadrements?: { client: string; personneEncadree: string; commentaire: string }[];
+  referentCoachingEntries?: { personneCoachee: string; commentaire: string }[];
+  referentOnboardingAnimation?: string;
+  referentAccountEntries?: { compte: string; actions: string }[];
+  referentAccountTeamMeetings?: string;
+  referentOtherActions?: string;
+  referentOffersEntries?: { offre: string; details: string }[];
   
   // Objectives & Career
   careerGoals: string; // Vision moyen-terme (Vision / Carrière)
   careerGoal1?: string;
   careerGoal2?: string;
+  careerGoalsList?: string[];
   nextObjectives: NextObjective[]; // Vision court-terme (Mise en oeuvre)
   
   // Pretentions
@@ -374,7 +355,7 @@ export interface JuryDecision {
   maxSalaryIfVenduIncreases?: number;
 }
 
-export interface JuryMemberReview {
+export interface JuryMemberReview extends Partial<JuryDecision> {
   juryUid: string;
   juryName: string;
   juryEmail: string;
@@ -401,7 +382,7 @@ export interface Dossier {
   // Data from Candidate
   annualReport?: AnnualReport;
   clientFeedbacks?: ClientFeedback[];
-  meteoLinks?: string[];
+  meteoLinks?: any;
   documents?: DossierDocument[];
   
   // Assignments
@@ -413,7 +394,6 @@ export interface Dossier {
   // Decision
   juryDecision?: JuryDecision;
   juryMemberReviews?: Record<string, JuryMemberReview>; // Key is juryUid or email
-  juryFinalizations?: Record<string, string>; // Key is memberId, value is ISO timestamp
   
   createdAt: any;
   updatedAt: any;

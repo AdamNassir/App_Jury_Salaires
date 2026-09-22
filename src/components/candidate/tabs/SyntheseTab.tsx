@@ -16,7 +16,6 @@ export function SyntheseTab({ reportData, setReportData }: SyntheseTabProps) {
           label="Synthèse de l’année (01/07 au 30/06)" 
           value={reportData.yearSummary} 
           onChange={v => setReportData(prev => ({ ...prev, yearSummary: v }))} 
-          placeholder="Renseignez votre synthèse pour la période du 01/07 au 30/06..."
           maxLength={5000}
         />
       </Section>

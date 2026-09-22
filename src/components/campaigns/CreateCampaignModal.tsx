@@ -294,7 +294,6 @@ export function CreateCampaignModal({
                     rows={2}
                     value={newDescription}
                     onChange={(e) => setNewDescription(e.target.value)}
-                    placeholder="Instructions pour les jurys ou spécificités de la session..."
                     className="w-full px-4 py-2.5 rounded-xl border border-accent/20 focus:border-primary focus:ring-1 focus:ring-primary outline-none font-medium text-sm resize-none"
                   />
                 </div>
