@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Dossier, UserProfile } from '../../types';
-import { Award, Mail, TrendingUp, Banknote, Clock } from 'lucide-react';
-import { formatCurrency } from '../../lib/utils';
+import { Award, Mail, TrendingUp, Banknote, Clock, UserCheck } from 'lucide-react';
+import { cn, formatCurrency } from '../../lib/utils';
 import { calculateYears } from '../../lib/salaryUtils';
 import { StatusPill } from './JuryUI';
+import { UserDirectoryService } from '../../services/userDirectoryService';
+import { updateDoc, doc, serverTimestamp } from '../../lib/localDatabase';
+import { db } from '../../lib/localDatabase';
 
 interface JuryCandidateHeaderProps {
   dossier: Dossier;
@@ -19,18 +22,40 @@ export function JuryCandidateHeader({
   referenceDate
 }: JuryCandidateHeaderProps) {
   const yearsLL = candidate?.entryDate ? calculateYears(candidate.entryDate, referenceDate) : null;
+  const juryMembers = useMemo(() => UserDirectoryService.getJuryMembers(), []);
+
+  const handleAssignReferent = async (referentName: string) => {
+    try {
+      const dossierRef = doc(db, 'dossiers', dossier.id);
+      const existingDecision = dossier.juryDecision || {};
+
+      await updateDoc(dossierRef, {
+        juryDecision: {
+          ...existingDecision,
+          referentJury: referentName,
+          updatedAt: serverTimestamp()
+        },
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Erreur lors de l'assignation du référent jury:", err);
+    }
+  };
+
   return (
     <>
-      <div className="flex justify-between items-start mb-12 pb-10 border-b border-accent/10 relative">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-12 pb-10 border-b border-accent/10 relative">
         <div className="flex items-center gap-6">
-          <div className="w-20 h-20 bg-accent/5 rounded-2xl flex items-center justify-center text-accent/20 border border-accent/10">
+          <div className="w-20 h-20 bg-accent/5 rounded-2xl flex items-center justify-center text-accent/20 border border-accent/10 shrink-0">
             <Award className="w-10 h-10" />
           </div>
           <div>
             <h2 className="text-secondary mb-2 leading-none">{dossier.candidateName}</h2>
-            <div className="flex items-center gap-4 text-accent/40">
-              <Mail className="w-4 h-4" />
-              <span className="text-lg font-light italic">{dossier.candidateEmail}</span>
+            <div className="flex items-center gap-4 text-accent/40 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                <span className="text-lg font-light italic">{dossier.candidateEmail}</span>
+              </div>
               {candidate?.matricule && (
                 <>
                   <span className="w-1 h-1 bg-accent/20 rounded-full" />
@@ -40,9 +65,38 @@ export function JuryCandidateHeader({
             </div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-3">Statut Dossier</div>
-          <StatusPill status={dossier.status} />
+
+        <div className="flex items-center gap-6 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+          {/* Sélecteur Référent Jury */}
+          <div className="text-left sm:text-right">
+            <div className="text-[10px] font-black text-accent/40 uppercase tracking-[0.2em] mb-2 flex items-center gap-1.5 justify-start sm:justify-end">
+              <UserCheck className="w-3.5 h-3.5 text-secondary" />
+              <span>Référent Jury</span>
+            </div>
+            <select
+              value={dossier.juryDecision?.referentJury || ''}
+              onChange={e => handleAssignReferent(e.target.value)}
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-xl border outline-none font-semibold transition-all cursor-pointer shadow-xs",
+                dossier.juryDecision?.referentJury
+                  ? "bg-secondary/5 border-secondary/30 text-secondary"
+                  : "bg-white border-accent/20 text-accent/50 italic hover:border-accent/40"
+              )}
+            >
+              <option value="">Non assigné</option>
+              {juryMembers.map(m => (
+                <option key={m.id} value={m.displayName}>{m.displayName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="h-10 w-px bg-accent/10 hidden sm:block" />
+
+          {/* Statut Dossier */}
+          <div className="text-right">
+            <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-3">Statut Dossier</div>
+            <StatusPill status={dossier.status} />
+          </div>
         </div>
       </div>
 

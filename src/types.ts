@@ -318,9 +318,11 @@ export interface ConsultantFeedback {
   status?: 'BROUILLON' | 'VALIDE';
   targetTJMin: number;
   targetTJMax: number;
+  missionPercentage?: number; // % Mission préconisé par l'évaluateur (ex: 98)
+  investmentPercentage?: number; // % Investissement préconisé par l'évaluateur (ex: 60)
   justification: string;
   improvementAxes: string;
-  confidenceIndex: number; // 0-5 or 1-10
+  confidenceIndex: number; // 1-5
   validated: boolean;
   updatedAt: any;
 }

@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, Dossier } from '../types';
 import { UserDirectoryService } from '../services/userDirectoryService';
-import { Gavel, Table, Users, FileSpreadsheet, CheckSquare, Square } from 'lucide-react';
+import { Gavel, Table, Users, CheckSquare, Square } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SalaryTable } from './SalaryTable';
-import { JuryDeliberationsTable } from './JuryDeliberationsTable';
 import { FilterSelect, JuryZoomModal } from './jury/JuryUI';
 import { JuryCandidateList } from './jury/JuryCandidateList';
 import { JuryCandidateHeader } from './jury/JuryCandidateHeader';
@@ -18,7 +17,7 @@ interface JuryViewProps {
 
 export function JuryView({ dossiers, profile }: JuryViewProps) {
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'DELIBERATIONS' | 'SALARY_TABLE' | 'DELIBERATIONS_TABLE'>('DELIBERATIONS');
+  const [activeView, setActiveView] = useState<'DELIBERATIONS' | 'SALARY_TABLE'>('DELIBERATIONS');
   const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({
     SYNTHESE: true
   });
@@ -78,6 +77,30 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
   };
 
   const assignedDossiersCount = dossiers.filter(d => isAssignedToCurrentUser(d)).length;
+
+  // Répartition des dossiers entre les membres du jury (4 membres au total)
+  const juryMembers = useMemo(() => UserDirectoryService.getJuryMembers(), []);
+  const juryWorkload = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let unassigned = 0;
+    juryMembers.forEach(m => { counts[m.displayName] = 0; });
+
+    dossiers.forEach(d => {
+      const ref = d.juryDecision?.referentJury;
+      if (ref && counts[ref] !== undefined) {
+        counts[ref]++;
+      } else if (ref) {
+        // match case-insensitively if needed
+        const found = juryMembers.find(m => m.displayName.toLowerCase() === ref.toLowerCase());
+        if (found) counts[found.displayName]++;
+        else unassigned++;
+      } else {
+        unassigned++;
+      }
+    });
+
+    return { counts, unassigned, total: dossiers.length };
+  }, [dossiers, juryMembers]);
 
   const filteredDossiers = dossiers.filter(d => {
     const matchesStatus = filterStatus === 'ALL' || d.status === filterStatus;
@@ -141,23 +164,53 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
               )}
             >
               <Table className="w-4 h-4" />
-              Tableau des salaires
-            </button>
-            <button
-              onClick={() => setActiveView('DELIBERATIONS_TABLE')}
-              className={cn(
-                "flex items-center gap-3 px-6 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer",
-                activeView === 'DELIBERATIONS_TABLE' ? "bg-white text-secondary shadow-lg" : "text-accent/40 hover:text-accent/60"
-              )}
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              Tableau des délibérations
+              Tableau des salaires & délibérations
             </button>
           </div>
         </div>
         
         {activeView === 'DELIBERATIONS' && (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Barre de répartition des dossiers entre les membres du jury */}
+            <div className="hidden xl:flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-accent/10 shadow-xs text-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-accent/40">Répartition Jury :</span>
+              <div className="flex items-center gap-2">
+                {juryMembers.map(m => {
+                  const count = juryWorkload.counts[m.displayName] || 0;
+                  const isCurrent = profile.displayName === m.displayName;
+                  return (
+                    <div 
+                      key={m.id}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors",
+                        isCurrent ? "bg-secondary/10 text-secondary border border-secondary/20" : "bg-accent/5 text-accent/70"
+                      )}
+                      title={`${m.displayName} a ${count} dossier(s) assigné(s)`}
+                    >
+                      <span className="truncate max-w-[90px]">{m.displayName.split(' ')[0]}</span>
+                      <span className={cn(
+                        "px-1.5 py-0.2 rounded-full text-[10px] font-black",
+                        isCurrent ? "bg-secondary text-white" : "bg-accent/20 text-accent"
+                      )}>
+                        {count}
+                      </span>
+                    </div>
+                  );
+                })}
+                {juryWorkload.unassigned > 0 && (
+                  <div 
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold"
+                    title={`${juryWorkload.unassigned} dossier(s) sans référent`}
+                  >
+                    <span>Non assignés</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-200 text-amber-900">
+                      {juryWorkload.unassigned}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={() => setOnlyAssigned(prev => !prev)}
@@ -203,20 +256,7 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
           >
-            <SalaryTable dossiers={dossiers} candidates={candidates} />
-          </motion.div>
-        ) : activeView === 'DELIBERATIONS_TABLE' ? (
-          <motion.div
-            key="deliberations-table"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            <JuryDeliberationsTable 
-              dossiers={dossiers} 
-              candidates={candidates} 
-              profile={profile} 
-            />
+            <SalaryTable dossiers={dossiers} candidates={candidates} profile={profile} />
           </motion.div>
         ) : (
           <motion.div

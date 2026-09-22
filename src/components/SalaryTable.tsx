@@ -1,10 +1,32 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Dossier, UserProfile, Grade, JuryDecision } from '../types';
+import { Dossier, UserProfile, Grade, JuryDecision, ConsultantFeedback, JuryMemberReview } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
-import { TrendingUp, Calculator, UserCheck, AlertCircle, Save, Search, FileSpreadsheet, Loader2, CheckCircle2, ExternalLink, RefreshCw } from 'lucide-react';
+import { 
+  TrendingUp, 
+  Calculator, 
+  UserCheck, 
+  AlertCircle, 
+  Save, 
+  Search, 
+  FileSpreadsheet, 
+  Loader2, 
+  CheckCircle2, 
+  ExternalLink, 
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  User,
+  Users,
+  Building2,
+  Briefcase,
+  Award,
+  Lock,
+  Percent
+} from 'lucide-react';
 import { updateDoc, doc, serverTimestamp } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
+import { UserDirectoryService } from '../services/userDirectoryService';
 import { 
   exportDeliberationsToGoogleSheet, 
   PREDEFINED_EXPORT_SPREADSHEET_ID, 
@@ -39,17 +61,51 @@ interface SalaryTableProps {
   dossiers: Dossier[];
   candidates: Record<string, UserProfile>;
   referenceDate?: string | Date | null;
+  profile?: UserProfile;
 }
 
-export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTableProps) {
+export function SalaryTable({ dossiers, candidates, referenceDate, profile }: SalaryTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
+  const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>({});
+
+  const toggleRow = (dossierId: string) => {
+    setExpandedRowIds(prev => ({
+      ...prev,
+      [dossierId]: !prev[dossierId]
+    }));
+  };
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportResult, setExportResult] = useState<SheetExportResult | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Liste des membres du jury pour l'assignation rapide
+  const juryMembers = useMemo(() => {
+    return UserDirectoryService.getJuryMembers();
+  }, []);
+
+  // Fonction d'assignation directe d'un référent jury depuis le tableau
+  const handleAssignReferent = async (dossierId: string, referentName: string) => {
+    try {
+      const dossierRef = doc(db, 'dossiers', dossierId);
+      const dossier = dossiers.find(d => d.id === dossierId);
+      const existingDecision = dossier?.juryDecision || {};
+
+      await updateDoc(dossierRef, sanitizeForStorage({
+        juryDecision: {
+          ...existingDecision,
+          referentJury: referentName,
+          updatedAt: serverTimestamp()
+        },
+        updatedAt: serverTimestamp()
+      }));
+    } catch (err) {
+      console.error("Erreur lors de l'assignation du référent jury:", err);
+    }
+  };
 
   const handleExportToGoogleSheets = async () => {
     setIsExporting(true);
@@ -180,6 +236,34 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
         resFormule = calc2;
       }
 
+      // Feedbacks des évaluateurs pairs
+      const rawFeedbacks = Object.values(dossier.consultantFeedbacks || {}) as ConsultantFeedback[];
+      const evaluatorFeedbacks = rawFeedbacks.filter(f => {
+        const hasTj = (f.targetTJMin && f.targetTJMin > 0) || (f.targetTJMax && f.targetTJMax > 0);
+        const hasJustif = (f.justification && f.justification.trim().length > 0) || (f.improvementAxes && f.improvementAxes.trim().length > 0);
+        return hasTj || hasJustif || f.status === 'VALIDE' || f.validated;
+      });
+
+      // Avis des autres membres du jury
+      const otherJuryReviews: JuryMemberReview[] = Object.entries(dossier.juryMemberReviews || {})
+        .filter(([key, rev]) => {
+          const isCurrentUser = profile && (
+            key === profile.id || 
+            key === profile.idProfil || 
+            (profile.email && key.toLowerCase() === profile.email.toLowerCase()) ||
+            (rev.juryUid && rev.juryUid === profile.id) ||
+            (rev.juryEmail && profile.email && rev.juryEmail.toLowerCase() === profile.email.toLowerCase())
+          );
+          return !isCurrentUser && (rev.whyThisSalary || rev.whatToDoMore);
+        })
+        .map(([_, rev]) => rev);
+
+      const totalSublines = evaluatorFeedbacks.length + otherJuryReviews.length;
+
+      // Écart entre ce qui a été proposé au candidat et la formule (calculette du salaire)
+      const effectiveProposed = decision.amount || currentSalary;
+      const diffFormule = effectiveProposed - resFormule;
+
       return {
         dossier,
         candidate,
@@ -195,18 +279,43 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
         currentSalary,
         realMargin,
         resFormule,
+        diffFormule,
         marginPostJury,
-        decision
+        decision,
+        evaluatorFeedbacks,
+        otherJuryReviews,
+        totalSublines
       };
     }).filter(item => {
       if (!item) return false;
       const search = searchTerm.toLowerCase();
       return (
         item.candidate.displayName.toLowerCase().includes(search) ||
-        item.candidate.matricule?.toLowerCase().includes(search)
+        item.candidate.matricule?.toLowerCase().includes(search) ||
+        item.evaluatorFeedbacks.some(f => f.consultantName?.toLowerCase().includes(search) || f.justification?.toLowerCase().includes(search)) ||
+        item.otherJuryReviews.some(r => r.juryName?.toLowerCase().includes(search) || r.whyThisSalary?.toLowerCase().includes(search))
       );
     });
-  }, [dossiers, candidates, searchTerm]);
+  }, [dossiers, candidates, searchTerm, referenceDate, profile]);
+
+  // Moyennes globales de % Mission et % Investissement sur l'ensemble des dossiers
+  const globalMetrics = useMemo(() => {
+    if (dossiers.length === 0) {
+      return { avgMission: 98, avgInvestment: 60, totalCount: 0 };
+    }
+    let sumMission = 0;
+    let sumInvest = 0;
+    dossiers.forEach(d => {
+      const dec = d.juryDecision;
+      sumMission += (dec?.missionPercentage !== undefined && dec?.missionPercentage !== null) ? Number(dec.missionPercentage) : 98;
+      sumInvest += (dec?.investmentPercentage !== undefined && dec?.investmentPercentage !== null) ? Number(dec.investmentPercentage) : 60;
+    });
+    return {
+      avgMission: parseFloat((sumMission / dossiers.length).toFixed(1)),
+      avgInvestment: parseFloat((sumInvest / dossiers.length).toFixed(1)),
+      totalCount: dossiers.length
+    };
+  }, [dossiers]);
 
   const sortedTableData = useMemo(() => {
     if (!sortConfig) return tableData;
@@ -320,6 +429,10 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
           aVal = a.resFormule || 0;
           bVal = b.resFormule || 0;
           break;
+        case 'diffFormule':
+          aVal = a.diffFormule || 0;
+          bVal = b.diffFormule || 0;
+          break;
         case 'maxSalaryIfTJIncreases':
           aVal = a.decision.maxSalaryIfTJIncreases || 0;
           bVal = b.decision.maxSalaryIfTJIncreases || 0;
@@ -403,7 +516,49 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
         </div>
 
         {/* Action Button: Destination is predetermined and handled by code */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Indicateurs Moyennes Globales Jury */}
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-accent/10 shadow-xs">
+            <Percent className="w-4 h-4 text-secondary shrink-0" />
+            <div className="flex items-center gap-4 text-xs font-semibold">
+              <div 
+                className="flex items-center gap-1.5" 
+                title="Moyenne globale du % Mission sur l'ensemble des dossiers (Cible par défaut : 98%)"
+              >
+                <span className="text-[10px] uppercase font-bold text-accent/50 tracking-wider">Moy. % Mission :</span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full font-black text-xs tabular-nums",
+                  Math.abs(globalMetrics.avgMission - 98) <= 2
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : Math.abs(globalMetrics.avgMission - 98) <= 5
+                      ? "bg-amber-50 text-amber-700 border border-amber-200"
+                      : "bg-red-50 text-red-700 border border-red-200"
+                )}>
+                  {globalMetrics.avgMission}% <span className="text-[9px] font-normal opacity-60">/ 98%</span>
+                </span>
+              </div>
+
+              <div className="h-4 w-px bg-accent/10" />
+
+              <div 
+                className="flex items-center gap-1.5"
+                title="Moyenne globale du % Investissement sur l'ensemble des dossiers (Cible par défaut : 60%)"
+              >
+                <span className="text-[10px] uppercase font-bold text-accent/50 tracking-wider">Moy. % Invest. :</span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full font-black text-xs tabular-nums",
+                  Math.abs(globalMetrics.avgInvestment - 60) <= 3
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : Math.abs(globalMetrics.avgInvestment - 60) <= 6
+                      ? "bg-amber-50 text-amber-700 border border-amber-200"
+                      : "bg-red-50 text-red-700 border border-red-200"
+                )}>
+                  {globalMetrics.avgInvestment}% <span className="text-[9px] font-normal opacity-60">/ 60%</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
           <button
             onClick={handleExportToGoogleSheets}
             disabled={isExporting}
@@ -467,17 +622,21 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
           <thead>
             {/* Main Header Logic Zones */}
             <tr className="bg-accent text-white text-[10px] font-black uppercase tracking-widest text-center">
+              <th className="py-2 px-2 border-r border-white/10 w-10"></th>
               <th colSpan={8} className="py-2 border-r border-white/10">Données de référence</th>
               <th colSpan={6} className="py-2 border-r border-white/10">RG Logiclever (Formule)</th>
               <th colSpan={2} className="py-2 border-r border-white/10">Réel au 30/06</th>
               <th colSpan={3} className="py-2 border-r border-white/10">Souhait Consultant</th>
               <th colSpan={2} className="py-2 border-r border-white/10">Délibération Métriques</th>
-              <th colSpan={11} className="py-2">Décision Jury</th>
+              <th colSpan={12} className="py-2">Décision Jury</th>
             </tr>
             <tr className="bg-accent/5 text-[9px] font-black text-accent/50 border-b border-accent/10 uppercase tracking-tighter">
+              {/* Expand column */}
+              <th className="p-3 sticky left-0 bg-white z-20 w-10 text-center"></th>
+
               {/* Reference */}
-              <th onClick={() => requestSort('matricule')} className="p-4 sticky left-0 bg-white z-20 min-w-[80px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration (Profil Utilisateur)">Matricule {renderSortIndicator('matricule')}</th>
-              <th onClick={() => requestSort('displayName')} className="p-4 sticky left-[80px] bg-white z-20 min-w-[150px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration (Profil Utilisateur)">Collaborateur {renderSortIndicator('displayName')}</th>
+              <th onClick={() => requestSort('matricule')} className="p-4 sticky left-10 bg-white z-20 min-w-[80px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration (Profil Utilisateur)">Matricule {renderSortIndicator('matricule')}</th>
+              <th onClick={() => requestSort('displayName')} className="p-4 sticky left-[120px] bg-white z-20 min-w-[170px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration (Profil Utilisateur)">Collaborateur {renderSortIndicator('displayName')}</th>
               <th onClick={() => requestSort('experienceYears')} className="p-4 min-w-[60px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Expérience initiale (Saisie dans l'administration)">Exp. {renderSortIndicator('experienceYears')}</th>
               <th onClick={() => requestSort('entryDate')} className="p-4 min-w-[100px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisie dans l'administration">Entrée LL {renderSortIndicator('entryDate')}</th>
               <th onClick={() => requestSort('expertGradeDate')} className="p-4 min-w-[100px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisie dans l'administration">Expert Grade {renderSortIndicator('expertGradeDate')}</th>
@@ -513,27 +672,82 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
               <th onClick={() => requestSort('percentage')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : ((Salaire Proposé - Salaire Actuel) / Salaire Actuel) * 100">% Augment. {renderSortIndicator('percentage')}</th>
               <th onClick={() => requestSort('marginPostJury')} className="p-4 min-w-[100px] text-center underline decoration-secondary/30 cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : ((TJ Vendu - Cout Journalier Proposé) / TJ Vendu) * 100. (Cout = ((Salaire Proposé * 1.45 * 1.01) + 6000 + Prime + Tickets) / 193)">Marge Post-Jury {renderSortIndicator('marginPostJury')}</th>
               <th onClick={() => requestSort('resFormule')} className="p-4 min-w-[120px] text-right text-primary font-bold italic cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : Max(Salaire Actuel, Formule1, Formule2) où FormuleX = (Pourcentage mission / 100) * ((Pourcentage investissement * (SalaireX 100% - SalaireX)) / 100 + SalaireX)">Salaire Formule {renderSortIndicator('resFormule')}</th>
+              <th onClick={() => requestSort('diffFormule')} className="p-4 min-w-[120px] text-right font-bold cursor-pointer hover:bg-accent/10 transition-colors" title="Différence entre le Salaire Proposé et le Salaire calculé par la formule (Calculette du salaire)">Écart Formule {renderSortIndicator('diffFormule')}</th>
               <th onClick={() => requestSort('maxSalaryIfTJIncreases')} className="p-4 min-w-[150px] text-right cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury (Onglet Décision) ou via ce tableau">Salaire max proposé si augmentation TJ {renderSortIndicator('maxSalaryIfTJIncreases')}</th>
               <th onClick={() => requestSort('verdict')} className="p-4 min-w-[120px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Favorable, Réservé, Défavorable">Verdict {renderSortIndicator('verdict')}</th>
               <th className="p-4 min-w-[200px]" title="Saisi par le Jury (Explication de la décision)">Pourquoi ce salaire ?</th>
               <th className="p-4 min-w-[200px]" title="Saisi par le Jury (Axes d'amélioration)">Actions Progrès</th>
-              <th className="p-4 min-w-[120px]" title="Saisi par le Jury">Référent Jury</th>
+              <th className="p-4 min-w-[140px]" title="Saisi par le Jury">Référent Jury</th>
               <th className="p-4 min-w-[150px]" title="Saisi par le Jury ou le Manager lors du point collaborateur">Ressenti</th>
             </tr>
           </thead>
           <tbody className="text-[11px] font-medium text-accent/80 divide-y divide-accent/5">
-            {sortedTableData.map((item: any) => (
-              <tr 
-                key={item.dossier.id} 
-                className={cn(
-                  "hover:bg-accent/5 transition-colors group",
-                  editingId === item.dossier.id ? "bg-secondary/5 ring-1 ring-inset ring-secondary" : ""
-                )}
-                onDoubleClick={() => startEditing(item)}
-              >
-                {/* Reference */}
-                <td className="p-4 sticky left-0 bg-white z-20 font-black text-accent/40 group-hover:bg-accent/5">{item.candidate.matricule || 'N/A'}</td>
-                <td className="p-4 sticky left-[80px] bg-white z-20 font-bold text-accent group-hover:bg-accent/5 whitespace-nowrap">{item.candidate.displayName}</td>
+            {sortedTableData.map((item: any) => {
+              const isExpanded = !!expandedRowIds[item.dossier.id];
+              const totalSublines = item.totalSublines || 0;
+
+              return (
+                <React.Fragment key={item.dossier.id}>
+                  <tr 
+                    className={cn(
+                      "hover:bg-accent/5 transition-colors group",
+                      editingId === item.dossier.id ? "bg-secondary/5 ring-1 ring-inset ring-secondary" : "",
+                      isExpanded ? "bg-accent/[0.02]" : ""
+                    )}
+                    onDoubleClick={() => startEditing(item)}
+                  >
+                    {/* Expand Chevron Column */}
+                    <td className="p-3 sticky left-0 bg-white z-20 text-center group-hover:bg-accent/5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRow(item.dossier.id);
+                        }}
+                        className={cn(
+                          "w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer",
+                          isExpanded 
+                            ? "bg-secondary text-white shadow-xs" 
+                            : totalSublines > 0 
+                              ? "bg-accent/5 hover:bg-secondary/15 text-accent hover:text-secondary" 
+                              : "text-accent/20 hover:text-accent/40"
+                        )}
+                        title={totalSublines > 0 ? `${totalSublines} avis disponible(s) - Cliquer pour déplier` : "Aucun autre avis"}
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </td>
+
+                    {/* Reference */}
+                    <td className="p-4 sticky left-10 bg-white z-20 font-black text-accent/40 group-hover:bg-accent/5">
+                      {item.candidate.matricule || 'N/A'}
+                    </td>
+                    <td className="p-4 sticky left-[120px] bg-white z-20 font-bold text-accent group-hover:bg-accent/5 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="cursor-pointer hover:text-secondary transition-colors"
+                          onClick={() => toggleRow(item.dossier.id)}
+                        >
+                          {item.candidate.displayName}
+                        </span>
+                        {totalSublines > 0 && (
+                          <span 
+                            onClick={() => toggleRow(item.dossier.id)}
+                            className={cn(
+                              "text-[9px] px-1.5 py-0.5 rounded-full font-black cursor-pointer transition-colors",
+                              isExpanded ? "bg-secondary text-white" : "bg-secondary/10 text-secondary hover:bg-secondary/20"
+                            )}
+                            title={`${totalSublines} avis / sous-ligne(s) disponible(s)`}
+                          >
+                            {totalSublines}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                 <td className="p-4 text-center">{item.candidate.experienceYears !== undefined && item.candidate.experienceYears !== null ? item.candidate.experienceYears : '-'}</td>
                 <td className="p-4 text-accent/60">{item.candidate.entryDate ? new Date(item.candidate.entryDate).toLocaleDateString() : '-'}</td>
                 <td className="p-4 text-accent/60">{item.candidate.expertGradeDate ? new Date(item.candidate.expertGradeDate).toLocaleDateString() : '-'}</td>
@@ -630,6 +844,14 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
                   {item.marginPostJury.toFixed(1)}%
                 </td>
                 <td className="p-4 text-right tabular-nums text-primary font-black bg-primary/5">{formatCurrency(item.resFormule)}</td>
+                <td className={cn(
+                  "p-4 text-right tabular-nums font-black",
+                  item.diffFormule > 0 ? "text-emerald-600 bg-emerald-50/40" :
+                  item.diffFormule < 0 ? "text-rose-600 bg-rose-50/40" :
+                  "text-accent/60"
+                )}>
+                  {item.diffFormule > 0 ? `+${formatCurrency(item.diffFormule)}` : formatCurrency(item.diffFormule)}
+                </td>
                 <td className="p-4 text-right tabular-nums font-bold">
                   {editingId === item.dossier.id ? (
                     <input 
@@ -689,16 +911,35 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
                     <div className="max-w-[200px] truncate italic text-accent/60" title={item.decision.whatToDoMore}>{item.decision.whatToDoMore || '-'}</div>
                   )}
                 </td>
-                <td className="p-4">
+                <td className="p-4 min-w-[140px]">
                   {editingId === item.dossier.id ? (
-                    <input 
-                      type="text"
-                      className="w-full p-1 bg-white border border-secondary rounded outline-none"
-                      value={editValues.referentJury}
+                    <select
+                      className="w-full p-1 bg-white border border-secondary rounded outline-none text-xs"
+                      value={editValues.referentJury || ''}
                       onChange={e => setEditValues({...editValues, referentJury: e.target.value})}
-                    />
+                    >
+                      <option value="">-- Non assigné --</option>
+                      {juryMembers.map(m => (
+                        <option key={m.id} value={m.displayName}>{m.displayName}</option>
+                      ))}
+                    </select>
                   ) : (
-                    <span className="font-bold text-accent/60">{item.decision.referentJury || '-'}</span>
+                    <select
+                      className={cn(
+                        "text-xs px-2 py-1 rounded-lg border outline-none font-medium transition-all cursor-pointer",
+                        item.decision.referentJury
+                          ? "bg-secondary/5 border-secondary/20 text-secondary font-bold"
+                          : "bg-white border-accent/20 text-accent/40 italic"
+                      )}
+                      value={item.decision.referentJury || ''}
+                      onChange={e => handleAssignReferent(item.dossier.id, e.target.value)}
+                      title="Assigner un membre du jury à ce dossier"
+                    >
+                      <option value="">Non assigné</option>
+                      {juryMembers.map(m => (
+                        <option key={m.id} value={m.displayName}>{m.displayName}</option>
+                      ))}
+                    </select>
                   )}
                 </td>
                 <td className="p-4 min-w-[200px]">
@@ -722,8 +963,188 @@ export function SalaryTable({ dossiers, candidates, referenceDate }: SalaryTable
                   )}
                 </td>
               </tr>
-            ))}
-          </tbody>
+
+              {/* Sous-lignes détaillées pour les évaluateurs et autres membres du jury */}
+              {isExpanded && (
+                <tr className="bg-accent/[0.02] border-b border-accent/10">
+                  <td colSpan={33} className="py-3 px-6">
+                    {totalSublines === 0 ? (
+                      <div className="my-2 py-4 px-6 rounded-xl bg-white/70 border border-dashed border-accent/20 text-xs italic text-accent/40">
+                        Aucun autre avis d'évaluateur ou de membre du jury pour ce candidat pour le moment.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 my-1.5 max-w-5xl">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-accent/50 flex items-center gap-2 pl-1">
+                          <Users className="w-3.5 h-3.5 text-secondary" />
+                          <span>Détail des avis des évaluateurs et jurys ({totalSublines})</span>
+                        </div>
+
+                        {/* 1. Cartes pour les ÉVALUATEURS */}
+                        {item.evaluatorFeedbacks.map((fb: ConsultantFeedback, idx: number) => {
+                          const tjMin = fb.targetTJMin || 0;
+                          const tjMax = fb.targetTJMax || 0;
+                          const tjMean = (tjMin > 0 && tjMax > 0) ? Math.round((tjMin + tjMax) / 2) : (tjMin || tjMax || null);
+
+                          return (
+                            <div 
+                              key={fb.id || `${item.dossier.id}-fb-${idx}`}
+                              className="p-3.5 rounded-xl bg-white border border-accent/15 text-accent/80 hover:border-secondary/30 transition-colors border-l-4 border-l-secondary shadow-xs"
+                            >
+                              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                                {/* Profil Évaluateur */}
+                                <div className="flex items-center gap-3 min-w-[220px] lg:w-56 shrink-0">
+                                  <div className="w-8 h-8 rounded-full bg-secondary/15 flex items-center justify-center text-secondary font-black text-xs ring-2 ring-secondary/20">
+                                    {fb.consultantName ? fb.consultantName.charAt(0) : 'E'}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-accent text-xs">
+                                      {fb.consultantName || 'Évaluateur'}
+                                    </div>
+                                    <div className="text-[9px] px-2 py-0.5 rounded-full bg-secondary/10 text-secondary font-bold uppercase tracking-wider inline-block mt-0.5">
+                                      Évaluateur
+                                    </div>
+                                    {(fb.client || fb.project) && (
+                                      <div className="text-[10px] text-accent/50 font-medium mt-1 flex flex-wrap gap-x-1.5 items-center">
+                                        {fb.client && <span className="font-semibold text-accent/70">{fb.client}</span>}
+                                        {fb.client && fb.project && <span>•</span>}
+                                        {fb.project && <span className="italic">{fb.project}</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Métriques : TJ Cible (Moyenne Min/Max), % Mission, % Investissement, Indice de confiance */}
+                                <div className="flex flex-wrap items-center gap-3 bg-accent/[0.03] p-2 rounded-lg border border-accent/10 shrink-0">
+                                  <div className="text-center px-2">
+                                    <div className="text-[9px] font-bold text-accent/40 uppercase">TJ Cible (Moy.)</div>
+                                    <div className="text-xs font-black text-secondary">
+                                      {tjMean ? `${tjMean}€` : '-'}
+                                    </div>
+                                    {tjMin > 0 && tjMax > 0 && (
+                                      <div className="text-[8px] text-accent/40">
+                                        {tjMin}€ - {tjMax}€
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="w-px h-6 bg-accent/10" />
+
+                                  <div className="text-center px-2">
+                                    <div className="text-[9px] font-bold text-accent/40 uppercase">% Mission</div>
+                                    <div className="text-xs font-black text-accent">
+                                      {fb.missionPercentage !== undefined && fb.missionPercentage !== null ? `${fb.missionPercentage}%` : '-'}
+                                    </div>
+                                  </div>
+
+                                  <div className="w-px h-6 bg-accent/10" />
+
+                                  <div className="text-center px-2">
+                                    <div className="text-[9px] font-bold text-accent/40 uppercase">% Invest.</div>
+                                    <div className="text-xs font-black text-accent">
+                                      {fb.investmentPercentage !== undefined && fb.investmentPercentage !== null ? `${fb.investmentPercentage}%` : '-'}
+                                    </div>
+                                  </div>
+
+                                  <div className="w-px h-6 bg-accent/10" />
+
+                                  <div className="text-center px-2">
+                                    <div className="text-[9px] font-bold text-accent/40 uppercase">Confiance</div>
+                                    <div className="text-xs font-black text-amber-600">
+                                      {fb.confidenceIndex !== undefined && fb.confidenceIndex !== null ? `${fb.confidenceIndex}/5` : '-'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Justification TJ Cible */}
+                                <div className="flex-1 min-w-[200px]">
+                                  <div className="text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">
+                                    Justification TJ Cible
+                                  </div>
+                                  <div className="bg-accent/[0.02] p-2.5 rounded-lg border border-accent/10 text-xs leading-relaxed text-accent/80 whitespace-pre-wrap">
+                                    {fb.justification ? (
+                                      <span>{fb.justification}</span>
+                                    ) : (
+                                      <span className="italic text-accent/30 font-light">Aucune justification</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Axes pour augmenter le TJ */}
+                                <div className="flex-1 min-w-[200px]">
+                                  <div className="text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">
+                                    Axes pour augmenter le TJ
+                                  </div>
+                                  <div className="bg-accent/[0.02] p-2.5 rounded-lg border border-accent/10 text-xs leading-relaxed text-accent/80 whitespace-pre-wrap">
+                                    {fb.improvementAxes ? (
+                                      <span>{fb.improvementAxes}</span>
+                                    ) : (
+                                      <span className="italic text-accent/30 font-light">Aucun axe renseigné</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* 2. Cartes pour les AUTRES membres du jury */}
+                        {item.otherJuryReviews.map((juryRev: JuryMemberReview, idx: number) => (
+                          <div 
+                            key={`jury-rev-${idx}-${juryRev.juryUid || juryRev.juryName}`}
+                            className="p-3.5 rounded-xl bg-primary/[0.04] border border-primary/20 text-accent/80 hover:bg-primary/[0.07] transition-colors border-l-4 border-l-primary shadow-xs"
+                          >
+                            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-[220px] lg:w-56 shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-black text-xs ring-2 ring-primary/20">
+                                  {juryRev.juryName ? juryRev.juryName.charAt(0) : 'J'}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-accent text-xs">
+                                    {juryRev.juryName || 'Membre Jury'}
+                                  </div>
+                                  <div className="text-[9px] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-black uppercase tracking-wider inline-block mt-0.5">
+                                    Membre du Jury
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex-1 min-w-[200px]">
+                                <div className="text-[9px] font-bold text-primary/80 uppercase tracking-wider mb-1">
+                                  Justification TJ Cible
+                                </div>
+                                <div className="bg-white/90 p-2.5 rounded-lg border border-primary/15 text-xs leading-relaxed text-accent/90 whitespace-pre-wrap">
+                                  {juryRev.whyThisSalary ? (
+                                    <span>{juryRev.whyThisSalary}</span>
+                                  ) : (
+                                    <span className="italic text-accent/30 font-light">Aucune justification renseignée</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex-1 min-w-[200px]">
+                                <div className="text-[9px] font-bold text-primary/80 uppercase tracking-wider mb-1">
+                                  Axes pour augmenter le TJ
+                                </div>
+                                <div className="bg-white/90 p-2.5 rounded-lg border border-primary/15 text-xs leading-relaxed text-accent/90 whitespace-pre-wrap">
+                                  {juryRev.whatToDoMore ? (
+                                    <span>{juryRev.whatToDoMore}</span>
+                                  ) : (
+                                    <span className="italic text-accent/30 font-light">Aucun axe renseigné</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </tbody>
         </table>
       </div>
 

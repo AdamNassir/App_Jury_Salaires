@@ -545,9 +545,11 @@ function ConsultantFeedbackForm({
     project: '',
     targetTJMin: 0,
     targetTJMax: 0,
+    missionPercentage: 98,
+    investmentPercentage: 60,
     justification: '',
     improvementAxes: '',
-    confidenceIndex: 5,
+    confidenceIndex: 4,
     status: 'BROUILLON',
     validated: false
   });
@@ -562,9 +564,11 @@ function ConsultantFeedbackForm({
         project: '',
         targetTJMin: 0,
         targetTJMax: 0,
+        missionPercentage: 98,
+        investmentPercentage: 60,
         justification: '',
         improvementAxes: '',
-        confidenceIndex: 5,
+        confidenceIndex: 4,
         status: 'BROUILLON',
         validated: false
       });
@@ -574,11 +578,20 @@ function ConsultantFeedbackForm({
       const rawType = activeFeedback.relationType || activeFeedback.type;
       const isLegacy = legacyTypes.includes(rawType as string) && !RELATION_TYPES.includes(rawType as EvaluationRelationType);
 
+      // Harmonize confidenceIndex to 1-5 range if it was on a 1-10 scale
+      let normalizedConfidence = activeFeedback.confidenceIndex ?? 4;
+      if (normalizedConfidence > 5) {
+        normalizedConfidence = Math.min(5, Math.round(normalizedConfidence / 2));
+      }
+
       setFormData({
         ...activeFeedback,
         relationType: (activeFeedback.relationType || activeFeedback.type) as EvaluationRelationType,
         client: activeFeedback.client || '',
         project: activeFeedback.project || '',
+        missionPercentage: activeFeedback.missionPercentage !== undefined ? activeFeedback.missionPercentage : 98,
+        investmentPercentage: activeFeedback.investmentPercentage !== undefined ? activeFeedback.investmentPercentage : 60,
+        confidenceIndex: normalizedConfidence,
         isLegacyType: isLegacy,
         status: activeFeedback.status || (activeFeedback.validated ? 'VALIDE' : 'BROUILLON')
       });
@@ -643,7 +656,9 @@ function ConsultantFeedbackForm({
         // Financial & technical recommendations
         targetTJMin: Number(formData.targetTJMin) || 0,
         targetTJMax: Number(formData.targetTJMax) || 0,
-        confidenceIndex: Number(formData.confidenceIndex) || 5,
+        missionPercentage: formData.missionPercentage !== undefined ? Number(formData.missionPercentage) : 98,
+        investmentPercentage: formData.investmentPercentage !== undefined ? Number(formData.investmentPercentage) : 60,
+        confidenceIndex: Math.min(5, Math.max(1, Number(formData.confidenceIndex) || 4)),
         justification: formData.justification?.trim() || '',
         improvementAxes: formData.improvementAxes?.trim() || '',
         // Status & timestamps
@@ -845,7 +860,7 @@ function ConsultantFeedbackForm({
           </div>
         </div>
 
-        {/* 3. Recommandation TJM et Confiance */}
+        {/* 3. Recommandation TJM, Pourcentages & Confiance */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
           <div>
             <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
@@ -880,17 +895,70 @@ function ConsultantFeedbackForm({
               <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">
                 Indice de Confiance
               </label>
-              <span className="text-primary font-bold text-xs">{formData.confidenceIndex || 5} / 10</span>
+              <span className="text-primary font-bold text-xs">{formData.confidenceIndex || 4} / 5</span>
             </div>
             <input 
               type="range" 
               min="1" 
-              max="10" 
-              value={formData.confidenceIndex || 5} 
+              max="5" 
+              step="1"
+              value={formData.confidenceIndex || 4} 
               disabled={isReadOnly}
               onChange={e => setFormData({ ...formData, confidenceIndex: parseInt(e.target.value) })}
               className="w-full accent-primary h-2 bg-white/10 rounded-full appearance-none cursor-pointer disabled:opacity-50 mt-3" 
             />
+            <div className="flex justify-between text-[9px] text-white/30 font-bold px-1 mt-1">
+              <span>1</span>
+              <span>2</span>
+              <span>3</span>
+              <span>4</span>
+              <span>5</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 3bis. % Mission & % Investissement pour la formule */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-1">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">
+                % Mission (Objectif 98%)
+              </label>
+              <span className="text-xs font-bold text-primary">{formData.missionPercentage ?? 98}%</span>
+            </div>
+            <input
+              type="number"
+              min="0"
+              max="150"
+              step="1"
+              disabled={isReadOnly}
+              value={formData.missionPercentage !== undefined ? formData.missionPercentage : 98}
+              onChange={(e) => setFormData({ ...formData, missionPercentage: Number(e.target.value) })}
+              placeholder="98"
+              className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
+            />
+            <p className="text-[10px] text-white/40 mt-1 font-light">Taux de réalisation de la mission pour le calcul formule.</p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">
+                % Investissement (Objectif 60%)
+              </label>
+              <span className="text-xs font-bold text-primary">{formData.investmentPercentage ?? 60}%</span>
+            </div>
+            <input
+              type="number"
+              min="0"
+              max="150"
+              step="1"
+              disabled={isReadOnly}
+              value={formData.investmentPercentage !== undefined ? formData.investmentPercentage : 60}
+              onChange={(e) => setFormData({ ...formData, investmentPercentage: Number(e.target.value) })}
+              placeholder="60"
+              className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
+            />
+            <p className="text-[10px] text-white/40 mt-1 font-light">Taux d'investissement interne pour le calcul formule.</p>
           </div>
         </div>
 

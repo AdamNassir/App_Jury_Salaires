@@ -36,11 +36,26 @@ export function JuryCandidateList({
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-bold truncate text-xl mb-1">{d.candidateName}</div>
-              <div className={cn(
-                "text-[10px] font-black uppercase tracking-[0.2em] mt-1",
-                selectedDossierId === d.id ? "text-white/40" : "text-accent/30"
-              )}>
-                {d.status === 'COMPLET' ? 'À STATUER' : d.status === 'OUVERT' ? 'OUVERT' : 'VALIDÉ'}
+              <div className="flex items-center gap-2 flex-wrap mt-1">
+                <span className={cn(
+                  "text-[10px] font-black uppercase tracking-[0.2em]",
+                  selectedDossierId === d.id ? "text-white/60" : "text-accent/40"
+                )}>
+                  {d.status === 'COMPLET' ? 'À STATUER' : d.status === 'OUVERT' ? 'OUVERT' : 'VALIDÉ'}
+                </span>
+                {d.juryDecision?.referentJury && (
+                  <>
+                    <span className={cn("w-1 h-1 rounded-full", selectedDossierId === d.id ? "bg-white/40" : "bg-accent/20")} />
+                    <span className={cn(
+                      "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                      selectedDossierId === d.id 
+                        ? "bg-white/20 text-white" 
+                        : "bg-secondary/10 text-secondary"
+                    )}>
+                      {d.juryDecision.referentJury}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <ChevronRight className={cn(
