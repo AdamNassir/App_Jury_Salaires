@@ -31,7 +31,7 @@ export function DocumentsTab({
       <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm font-sans">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <h2 className="text-secondary">Pièces Jointes & Import</h2>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {handleImportPastYearObjectives && (
               <button
                 type="button"

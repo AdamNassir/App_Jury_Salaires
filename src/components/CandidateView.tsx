@@ -229,7 +229,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         }
       }
 
-      const successMsg = `🎉 Succès ! ${result.objectives.length} objectif(s) de l'année passée (${result.priorYear}) ont été importés depuis "${result.file?.name}". Les commentaires sont disponibles dans l'onglet "Objectifs Année Passée".`;
+      const successMsg = `🎉 Succès ! ${result.objectives.length} objectif(s) de l'année passée (${result.priorYear}) ont été importés depuis "${result.file?.name}".`;
       setPastImportSuccessMessage(successMsg);
 
       // Notification toast
@@ -712,6 +712,8 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             <ObjectivesTab
               reportData={reportData}
               setReportData={setReportData}
+              handleImportPastYearObjectives={handleImportPastYearObjectives}
+              isImportingPastObjectives={isImportingPastObjectives}
             />
           )}
 

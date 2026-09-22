@@ -282,74 +282,269 @@ ${text}
       const arrayBuffer = await driveRes.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
+      // Helper to decode HTML entities (accents, apostrophes, spaces)
+      const decodeHtml = (str: string): string => {
+        return str
+          .replace(/&eacute;/gi, "é")
+          .replace(/&egrave;/gi, "è")
+          .replace(/&ecirc;/gi, "ê")
+          .replace(/&euml;/gi, "ë")
+          .replace(/&agrave;/gi, "à")
+          .replace(/&acirc;/gi, "â")
+          .replace(/&icirc;/gi, "î")
+          .replace(/&iuml;/gi, "ï")
+          .replace(/&ocirc;/gi, "ô")
+          .replace(/&ugrave;/gi, "ù")
+          .replace(/&ucirc;/gi, "û")
+          .replace(/&ccedil;/gi, "ç")
+          .replace(/&#39;/gi, "'")
+          .replace(/&rsquo;/gi, "'")
+          .replace(/&lsquo;/gi, "'")
+          .replace(/&rdquo;/gi, '"')
+          .replace(/&ldquo;/gi, '"')
+          .replace(/&nbsp;/gi, " ")
+          .replace(/&amp;/gi, "&");
+      };
+
+      const normalizeText = (str: string): string => {
+        return str
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[’'"`]/g, "'")
+          .replace(/[\s\u00A0]+/g, " ")
+          .replace(/[^a-z0-9\s]/g, "")
+          .trim();
+      };
+
       // 2. Convert Word to HTML with mammoth to parse tables reliably
       const conversion = await mammoth.convertToHtml({ buffer });
-      const html = conversion.value || "";
+      const rawHtml = conversion.value || "";
+      const decodedHtml = decodeHtml(rawHtml);
 
-      // 3. Extract table rows under "objectifs pour l'année prochaine"
       const objectives: string[] = [];
+      const debugTables: any[] = [];
+      const headingsFound: string[] = [];
 
-      // Regex matching table containing "objectif"
-      const tableMatches = html.match(/<table[\s\S]*?<\/table>/gi) || [];
+      // Extract headings for diagnostics
+      const headingMatches = decodedHtml.match(/<h[1-6][^>]*>[\s\S]*?<\/h[1-6]>|<p[^>]*>[\s\S]*?<\/p>/gi) || [];
+      for (const h of headingMatches) {
+        const clean = h.replace(/<[^>]+>/g, " ").trim();
+        const norm = normalizeText(clean);
+        if (norm.includes("objectif") && clean.length < 150) {
+          headingsFound.push(clean);
+        }
+      }
 
-      for (const tableHtml of tableMatches) {
+      // Method A: DOM table parsing with multi-page continuation support
+      const allTableMatches = decodedHtml.match(/<table[\s\S]*?<\/table>/gi) || [];
+      let activeSmartCol = -1;
+      let hasFoundSmartTable = false;
+
+      for (let t = 0; t < allTableMatches.length; t++) {
+        const tableHtml = allTableMatches[t];
         const rowMatches = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi) || [];
-        if (rowMatches.length > 1) {
-          const firstRow = rowMatches[0].toLowerCase();
-          if (firstRow.includes("objectif")) {
-            // Found objectives table! Extract 1st cell of each subsequent row
-            for (let r = 1; r < rowMatches.length; r++) {
-              const cellMatches = rowMatches[r].match(/<td[\s\S]*?<\/td>/gi) || [];
-              if (cellMatches.length > 0) {
-                // Strip HTML tags
-                const cleanText = cellMatches[0].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-                if (cleanText && cleanText.length > 2 && !cleanText.toLowerCase().startsWith("objectif")) {
-                  objectives.push(cleanText);
-                }
+        if (rowMatches.length === 0) continue;
+
+        // Extract text grid for this table
+        const grid: string[][] = [];
+        for (let r = 0; r < rowMatches.length; r++) {
+          const cellMatches = rowMatches[r].match(/<(td|th)[\s\S]*?<\/(td|th)>/gi) || [];
+          const rowCells = cellMatches.map(c => c.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").trim());
+          grid.push(rowCells);
+        }
+
+        const headerRow = grid[0] || [];
+        debugTables.push({
+          index: t + 1,
+          rowCount: rowMatches.length,
+          colCount: headerRow.length,
+          headers: headerRow,
+          rows: grid.slice(0, 10)
+        });
+
+        const firstRowText = normalizeText(headerRow.join(" "));
+
+        // Stop if a subsequent major section table is reached (e.g. visa / signatures / synthèse)
+        if (hasFoundSmartTable && (firstRowText.includes("visa") || firstRowText.includes("synthese") || firstRowText.includes("signature"))) {
+          break;
+        }
+
+        // Check if this table is the SMART objectives table
+        let tableSmartCol = -1;
+        for (let c = 0; c < headerRow.length; c++) {
+          const normCell = normalizeText(headerRow[c]);
+          if (
+            normCell.includes("specifique") ||
+            normCell.includes("s de smart") ||
+            normCell.includes("doivent etre specifiques") ||
+            (normCell.includes("objectif") && normCell.includes("smart"))
+          ) {
+            tableSmartCol = c;
+            break;
+          }
+        }
+
+        // Check row 1 as well in case of merged header
+        if (tableSmartCol === -1 && grid.length > 1) {
+          for (let c = 0; c < grid[1].length; c++) {
+            const normCell = normalizeText(grid[1][c]);
+            if (
+              normCell.includes("specifique") ||
+              normCell.includes("s de smart") ||
+              normCell.includes("doivent etre specifiques")
+            ) {
+              tableSmartCol = c;
+              break;
+            }
+          }
+        }
+
+        // If tableSmartCol is 0 or not found, check if column 0 is numbering and column 1 has text
+        if (headerRow.length >= 2) {
+          let col0IsNumbering = true;
+          let col1HasText = false;
+          for (let r = 1; r < grid.length; r++) {
+            const c0 = (grid[r][0] || "").trim();
+            const c1 = (grid[r][1] || "").trim();
+            if (c0 && !/^\d+[\.\)\:\-]?$/.test(c0)) {
+              col0IsNumbering = false;
+            }
+            if (c1 && c1.length > 3 && !/^\d+$/.test(c1)) {
+              col1HasText = true;
+            }
+          }
+          if (col0IsNumbering && col1HasText) {
+            tableSmartCol = 1;
+          }
+        }
+
+        if (tableSmartCol !== -1) {
+          hasFoundSmartTable = true;
+          activeSmartCol = tableSmartCol;
+          // Extract rows 1+ of this table
+          for (let r = 1; r < grid.length; r++) {
+            let rawCellText = grid[r][activeSmartCol] || "";
+            // If active column only has numbering and column 1 has text:
+            if ((/^\d+[\.\)\:\-]?$/.test(rawCellText.trim()) || !rawCellText.trim()) && grid[r].length > 1) {
+              const altText = (grid[r][1] || "").trim();
+              if (altText.length > 3 && !/^\d+$/.test(altText)) {
+                rawCellText = altText;
               }
             }
-            if (objectives.length > 0) break;
+
+            const clean = rawCellText.replace(/^[\s\d]+[\.\)\:\-\n\s]+/, "").trim();
+            const normClean = normalizeText(clean);
+            if (
+              clean &&
+              clean.length > 3 &&
+              !/^\d+$/.test(clean) &&
+              !normClean.startsWith("objectif") &&
+              !normClean.includes("specifique") &&
+              !normClean.includes("moyen terme") &&
+              !normClean.includes("vision carriere")
+            ) {
+              objectives.push(clean);
+            }
+          }
+        } else if (hasFoundSmartTable && activeSmartCol !== -1) {
+          // Multi-page table continuation (Page 2, 3...) that doesn't repeat the header row
+          const isHeaderRow = firstRowText.includes("objectif") || firstRowText.includes("benefice") || firstRowText.includes("moyen");
+          const startR = isHeaderRow ? 1 : 0;
+
+          for (let r = startR; r < grid.length; r++) {
+            let rawCellText = grid[r][activeSmartCol] || "";
+            if ((/^\d+[\.\)\:\-]?$/.test(rawCellText.trim()) || !rawCellText.trim()) && grid[r].length > 1) {
+              const altText = (grid[r][1] || "").trim();
+              if (altText.length > 3 && !/^\d+$/.test(altText)) {
+                rawCellText = altText;
+              }
+            }
+
+            const clean = rawCellText.replace(/^[\s\d]+[\.\)\:\-\n\s]+/, "").trim();
+            const normClean = normalizeText(clean);
+            if (
+              clean &&
+              clean.length > 3 &&
+              !/^\d+$/.test(clean) &&
+              !normClean.startsWith("objectif") &&
+              !normClean.includes("specifique") &&
+              !normClean.includes("moyen terme") &&
+              !normClean.includes("vision carriere")
+            ) {
+              objectives.push(clean);
+            }
           }
         }
       }
 
-      // If no table matched by "objectif" header, fallback to Gemini with the raw text to locate the objectives
+      // Method B: If table parsing returned 0 items, fallback to raw text
+      let rawTextSnippet = "";
       if (objectives.length === 0) {
         const rawText = (await mammoth.extractRawText({ buffer })).value || "";
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (apiKey && rawText.trim()) {
-          const ai = new GoogleGenAI({
-            apiKey: apiKey,
-            httpOptions: { headers: { "User-Agent": "aistudio-build" } },
-          });
+        rawTextSnippet = rawText.substring(0, 500);
 
-          const geminiRes = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: [
-              {
-                text: `Extrais uniquement la liste des objectifs fixés pour l'année prochaine depuis la section "Les objectifs pour l’année prochaine" du document suivant. Ne renvoie rien d'autre que les énoncés d'objectifs sous forme d'un tableau JSON de chaînes de caractères.
-                
-Document:
-${rawText}`
-              }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
+        const lowerRaw = rawText.toLowerCase();
+        let startIdx = lowerRaw.indexOf("doivent être spécifiques");
+        if (startIdx === -1) startIdx = lowerRaw.indexOf("doivent etre specifiques");
+        if (startIdx === -1) startIdx = lowerRaw.indexOf("s de smart");
+        if (startIdx === -1) startIdx = lowerRaw.indexOf("objectifs pour l'année prochaine");
+        if (startIdx === -1) startIdx = lowerRaw.indexOf("objectifs pour l’année prochaine");
+
+        if (startIdx !== -1) {
+          const slice = rawText.substring(startIdx);
+          const lines = slice.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (/^(visa|avis du manager|commentaires généraux|synthèse globale)/i.test(line)) {
+              break;
+            }
+
+            // Case 1: Line is digit "1" or "2", followed by objective text on next line
+            if (/^[1-9]$/.test(line)) {
+              const nextLine = lines[i + 1] || "";
+              if (
+                nextLine &&
+                nextLine.length > 3 &&
+                !/^[1-9]$/.test(nextLine) &&
+                !nextLine.toLowerCase().startsWith("bénéfice") &&
+                !nextLine.toLowerCase().startsWith("afin de") &&
+                !nextLine.toLowerCase().startsWith("moyen") &&
+                !nextLine.toLowerCase().startsWith("mesure") &&
+                !nextLine.toLowerCase().includes("moyen-terme") &&
+                !nextLine.toLowerCase().includes("vision / carrière")
+              ) {
+                objectives.push(nextLine.trim());
               }
             }
-          });
-
-          const list = JSON.parse(geminiRes.text?.trim() || "[]");
-          if (Array.isArray(list) && list.length > 0) {
-            objectives.push(...list);
+            // Case 2: Line begins with digit e.g. "1 Montée en compétence..." or "1. Montée..."
+            else if (/^[1-9][\.\)\:\-\s]+[A-Za-zÀ-ÿ]/.test(line)) {
+              const clean = line.replace(/^[1-9][\.\)\:\-\s]+/, "").trim();
+              if (
+                clean.length > 3 &&
+                !clean.toLowerCase().includes("moyen-terme") &&
+                !clean.toLowerCase().includes("vision / carrière")
+              ) {
+                objectives.push(clean);
+              }
+            }
           }
         }
       }
 
-      return res.json({ success: true, objectives });
+      const debugInfo = {
+        fileName: "Document Word (.docx)",
+        fileMimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headingsFound,
+        tables: debugTables,
+        rawTextPreview: rawTextSnippet,
+        message: `${objectives.length} objectif(s) extrait(s), ${debugTables.length} tableau(x) analysé(s)`
+      };
+
+      console.log(`Extracted ${objectives.length} objectives from Word file. Tables:`, debugTables.length);
+
+      return res.json({ success: true, objectives, debugInfo });
     } catch (error: any) {
       console.error("Extract Word objectives error:", error);
       return res.status(500).json({ error: error.message || "Erreur lors de l'extraction du document Word." });

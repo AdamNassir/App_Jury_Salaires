@@ -9,15 +9,34 @@ export interface ExtractedObjectiveItem {
   reached: 'OUI' | 'NON' | 'PARTIEL';
 }
 
+export interface DebugTableInfo {
+  index: number;
+  rowCount: number;
+  colCount: number;
+  headers: string[];
+  rows: string[][];
+}
+
+export interface DriveDebugInfo {
+  fileName: string;
+  fileMimeType: string;
+  headingsFound: string[];
+  tables: DebugTableInfo[];
+  rawTextPreview?: string;
+  message?: string;
+}
+
 export interface DriveImportResult {
   success: boolean;
   file?: {
     id: string;
     name: string;
+    mimeType?: string;
     webViewLink?: string;
   };
   priorYear: number;
   objectives: ExtractedObjectiveItem[];
+  debugInfo?: DriveDebugInfo;
   error?: string;
 }
 
@@ -117,9 +136,27 @@ export class DriveObjectivesService {
   }
 
   /**
+   * Normalise une chaîne pour comparaison robuste (sans accents, sans ponctuation, sans deux-points, etc.)
+   */
+  static normalizeText(str: string): string {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[’'"`]/g, "'")
+      .replace(/[\s\u00A0]+/g, ' ')
+      .replace(/[^a-z0-9\s]/g, '')
+      .trim();
+  }
+
+  /**
    * Extrait les objectifs de la table "Les objectifs pour l’année prochaine" depuis un Google Doc
    */
-  static async extractFromGoogleDoc(accessToken: string, fileId: string): Promise<string[]> {
+  static async extractFromGoogleDoc(
+    accessToken: string,
+    fileId: string,
+    fileName: string
+  ): Promise<{ objectives: string[]; debugInfo: DriveDebugInfo }> {
     const url = `https://docs.googleapis.com/v1/documents/${fileId}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -134,74 +171,220 @@ export class DriveObjectivesService {
     const content = doc.body?.content || [];
 
     const objectives: string[] = [];
+    const debugTables: DebugTableInfo[] = [];
+    const headingsFound: string[] = [];
+
     let isInsideTargetSection = false;
+    let hasFoundSmartTable = false;
+    let activeSmartCol = 0; // Par défaut colonne 0 (première colonne)
+
+    let tableCounter = 0;
 
     for (let i = 0; i < content.length; i++) {
       const element = content[i];
 
-      // Vérifie si le paragraphe annonce les objectifs futurs
+      // Détection des paragraphes et titres
       if (element.paragraph) {
-        const text = element.paragraph.elements
+        const rawText = element.paragraph.elements
           ?.map((e: any) => e.textRun?.content || '')
           .join('')
-          .toLowerCase() || '';
+          .trim() || '';
 
-        if (text.includes('objectifs pour l’année prochaine') || text.includes("objectifs pour l'année prochaine")) {
+        const normText = DriveObjectivesService.normalizeText(rawText);
+
+        if (normText.includes('objectif')) {
+          headingsFound.push(rawText);
+        }
+
+        // Ignorer explicitement la section Vision / Carrière moyen-terme
+        if (
+          normText.includes('moyen terme') ||
+          normText.includes('vision carriere')
+        ) {
+          isInsideTargetSection = false;
+        }
+
+        // Détection de la section des objectifs de l'année prochaine (tolère ponctuation, deux-points, etc.)
+        if (
+          normText.includes('objectifs pour lannee prochaine') ||
+          normText.includes('objectifs de lannee prochaine') ||
+          normText.includes('objectifs lannee prochaine') ||
+          normText.includes('objectifs pour lannee a venir')
+        ) {
           isInsideTargetSection = true;
+        }
+
+        // Si une section terminale commence après la table
+        if (
+          hasFoundSmartTable &&
+          (normText.includes('commentaires generaux') ||
+            normText.includes('avis du manager') ||
+            normText.includes('visa du collaborateur') ||
+            normText.includes('synthese'))
+        ) {
+          break;
         }
       }
 
-      // Si une table apparaît
+      // Analyse des tableaux Google Docs
       if (element.table) {
+        tableCounter++;
         const tableRows = element.table.tableRows || [];
+        const currentTableIndex = tableCounter;
+
         if (tableRows.length > 0) {
-          // Si nous sommes dans la section ciblée ou si la première ligne de la table est l'en-tête des objectifs
-          const firstRowCells = tableRows[0].tableCells || [];
-          const headerText = firstRowCells
-            .map((c: any) =>
-              (c.content || [])
+          // Extraire toutes les cellules pour le diagnostic et l'analyse
+          const extractedGrid: string[][] = [];
+          for (let r = 0; r < tableRows.length; r++) {
+            const cells = tableRows[r].tableCells || [];
+            const rowCells: string[] = [];
+            for (let c = 0; c < cells.length; c++) {
+              const cellText = (cells[c].content || [])
                 .map((p: any) => (p.paragraph?.elements || []).map((e: any) => e.textRun?.content || '').join(''))
-                .join(' ')
-            )
-            .join(' ')
-            .toLowerCase();
+                .join('\n')
+                .trim();
+              rowCells.push(cellText);
+            }
+            extractedGrid.push(rowCells);
+          }
 
-          const isObjectivesTable =
-            isInsideTargetSection ||
-            headerText.includes('objectif') ||
-            headerText.includes('bénéfice') ||
-            headerText.includes('indicateur');
+          const headerRow = extractedGrid[0] || [];
+          const colCount = headerRow.length;
 
-          if (isObjectivesTable) {
-            // Parcourir chaque ligne après l'en-tête (index 1+)
-            for (let r = 1; r < tableRows.length; r++) {
-              const cells = tableRows[r].tableCells || [];
-              if (cells.length > 0) {
-                // La 1ère colonne est l'objectif
-                const objectiveCellText = (cells[0].content || [])
-                  .map((p: any) => (p.paragraph?.elements || []).map((e: any) => e.textRun?.content || '').join(''))
-                  .join(' ')
-                  .trim();
+          debugTables.push({
+            index: currentTableIndex,
+            rowCount: tableRows.length,
+            colCount,
+            headers: headerRow,
+            rows: extractedGrid.slice(0, 10) // Échantillon des 10 premières lignes
+          });
 
-                // Filtrer les chaînes vides et en-têtes parasites
-                if (
-                  objectiveCellText &&
-                  objectiveCellText.length > 2 &&
-                  !objectiveCellText.toLowerCase().startsWith('objectif')
-                ) {
-                  objectives.push(objectiveCellText);
-                }
+          // Détecter si cette table est la table d'objectifs SMART
+          let tableSmartCol = -1;
+
+          // Vérifier d'abord si une cellule d'en-tête (ligne 0 ou 1) contient les mots-clés SMART
+          for (let r = 0; r < Math.min(2, extractedGrid.length); r++) {
+            for (let c = 0; c < extractedGrid[r].length; c++) {
+              const normCell = DriveObjectivesService.normalizeText(extractedGrid[r][c]);
+              if (
+                normCell.includes('specifique') ||
+                normCell.includes('s de smart') ||
+                normCell.includes('doivent etre specifiques') ||
+                (normCell.includes('objectif') && normCell.includes('smart'))
+              ) {
+                tableSmartCol = c;
+                break;
               }
             }
+            if (tableSmartCol !== -1) break;
+          }
 
-            // Si on a extrait les objectifs, on s'arrête
-            if (objectives.length > 0) break;
+          // Si on est dans la section "objectifs pour l'année prochaine" et qu'aucune colonne n'a le label SMART explicite
+          if (tableSmartCol === -1 && isInsideTargetSection) {
+            // Dans ce tableau, chercher la colonne dont l'en-tête parle d'objectif (sans moyen terme)
+            for (let c = 0; c < headerRow.length; c++) {
+              const normCell = DriveObjectivesService.normalizeText(headerRow[c]);
+              if (normCell.includes('objectif') && !normCell.includes('moyen terme') && !normCell.includes('vision')) {
+                tableSmartCol = c;
+                break;
+              }
+            }
+            // Par défaut dans cette section, si au moins 2 colonnes, la colonne 0 est la numérotation et la colonne 1 est l'objectif
+            if (tableSmartCol === -1 && colCount >= 2) {
+              tableSmartCol = 1;
+            } else if (tableSmartCol === -1) {
+              tableSmartCol = 0;
+            }
+          }
+
+          // Vérification supplémentaire : si tableSmartCol pointe sur la colonne 0 mais que la colonne 0 ne contient
+          // que la numérotation (1, 2, 3...) et que la colonne 1 contient le libellé des objectifs
+          if (tableSmartCol === 0 && colCount >= 2) {
+            let col0IsNumbering = true;
+            let col1HasText = false;
+            for (let r = 1; r < extractedGrid.length; r++) {
+              const c0 = (extractedGrid[r][0] || '').trim();
+              const c1 = (extractedGrid[r][1] || '').trim();
+              if (c0 && !/^\d+[\.\)\:\-]?$/.test(c0)) {
+                col0IsNumbering = false;
+              }
+              if (c1 && c1.length > 3 && !/^\d+$/.test(c1)) {
+                col1HasText = true;
+              }
+            }
+            if (col0IsNumbering && col1HasText) {
+              tableSmartCol = 1;
+            }
+          }
+
+          // Extraction des données
+          if (tableSmartCol !== -1) {
+            hasFoundSmartTable = true;
+            activeSmartCol = tableSmartCol;
+
+            for (let r = 1; r < extractedGrid.length; r++) {
+              let rawCellText = extractedGrid[r][activeSmartCol] || '';
+              // Si la cellule sélectionnée est un simple numéro et que la colonne 1 existe avec du texte
+              if ((/^\d+[\.\)\:\-]?$/.test(rawCellText.trim()) || !rawCellText.trim()) && extractedGrid[r].length > 1) {
+                const altText = (extractedGrid[r][1] || '').trim();
+                if (altText.length > 3 && !/^\d+$/.test(altText)) {
+                  rawCellText = altText;
+                }
+              }
+
+              const cleanObjective = rawCellText.replace(/^[\s\d]+[\.\)\:\-\n\s]+/, '').trim();
+              const normClean = DriveObjectivesService.normalizeText(cleanObjective);
+              if (
+                cleanObjective &&
+                cleanObjective.length > 3 &&
+                !/^\d+$/.test(cleanObjective) &&
+                !normClean.startsWith('objectif') &&
+                !normClean.includes('specifique') &&
+                !normClean.includes('moyen terme') &&
+                !normClean.includes('vision carriere')
+              ) {
+                objectives.push(cleanObjective);
+              }
+            }
+          } else if (hasFoundSmartTable && activeSmartCol !== -1) {
+            // Continuation multi-pages sur la page suivante sans en-tête
+            for (let r = 0; r < extractedGrid.length; r++) {
+              let rawCellText = extractedGrid[r][activeSmartCol] || '';
+              if ((/^\d+[\.\)\:\-]?$/.test(rawCellText.trim()) || !rawCellText.trim()) && extractedGrid[r].length > 1) {
+                const altText = (extractedGrid[r][1] || '').trim();
+                if (altText.length > 3 && !/^\d+$/.test(altText)) {
+                  rawCellText = altText;
+                }
+              }
+
+              const cleanObjective = rawCellText.replace(/^[\s\d]+[\.\)\:\-\n\s]+/, '').trim();
+              const normClean = DriveObjectivesService.normalizeText(cleanObjective);
+              if (
+                cleanObjective &&
+                cleanObjective.length > 3 &&
+                !/^\d+$/.test(cleanObjective) &&
+                !normClean.startsWith('objectif') &&
+                !normClean.includes('specifique') &&
+                !normClean.includes('moyen terme') &&
+                !normClean.includes('vision carriere')
+              ) {
+                objectives.push(cleanObjective);
+              }
+            }
           }
         }
       }
     }
 
-    return objectives;
+    const debugInfo: DriveDebugInfo = {
+      fileName,
+      fileMimeType: 'application/vnd.google-apps.document',
+      headingsFound,
+      tables: debugTables,
+      message: `${objectives.length} objectif(s) extrait(s), ${debugTables.length} tableau(x) analysé(s)`
+    };
+
+    return { objectives, debugInfo };
   }
 
   /**
@@ -222,10 +405,13 @@ export class DriveObjectivesService {
       const file = await this.findCandidateFile(accessToken, yearFolder.id, matricule);
 
       let extractedTexts: string[] = [];
+      let debugInfo: DriveDebugInfo | undefined;
 
       // 3. Extraction selon le type
       if (file.mimeType === 'application/vnd.google-apps.document') {
-        extractedTexts = await this.extractFromGoogleDoc(accessToken, file.id);
+        const res = await this.extractFromGoogleDoc(accessToken, file.id, file.name);
+        extractedTexts = res.objectives;
+        debugInfo = res.debugInfo;
       } else {
         // Fichier Word (.docx) : appel à l'endpoint serveur dédié
         const parseRes = await fetch('/api/drive/extract-word-objectives', {
@@ -244,12 +430,23 @@ export class DriveObjectivesService {
 
         const data = await parseRes.json();
         extractedTexts = data.objectives || [];
+        debugInfo = data.debugInfo;
       }
 
       if (extractedTexts.length === 0) {
-        throw new Error(
-          `Le document "${file.name}" a été trouvé, mais aucun objectif n'a pu être extrait du tableau "Les objectifs pour l’année prochaine".`
-        );
+        return {
+          success: false,
+          file: {
+            id: file.id,
+            name: file.name,
+            mimeType: file.mimeType,
+            webViewLink: file.webViewLink
+          },
+          priorYear,
+          objectives: [],
+          debugInfo,
+          error: `Le document "${file.name}" a été trouvé, mais aucun objectif n'a pu être extrait du tableau "Les objectifs pour l’année prochaine".`
+        };
       }
 
       const formattedObjectives: ExtractedObjectiveItem[] = extractedTexts.map(text => ({
@@ -263,10 +460,12 @@ export class DriveObjectivesService {
         file: {
           id: file.id,
           name: file.name,
+          mimeType: file.mimeType,
           webViewLink: file.webViewLink
         },
         priorYear,
-        objectives: formattedObjectives
+        objectives: formattedObjectives,
+        debugInfo
       };
     } catch (error: any) {
       return {

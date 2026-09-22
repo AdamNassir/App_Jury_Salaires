@@ -13,12 +13,15 @@ export function DataBox({ label, value }: { label: string; value?: string | numb
   );
 }
 
-export function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+export function Section({ title, subtitle, children, action }: { title: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm relative overflow-hidden">
       <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl" />
-      <h2 className="text-secondary mb-2 relative">{title}</h2>
-      <p className="text-xl text-accent/40 mb-12 pb-10 border-b border-accent/10 font-light italic relative">{subtitle}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2 relative">
+        <h2 className="text-secondary">{title}</h2>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+      {subtitle && <p className="text-xl text-accent/40 mb-12 pb-10 border-b border-accent/10 font-light italic relative">{subtitle}</p>}
       <div className="relative">{children}</div>
     </div>
   );

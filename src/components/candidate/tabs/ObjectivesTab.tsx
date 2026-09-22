@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, CloudDownload, Loader2 } from 'lucide-react';
 import { Section, FormField } from '../CandidateUI';
 import { AnnualReport } from '../../../types';
 import { cn } from '../../../lib/utils';
@@ -8,9 +8,16 @@ import { cn } from '../../../lib/utils';
 interface ObjectivesTabProps {
   reportData: AnnualReport;
   setReportData: React.Dispatch<React.SetStateAction<AnnualReport>>;
+  handleImportPastYearObjectives?: () => Promise<void>;
+  isImportingPastObjectives?: boolean;
 }
 
-export function ObjectivesTab({ reportData, setReportData }: ObjectivesTabProps) {
+export function ObjectivesTab({
+  reportData,
+  setReportData,
+  handleImportPastYearObjectives,
+  isImportingPastObjectives
+}: ObjectivesTabProps) {
   const addObjectivePast = () => {
     setReportData(prev => ({
       ...prev,
@@ -20,7 +27,27 @@ export function ObjectivesTab({ reportData, setReportData }: ObjectivesTabProps)
 
   return (
     <motion.div key="obj-p" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <Section title="Objectifs de l'année précédente" subtitle="Faites le point sur les engagements pris l'an dernier.">
+      <Section
+        title="Objectifs de l'année précédente"
+        subtitle="Faites le point sur les engagements pris l'an dernier."
+        action={
+          handleImportPastYearObjectives ? (
+            <button
+              type="button"
+              onClick={handleImportPastYearObjectives}
+              disabled={isImportingPastObjectives}
+              className="flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isImportingPastObjectives ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CloudDownload className="w-4 h-4" />
+              )}
+              <span>{isImportingPastObjectives ? 'Import...' : 'Importer Bilan Année Passée'}</span>
+            </button>
+          ) : undefined
+        }
+      >
         <div className="space-y-6">
           {reportData.previousObjectives.map((obj, idx) => (
             <div key={idx} className="p-8 bg-accent/5 rounded-xl border border-accent/10 relative group">
