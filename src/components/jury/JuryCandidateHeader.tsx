@@ -21,7 +21,23 @@ export function JuryCandidateHeader({
   calculateAverageTargetTJM,
   referenceDate
 }: JuryCandidateHeaderProps) {
-  const yearsLL = candidate?.entryDate ? calculateYears(candidate.entryDate, referenceDate) : null;
+  const currentGrade = candidate?.currentGrade || dossier.annualReport?.currentGrade || 'Junior';
+  const gradeOrder: Record<string, number> = {
+    Junior: 0,
+    'Confirmé': 1,
+    Senior: 2,
+    Expert: 3
+  };
+  const storedWishedGrade = dossier.annualReport?.wishedGrade;
+  const wishedGrade = storedWishedGrade &&
+    (gradeOrder[storedWishedGrade] ?? -1) >= (gradeOrder[currentGrade] ?? 0)
+      ? storedWishedGrade
+      : currentGrade;
+  const yearsLL = candidate?.ancienneteLL !== undefined && candidate?.ancienneteLL !== null
+    ? candidate.ancienneteLL
+    : candidate?.entryDate
+      ? calculateYears(candidate.entryDate, referenceDate)
+      : null;
   const juryMembers = useMemo(() => UserDirectoryService.getJuryMembers(), []);
 
   const handleAssignReferent = async (referentName: string) => {
@@ -109,13 +125,12 @@ export function JuryCandidateHeader({
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">TJM Actuel & TJM Cible</h4>
-              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Tarif Journalier Moyen</p>
+              <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">TJ Vendu & TJ Cible</h4>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-6 sm:gap-12">
             <div className="flex items-baseline gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Actuel :</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Vendu :</span>
               <span className="text-base font-bold text-accent">
                 {candidate?.currentTJM ? `${candidate.currentTJM}€ / j` : 'N/A'}
               </span>
@@ -142,21 +157,20 @@ export function JuryCandidateHeader({
             </div>
             <div>
               <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">Grade Actuel & Grade Souhaité</h4>
-              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Séniorité & Rôle</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-6 sm:gap-12">
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-accent/30">Actuel :</span>
               <span className="text-base font-bold text-accent">
-                {candidate?.currentGrade || 'Junior'}
+                {currentGrade}
               </span>
             </div>
             <div className="h-4 w-px bg-accent/10 hidden sm:block" />
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-secondary">Souhaité :</span>
               <span className="text-base font-bold text-secondary uppercase">
-                {dossier.annualReport?.wishedGrade || 'N/A'}
+                {wishedGrade}
               </span>
             </div>
           </div>
@@ -170,7 +184,6 @@ export function JuryCandidateHeader({
             </div>
             <div>
               <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">Salaire Actuel & Salaire Souhaité</h4>
-              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Rémunération Annuelle Brute</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-6 sm:gap-12">
@@ -198,7 +211,6 @@ export function JuryCandidateHeader({
             </div>
             <div>
               <h4 className="text-xs font-black uppercase tracking-wider text-accent/60">Années d’expérience & Ancienneté chez LL</h4>
-              <p className="text-[10px] text-accent/30 uppercase tracking-widest mt-0.5">Parcours & Fidélité</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-6 sm:gap-12">

@@ -1,6 +1,6 @@
 import { defaultReportData } from '../data/defaultAnnualReport';
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, setDoc, updateDoc, serverTimestamp, collection, getDocs, query, where, getDoc } from '../lib/localDatabase';
+import { doc, setDoc, collection, getDocs, query, where, getDoc } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, AnnualReport, ClientFeedback, Grade, PreviousObjective, NextObjective, Satisfaction, DossierStatus, DossierDocument } from '../types';
 import { LocalDatabaseService } from '../services/localDatabaseService';
@@ -70,13 +70,13 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     wishedGrade: profile.currentGrade || 'Confirmé',
     currentSalary: profile.currentSalary || 0,
     currentGrade: profile.currentGrade,
+    currentTJSalaire: profile.currentTJSalaire || 0,
     currentTJM: profile.currentTJM || 0,
     ...(dossier?.annualReport || {})
   });
 
   const [feedbacks, setFeedbacks] = useState<ClientFeedback[]>(dossier?.clientFeedbacks || []);
 
-  const [showSubmitTooltip, setShowSubmitTooltip] = useState(false);
   const isFirstRenderForAutosave = useRef(true);
 
   // Re-initialize reportData and feedbacks whenever selected candidate or dossier changes
@@ -88,6 +88,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         wishedGrade: profile.currentGrade || 'Confirmé',
         currentSalary: profile.currentSalary || 0,
         currentGrade: profile.currentGrade,
+        currentTJSalaire: profile.currentTJSalaire || 0,
         currentTJM: profile.currentTJM || 0,
         ...dossier.annualReport
       });
@@ -97,6 +98,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         wishedGrade: profile.currentGrade || 'Confirmé',
         currentSalary: profile.currentSalary || 0,
         currentGrade: profile.currentGrade,
+        currentTJSalaire: profile.currentTJSalaire || 0,
         currentTJM: profile.currentTJM || 0,
       });
     }
@@ -270,17 +272,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     return Math.min(100, Math.round((filledCount / totalFields) * 100));
   };
 
-  const isComplete = 
-    !!reportData.yearSummary && 
-    !!reportData.synthesis && 
-    !!reportData.missionClients?.length &&
-    reportData.missionClients.every(row => row.client.trim() && row.actions.trim() && row.grade && row.comment.trim()) &&
-    !!reportData.careerGoals &&
-    reportData.wishedSalary > 0 &&
-    reportData.targetTJM > 0 &&
-    reportData.nextObjectives.length > 0 &&
-    feedbacks.length > 0;
-
   const handleSave = async (submit: boolean = false, isSilent: boolean = false) => {
     if (isLockedForEditing && !isSilent) {
       alert('Ce dossier est validé et ne peut plus être modifié.');
@@ -290,19 +281,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
     if (isSilent) setSaveStatus('saving');
     else setLoading(true);
-
-    if (submit) {
-      if (reportData.wishedSalary > 0 && reportData.wishedSalary < (profile.currentSalary || 0)) {
-        alert(`La rémunération souhaitée (${formatCurrency(reportData.wishedSalary)}) ne peut pas être inférieure à votre salaire actuel (${formatCurrency(profile.currentSalary || 0)}).`);
-        setLoading(false);
-        return;
-      }
-      if (profile.currentTJM && reportData.targetTJM > 0 && reportData.targetTJM < profile.currentTJM) {
-        alert(`Le TJM cible (${reportData.targetTJM}€) ne peut pas être inférieur à votre TJM vendu actuel (${profile.currentTJM}€).`);
-        setLoading(false);
-        return;
-      }
-    }
 
     try {
       let updatedDocs = dossier?.documents || [];
@@ -393,27 +371,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }
   };
 
-  const handleSubmit = async () => {
-    if (!isComplete) {
-      alert('Votre dossier doit être quasi-complet pour être soumis.');
-      return;
-    }
-    if (!dossier) return;
-    setLoading(true);
-    try {
-      await updateDoc(doc(db, 'dossiers', dossier.id), {
-        status: 'COMPLET',
-        updatedAt: serverTimestamp()
-      });
-      alert('Dossier soumis avec succès !');
-    } catch (error) {
-      console.error("Submit error:", error);
-      alert('Erreur lors de la soumission.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const addObjectivePast = () => {
     setReportData({
       ...reportData,
@@ -447,7 +404,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             <DataBox label="Matricule" value={profile.matricule} />
             <DataBox label="Date Entrée" value={profile.entryDate ? new Date(profile.entryDate).toLocaleDateString() : 'N/A'} />
             <DataBox label="Expérience" value={`${profile.experienceYears} ans`} />
-            <DataBox label="TJM Actuel" value={`${profile.currentTJM}€`} />
+            <DataBox label="TJ Vendu" value={`${profile.currentTJM}€`} />
             <DataBox label="Salaire Actuel" value={formatCurrency(profile.currentSalary || 0)} />
             <DataBox label="Grade Actuel" value={profile.currentGrade} />
           </div>
@@ -561,15 +518,15 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             count={dossier?.documents?.length || 0} 
             badge={!hasUploadedDocs ? "Recommandé" : undefined}
           />
-          <TabButton active={activeTab === 'SYNTHESE'} onClick={() => setActiveTab('SYNTHESE')} label="Introduction & Synthèse" required />
+          <TabButton active={activeTab === 'SYNTHESE'} onClick={() => setActiveTab('SYNTHESE')} label="Introduction & Synthèse" />
           <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => setActiveTab('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
-          <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Savoir-faire" required />
+          <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Savoir-faire" />
           {engagementSections.map(section => (
             <div key={section.id}>
-              <TabButton active={activeTab === section.id} onClick={() => setActiveTab(section.id)} label={section.label} required={section.id === 'AUTONOMIE'} />
+              <TabButton active={activeTab === section.id} onClick={() => setActiveTab(section.id)} label={section.label} />
             </div>
           ))}
-          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={feedbacks.length} required />
+          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={feedbacks.length} />
           {isDossierComplet && (
             <>
               <TabButton 
@@ -586,7 +543,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
               />
             </>
           )}
-          <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => setActiveTab('PRETENTIONS')} label="Objectifs" required />
+          <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => setActiveTab('PRETENTIONS')} label="Objectifs" />
           <TabButton active={activeTab === 'CALCULATRICE'} onClick={() => setActiveTab('CALCULATRICE')} label="Calculette du salaire" />
 
           <div className="pt-8 mt-8 border-t border-accent/10">
@@ -642,25 +599,17 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             )}
             
             <div className="relative w-full">
-              <div 
-                className="w-full"
-                onMouseEnter={() => {
-                  if (!isComplete && !isLockedForEditing) {
-                    setShowSubmitTooltip(true);
-                  }
-                }}
-                onMouseLeave={() => setShowSubmitTooltip(false)}
-              >
+              <div className="w-full">
                 <button 
                   onClick={() => {
-                    if ((isComplete || isJuryUser) && !loading && !isLockedForEditing) {
+                    if (!loading && !isLockedForEditing) {
                       handleSave(true);
                     }
                   }}
-                  disabled={loading || isLockedForEditing || (!isComplete && !isJuryUser)}
+                  disabled={loading || isLockedForEditing}
                   className={cn(
                     "w-full py-4 rounded-xl text-base font-bold transition-all flex items-center justify-center gap-3 shadow-xl",
-                    (isComplete || isJuryUser) && !isLockedForEditing 
+                    !isLockedForEditing
                       ? "bg-primary text-white shadow-primary/20 cursor-pointer" 
                       : "bg-accent/5 text-accent/20 cursor-not-allowed"
                   )}
@@ -668,19 +617,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
                   <Send className="w-5 h-5" /> {isJuryUser && dossier?.status === 'COMPLET' ? 'Mettre à jour & Générer PDF' : 'Soumettre le dossier'}
                 </button>
               </div>
-              <AnimatePresence>
-                {showSubmitTooltip && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 5 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    exit={{ opacity: 0, y: 5 }}
-                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-accent text-white text-xs rounded-base shadow-xl z-50 text-center leading-relaxed pointer-events-none"
-                  >
-                    Pour soumettre le dossier merci de renseigner tous les champs obligatoires
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-accent" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           </div>
         </div>

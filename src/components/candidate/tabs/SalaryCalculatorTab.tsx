@@ -16,7 +16,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
   const effectiveCurrent = (reportData.currentGrade || profile.currentGrade || 'Confirmé') as Grade | 'Junior';
   const effectiveWished = (reportData.wishedGrade || effectiveCurrent) as Grade | 'Junior';
 
-  const [tjVendu, setTjVendu] = useState<number>(profile.currentTJM || 0);
+  const [tjVendu, setTjVendu] = useState<number>(profile.currentTJM || reportData.currentTJM || 0);
   const [tjCible, setTjCible] = useState<number>(reportData.targetTJM || profile.currentTJM || 0);
   
   const [currentGrade, setCurrentGrade] = useState<Grade | 'Junior'>(effectiveCurrent);
@@ -79,7 +79,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
             <Calculator className="w-8 h-8 text-primary" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-accent tracking-tighter">Calculette de Salaire</h2>
+            <h2 className="text-2xl font-bold text-accent tracking-tighter">Calculette du salaire</h2>
             <p className="text-accent/60 font-light text-sm">Simulatrice de rémunération globale (Formules Logiclever).</p>
           </div>
         </div>

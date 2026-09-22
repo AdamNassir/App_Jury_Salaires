@@ -22,12 +22,7 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
     SYNTHESE: true
   });
   const toggleTab = (tab: string) => {
-    setExpandedTabs(prev => {
-      const isCurrentlyOpen = !!prev[tab];
-      return {
-        [tab]: !isCurrentlyOpen
-      };
-    });
+    setExpandedTabs({ [tab]: true });
   };
   const [zoomData, setZoomData] = useState<{ title: string; content: string } | null>(null);
   const [filterStatus, setFilterStatus] = useState<Dossier['status'] | 'ALL'>('ALL');
@@ -124,6 +119,7 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
       roles: ['CANDIDATE'],
       currentGrade: selectedDossier.annualReport?.currentGrade,
       currentSalary: selectedDossier.annualReport?.currentSalary,
+      currentTJSalaire: selectedDossier.annualReport?.currentTJSalaire,
       currentTJM: selectedDossier.annualReport?.currentTJM
     } as UserProfile
   ) : null;

@@ -21,7 +21,7 @@ import {
   AnnualReport,
   CampaignParticipant
 } from '../types';
-import { cleanString, normalizeHeader, parseFrenchNumber } from './campaignInitializationService';
+import { cleanString, normalizeHeader, parseFrenchNumber, readImportWorkbook } from './campaignInitializationService';
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
 
@@ -239,8 +239,7 @@ export class CampaignCatchupService {
    * - Col C (index 2) : Prenom_Profil
    */
   static async parseProfilesReferenceFile(file: File): Promise<ProfileReferenceItem[]> {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    const workbook = await readImportWorkbook(file);
 
     let targetSheetName = workbook.SheetNames.find(s => {
       const norm = normalizeHeader(s);
@@ -330,8 +329,7 @@ export class CampaignCatchupService {
    * - Salaire au 30/06/... (TJ salaire) : Col P (index 15)
    */
   static async parseDeliberationFile(file: File): Promise<DeliberationParsedRow[]> {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    const workbook = await readImportWorkbook(file);
 
     let targetSheetName = workbook.SheetNames.find(s => {
       const norm = normalizeHeader(s);
@@ -483,8 +481,7 @@ export class CampaignCatchupService {
    * - Col J à P : Relations (Auto_Evaluation, Commerciale, Encadrement, Meteo_Client, Coach, Logiclever, Collégue_Mission)
    */
   static async parseEvaluationsFile(file: File): Promise<EvaluationParsedRow[]> {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    const workbook = await readImportWorkbook(file);
 
     let targetSheetName = workbook.SheetNames.find(s => {
       const norm = normalizeHeader(s);

@@ -376,7 +376,7 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 text-sm">
                   <div>
-                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">TJM Actuel</div>
+                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">TJ Vendu</div>
                     <div className="font-bold text-accent text-lg">
                       {candidates[selectedDossier.candidateId]?.currentTJM || selectedDossier.annualReport?.currentTJM ? `${candidates[selectedDossier.candidateId]?.currentTJM || selectedDossier.annualReport?.currentTJM}€` : 'Non renseigné'}
                     </div>

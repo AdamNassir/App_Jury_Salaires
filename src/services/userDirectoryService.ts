@@ -33,6 +33,7 @@ class UserDirectoryServiceImpl {
       currentGrade: data.currentGrade || 'Senior',
       currentSalary: Number(data.currentSalary) || 0,
       currentTJM: Number(data.currentTJM) || 0,
+      currentTJSalaire: Number(data.currentTJSalaire) || 0,
       entryDate: data.entryDate || '',
       expertGradeDate: data.expertGradeDate || '',
       experienceYears: Number(data.experienceYears) || 0,

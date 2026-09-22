@@ -75,7 +75,7 @@ export function generateDossierPDF(
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
-  doc.text(`TJM Actuel : ${profile.currentTJM || reportData.currentTJM || 0} €`, margin + 5, y + 20);
+  doc.text(`TJ Vendu : ${profile.currentTJM || reportData.currentTJM || 0} €`, margin + 5, y + 20);
   doc.text(`TJM Cible : ${reportData.targetTJM || 0} €`, margin + 45, y + 20);
 
   y += 30;

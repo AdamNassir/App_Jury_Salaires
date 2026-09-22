@@ -320,7 +320,7 @@ export function CreateCampaignModal({
                     <span className="text-xs bg-primary text-white px-2.5 py-0.5 rounded-full font-bold uppercase">Requis</span>
                   </div>
                   <p className="text-xs text-accent/70 leading-relaxed">
-                    <strong>Colonnes requises :</strong> Id_Profil (Col C), Consultant (Col I), Matricule (Col L), Grade (Col M), Exp. Arrivée (Col S), Date Expert (Col U), Salaire Annuel (Col V), TJ Salaire (Col AE), Ancienneté LL (Col AS).
+                    <strong>Colonnes requises :</strong> Id_Profil (Col C), Consultant (Col I), Matricule (Col L), Grade (Col M), Exp. Arrivée (Col S), Date Expert (Col U), Salaire Annuel (Col V), TJ Salaire (Col AE), TJ Vendu (Col AF), Ancienneté LL (Col AS).
                   </p>
                   {rapportRhFile ? (
                     <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-primary text-xs font-semibold shadow-sm">
@@ -579,6 +579,7 @@ export function CreateCampaignModal({
                           <th className="p-2.5">Dates Clés</th>
                           <th className="p-2.5">Salaire</th>
                           <th className="p-2.5">TJ Salaire</th>
+                          <th className="p-2.5">TJ Vendu</th>
                           <th className="p-2.5">Évaluateurs Assignés</th>
                           <th className="p-2.5">Action</th>
                         </tr>
@@ -622,6 +623,7 @@ export function CreateCampaignModal({
                                 )}
                               </td>
                               <td className="p-2.5 font-semibold">{c.currentSalary ? `${c.currentSalary.toLocaleString('fr-FR')} €` : '—'}</td>
+                              <td className="p-2.5">{c.currentTJSalaire ? `${c.currentTJSalaire} €` : '—'}</td>
                               <td className="p-2.5">{c.currentTJM ? `${c.currentTJM} €` : '—'}</td>
                               <td className="p-2.5">
                                 {assigned.length > 0 ? (

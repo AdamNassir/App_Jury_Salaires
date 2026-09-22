@@ -23,6 +23,33 @@ export interface MeteoLinkItem {
   rawRowIndex?: number;
 }
 
+/**
+ * CSV exports from French Excel installations are commonly Windows-1252,
+ * while newer exports are UTF-8. Decode text explicitly so SheetJS does not
+ * guess the code page and corrupt accented characters.
+ */
+export async function readImportWorkbook(file: File): Promise<XLSX.WorkBook> {
+  const data = await file.arrayBuffer();
+  const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type.toLowerCase().includes('csv');
+
+  if (!isCsv) {
+    return XLSX.read(data, { type: 'array', cellDates: true, raw: true });
+  }
+
+  let csvText: string;
+  try {
+    csvText = new TextDecoder('utf-8', { fatal: true }).decode(data);
+  } catch {
+    csvText = new TextDecoder('windows-1252').decode(data);
+  }
+
+  return XLSX.read(csvText.replace(/^\uFEFF/, ''), {
+    type: 'string',
+    cellDates: true,
+    raw: true
+  });
+}
+
 export interface CandidateInitData {
   idProfil: string;
   matricule?: string;
@@ -32,7 +59,8 @@ export interface CandidateInitData {
   email: string;
   grade: Grade;
   currentSalary: number; // Salaire_Annuel (Col V)
-  currentTJM: number;    // TJ_Vendu (Col AF)
+  currentTJSalaire?: number; // TJ_Salaire (Col AE)
+  currentTJM: number;       // TJ_Vendu (Col AF), legacy field name
   entryDate?: string;    // Date entrée LL
   expertPassageDate?: string; // Date_Expert (Col U)
   ancienneteLL?: number; // Anciennete_LL (Col AS)
@@ -221,8 +249,7 @@ export function parseExcelDate(val: any): Date | null {
  * Parse un fichier Excel ou CSV et extrait toutes les feuilles sous forme de tableau d'objets
  */
 export async function parseFileToSheets(file: File): Promise<SheetParsingResult[]> {
-  const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
+  const workbook = await readImportWorkbook(file);
   const results: SheetParsingResult[] = [];
 
   for (const sheetName of workbook.SheetNames) {
@@ -280,8 +307,7 @@ export class CampaignInitializationService {
    * - Col G (6) : Projet (mission concernée)
    */
   static async parsePrimesFile(file: File, campaignYear: number): Promise<PrimeAssignmentRow[]> {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
+    const workbook = await readImportWorkbook(file);
 
     let targetSheetName = workbook.SheetNames.find(s => {
       const norm = normalizeHeader(s);
@@ -409,8 +435,7 @@ export class CampaignInitializationService {
    * -> Expérience Totale = Experience_Arrivee_Valorisee_LL + Anciennete_LL
    */
   static async parseRapportRhSalariesFile(file: File): Promise<CandidateInitData[]> {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
+    const workbook = await readImportWorkbook(file);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
@@ -488,8 +513,9 @@ export class CampaignInitializationService {
       // Col V (index 21) : Salaire_Annuel (la virgule est la virgule décimale française)
       const currentSalary = parseFrenchNumber(getRawCellVal(21));
 
-      // Col AE (index 30) : TJ_Salaire (au lieu de Col AF)
-      const currentTJM = parseFrenchNumber(getRawCellVal(30));
+      // Col AE (index 30) : TJ_Salaire; Col AF (index 31) : TJ_Vendu
+      const currentTJSalaire = parseFrenchNumber(getRawCellVal(30));
+      const currentTJM = parseFrenchNumber(getRawCellVal(31));
 
       // Col AS (index 44) : Anciennete_LL
       const ancienneteLL = parseFrenchNumber(getRawCellVal(44));
@@ -513,6 +539,7 @@ export class CampaignInitializationService {
         email,
         grade,
         currentSalary,
+        currentTJSalaire,
         currentTJM,
         expertPassageDate,
         ancienneteLL,
@@ -537,8 +564,7 @@ export class CampaignInitializationService {
    * - "Liens_Meteo", column Q (index 16), lien vers le document de la météo
    */
   static async parseVuesMeteosFile(file: File): Promise<MeteoLinkItem[]> {
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: true });
+    const workbook = await readImportWorkbook(file);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
@@ -1145,6 +1171,7 @@ export class CampaignInitializationService {
         grade: cand.grade,
         salary: cand.currentSalary,
         tjm: cand.currentTJM,
+        tjSalaire: cand.currentTJSalaire,
         entryDate: cand.entryDate || '',
         expertGradeDate: cand.expertPassageDate || '',
         totalExperienceYears: cand.experienceYears || 0,
@@ -1183,6 +1210,7 @@ export class CampaignInitializationService {
         annualReport: {
           ...defaultReportData,
           currentGrade: cand.grade,
+          currentTJSalaire: cand.currentTJSalaire,
           currentTJM: cand.currentTJM,
           currentSalary: cand.currentSalary,
         },
@@ -1194,7 +1222,7 @@ export class CampaignInitializationService {
         updatedAt: new Date().toISOString(),
         ...(existingDossier ? {
           status: existingDossier.status,
-          annualReport: { ...defaultReportData, currentGrade: cand.grade, currentTJM: cand.currentTJM, currentSalary: cand.currentSalary, ...existingDossier.annualReport },
+          annualReport: { ...defaultReportData, currentGrade: cand.grade, currentTJSalaire: cand.currentTJSalaire, currentTJM: cand.currentTJM, currentSalary: cand.currentSalary, ...existingDossier.annualReport },
           meteoLinks: mergedMeteoLinks,
           clientFeedbacks: existingDossier.clientFeedbacks || [],
           documents: existingDossier.documents || [],
@@ -1219,6 +1247,7 @@ export class CampaignInitializationService {
         team: 'Logic Clever',
         currentGrade: cand.grade,
         currentSalary: cand.currentSalary,
+        currentTJSalaire: cand.currentTJSalaire,
         currentTJM: cand.currentTJM,
         entryDate: cand.entryDate || '',
         expertGradeDate: cand.expertPassageDate || '',

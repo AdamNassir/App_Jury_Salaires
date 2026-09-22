@@ -10,6 +10,7 @@ export function AccordionSection({
   onToggle, 
   count, 
   highlight, 
+  tabMode,
   children 
 }: { 
   label: string; 
@@ -17,14 +18,17 @@ export function AccordionSection({
   onToggle: () => void; 
   count?: number; 
   highlight?: boolean; 
+  tabMode?: boolean;
   children: React.ReactNode; 
 }) {
+  if (tabMode && !isOpen) return null;
+
   return (
     <div className={cn(
       "border border-accent/10 rounded-xl overflow-hidden shadow-sm transition-all",
       isOpen ? "bg-white ring-1 ring-primary/15" : "bg-accent/[0.02]"
     )}>
-      <button
+      {!tabMode && <button
         onClick={onToggle}
         className={cn(
           "w-full px-8 py-5 flex items-center justify-between transition-all text-left",
@@ -56,7 +60,7 @@ export function AccordionSection({
             highlight ? "text-white/60" : "text-accent/30"
           )} />
         </div>
-      </button>
+      </button>}
 
       <AnimatePresence initial={false}>
         {isOpen && (
@@ -65,7 +69,7 @@ export function AccordionSection({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="border-t border-accent/5"
+            className={tabMode ? "" : "border-t border-accent/5"}
           >
             <div className="p-8">
               {children}

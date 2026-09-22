@@ -94,7 +94,8 @@ export interface CampaignParticipant {
   // Données RH figées pour la campagne
   grade: Grade | 'Junior';
   salary: number; // Salaire de référence au 30/06 de l'année
-  tjm: number; // TJ vendu de référence
+  tjm: number; // TJ vendu de référence (legacy field name)
+  tjSalaire?: number; // TJ salaire de référence
   entryDate?: string;
   expertGradeDate?: string;
   totalExperienceYears?: number;
@@ -140,7 +141,8 @@ export interface UserProfile {
   expertGradeDate?: string;
   currentGrade?: Grade;
   currentSalary?: number;
-  currentTJM?: number;
+  currentTJM?: number; // TJ Vendu (legacy field name kept for compatibility)
+  currentTJSalaire?: number; // TJ Salaire issu de la colonne AE du rapport RH
   matricule?: string;
   assignedCandidateIds?: string[];
   createdAt: any;
@@ -297,7 +299,8 @@ export interface AnnualReport {
   wishedSalaryDate?: string; // Date d'effet / date de référence souhaitée (ex: 2026-07-01)
   currentSalary: number;
   currentGrade?: Grade;
-  currentTJM: number;
+  currentTJM: number; // TJ Vendu (legacy field name kept for compatibility)
+  currentTJSalaire?: number; // TJ Salaire issu de la colonne AE du rapport RH
   targetTJM: number;
   
   satisfaction: Satisfaction;

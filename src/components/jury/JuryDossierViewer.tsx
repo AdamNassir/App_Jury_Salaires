@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { Dossier, UserProfile } from '../../types';
-import { CheckCircle2, Briefcase, Calendar, Download, Clock, Maximize2, ExternalLink, FileSpreadsheet, Copy, Check } from 'lucide-react';
+import { CheckCircle2, Briefcase, Calendar, Maximize2, ExternalLink, FileSpreadsheet, Copy, Check } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { AccordionSection, ReportSection, SatisfactionDisplay } from './JuryUI';
 import { JuryDecisionForm } from './JuryDecisionForm';
+import { SalaryCalculatorTab } from '../candidate/tabs/SalaryCalculatorTab';
+import { EngagementTab, engagementSections } from '../candidate/tabs/EngagementTab';
+import { SyntheseTab } from '../candidate/tabs/SyntheseTab';
+import { PretentionsTab } from '../candidate/tabs/PretentionsTab';
 
 interface JuryDossierViewerProps {
   dossier: Dossier;
@@ -99,12 +103,82 @@ export function JuryDossierViewer({
     profile.email?.toLowerCase() === 'adam.nassir@logiclever.com' ||
     profile.email?.toLowerCase() === 'guillaume.best@logiclever.com';
   const isReadOnly = !isAssigned && !isAdmin;
+  const dossierTabs = ([
+    ['SYNTHESE', 'Introduction & Synthèse'],
+    ['OBJECTIFS_PASSES', 'Objectifs Année Passée'],
+    ['EXPERTISES', 'Savoir-faire'],
+    ['AUTONOMIE', 'Autonomie en mission'],
+    ['COMMERCIAL', 'Vente/commercial'],
+    ['VIE_LOGICLEVER', 'Vie LogicLever'],
+    ['RECRUTEMENT', 'Recrutement'],
+    ['ENCADREMENT', 'Encadrement'],
+    ['AMELIORATION', 'Amélioration Continue'],
+    ['REFERENT_LOGICLEVER', 'Référent LogicLever'],
+    ['METEOS', 'Météos Client'],
+    ['RETOURS_PAIRS', 'Retours Pairs'],
+    ['PRETENTIONS', 'Objectifs'],
+    ['CALCULATRICE', 'Calculette du salaire'],
+    ['DECISION', 'Décision']
+  ] as const).filter(([id]) => id !== 'REFERENT_LOGICLEVER' || !!dossier.annualReport?.isReferentOrAspiring);
+  const activeEngagementSection = engagementSections.find(section =>
+    !!expandedTabs[section.id] &&
+    (section.id !== 'REFERENT_LOGICLEVER' || !!dossier.annualReport?.isReferentOrAspiring)
+  );
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 border-b border-accent/10 pb-4" role="tablist" aria-label="Sections du dossier">
+        {dossierTabs.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={!!expandedTabs[id]}
+            onClick={() => toggleTab(id)}
+            className={cn(
+              "px-3 py-2 rounded-base text-[10px] font-black uppercase tracking-wider transition-colors",
+              expandedTabs[id] ? "bg-primary text-white" : "bg-accent/5 text-accent/50 hover:text-accent"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeEngagementSection && dossier.annualReport && (
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label={`${activeEngagementSection.label} en lecture seule`}>
+          <EngagementTab
+            section={activeEngagementSection.id}
+            reportData={dossier.annualReport}
+            setReportData={() => undefined}
+          />
+        </fieldset>
+      )}
+
+      {expandedTabs['SYNTHESE'] && dossier.annualReport && (
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label="Introduction et synthèse en lecture seule">
+          <SyntheseTab
+            reportData={dossier.annualReport}
+            setReportData={() => undefined}
+          />
+        </fieldset>
+      )}
+
+      {expandedTabs['PRETENTIONS'] && dossier.annualReport && (
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label="Objectifs en lecture seule">
+          <PretentionsTab
+            profile={candidate || undefined}
+            reportData={dossier.annualReport}
+            setReportData={() => undefined}
+          />
+        </fieldset>
+      )}
+
       {/* 1. Synthèse */}
       <AccordionSection 
         label="Synthèse" 
-        isOpen={!!expandedTabs['SYNTHESE']} 
+        tabMode
+        isOpen={false}
         onToggle={() => toggleTab('SYNTHESE')}
       >
         <div className="space-y-12">
@@ -134,6 +208,7 @@ export function JuryDossierViewer({
       {/* 2. Objectifs Passés */}
       <AccordionSection 
         label="Objectifs Passés" 
+        tabMode
         isOpen={!!expandedTabs['OBJECTIFS_PASSES']} 
         onToggle={() => toggleTab('OBJECTIFS_PASSES')}
       >
@@ -182,6 +257,7 @@ export function JuryDossierViewer({
       {/* 3. Expertises */}
       <AccordionSection 
         label="Expertises" 
+        tabMode
         isOpen={!!expandedTabs['EXPERTISES']} 
         onToggle={() => toggleTab('EXPERTISES')}
       >
@@ -206,14 +282,16 @@ export function JuryDossierViewer({
         </div>
       </AccordionSection>
 
-      {/* 4. Engagement */}
+      {/* 4. Engagement sections, aligned with the candidate dossier tabs */}
       <AccordionSection 
         label="Engagement" 
-        isOpen={!!expandedTabs['ENGAGEMENT']} 
-        onToggle={() => toggleTab('ENGAGEMENT')}
+        tabMode
+        isOpen={false}
+        onToggle={() => toggleTab('AUTONOMIE')}
       >
         <div className="space-y-12">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-8 bg-secondary/5 border border-secondary/10 rounded-xl gap-6 group/autonomy relative">
+          {expandedTabs['AUTONOMIE'] && <div className="space-y-8">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between p-8 bg-secondary/5 border border-secondary/10 rounded-xl gap-6 group/autonomy relative">
             <div className="space-y-2">
               <h5 className="text-[10px] font-black text-secondary/60 uppercase tracking-widest">Niveau d'Autonomie Agi / Mission</h5>
               <div className="text-2xl font-bold text-secondary uppercase tracking-tight">{dossier.annualReport?.autonomyLevel}</div>
@@ -232,24 +310,49 @@ export function JuryDossierViewer({
               )}
             </div>
           </div>
+            <ReportSection title="Autonomie en mission" content={dossier.annualReport?.missionAutonomy} onZoom={setZoomData} />
+          </div>}
+
+          {expandedTabs['COMMERCIAL'] && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <ReportSection title="Présentation LogicLever" content={dossier.annualReport?.commercialPresentation} onZoom={setZoomData} />
+              <ReportSection title="Conseils aux clients" content={dossier.annualReport?.commercialAdvice} onZoom={setZoomData} />
+              <ReportSection title="Force de proposition" content={dossier.annualReport?.commercialProposition} onZoom={setZoomData} />
+              <ReportSection title="Propositions commerciales" content={dossier.annualReport?.commercialOffers} onZoom={setZoomData} />
+            </div>
+          )}
           
-          <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-8">
+          {expandedTabs['VIE_LOGICLEVER'] && <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-8">
             <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-widest">Vie de l'Agence & Rayonnement</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <ReportSection title="Vie Logiclever (Meetups, Partages)" content={dossier.annualReport?.lifeLogiclever || dossier.annualReport?.lifeKnowledgeSharing} noBg onZoom={setZoomData} />
               <ReportSection title="Esprit d'équipe" content={dossier.annualReport?.lifeTeamSpirit} noBg onZoom={setZoomData} />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-accent/5 pt-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-accent/5 pt-8">
               <ReportSection title="Communication (Slack)" content={dossier.annualReport?.lifeSlack} noBg onZoom={setZoomData} />
               <ReportSection title="Business Model" content={dossier.annualReport?.lifeBusinessModel} noBg onZoom={setZoomData} />
-              <ReportSection title="Promotion Recrutement" content={dossier.annualReport?.recruitmentPromotion} noBg onZoom={setZoomData} />
             </div>
-          </div>
+          </div>}
 
-          {dossier.annualReport?.squadName && (
+          {expandedTabs['RECRUTEMENT'] && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <ReportSection title="Promotion LogicLever" content={dossier.annualReport?.recruitmentPromotion} onZoom={setZoomData} />
+              <ReportSection title="Entretiens candidats" content={dossier.annualReport?.recruitmentInterviews} onZoom={setZoomData} />
+              <ReportSection title="Réseaux sociaux" content={dossier.annualReport?.recruitmentSocial} onZoom={setZoomData} />
+            </div>
+          )}
+
+          {expandedTabs['ENCADREMENT'] && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <ReportSection title="Sollicitation du coach" content={dossier.annualReport?.encadrementCoach} onZoom={setZoomData} />
+              <ReportSection title="Sollicitation de l'encadrant" content={dossier.annualReport?.encadrementManager} onZoom={setZoomData} />
+            </div>
+          )}
+
+          {expandedTabs['AMELIORATION'] && (dossier.annualReport?.squadEntries?.length || dossier.annualReport?.squadName) && (
             <div className="p-8 bg-primary/5 rounded-xl border border-primary/10 group/squad relative">
               <h5 className="text-[10px] font-black text-primary/60 uppercase tracking-widest mb-4 flex items-center justify-between">
-                SQUAD : {dossier.annualReport.squadName}
+                SQUAD : {dossier.annualReport?.squadName || dossier.annualReport?.squadEntries?.map(entry => entry.squad).filter(Boolean).join(', ')}
                 <div className="flex items-center gap-3">
                   <span className="bg-primary/10 px-3 py-1 rounded-full text-[9px]">{dossier.annualReport.squadRole}</span>
                   <button
@@ -262,7 +365,7 @@ export function JuryDossierViewer({
                   </button>
                 </div>
               </h5>
-              <div className="text-base text-accent/70 leading-relaxed italic font-light">"{dossier.annualReport.squadContributions}"</div>
+              <div className="text-base text-accent/70 leading-relaxed italic font-light">"{dossier.annualReport?.squadContributions || dossier.annualReport?.squadEntries?.map(entry => entry.contributions).filter(Boolean).join('\n\n')}"</div>
             </div>
           )}
         </div>
@@ -271,6 +374,7 @@ export function JuryDossierViewer({
       {/* 5. Météos Client */}
       <AccordionSection 
         label="Météos Client" 
+        tabMode
         isOpen={!!expandedTabs['METEOS']} 
         onToggle={() => toggleTab('METEOS')}
         count={(dossier.meteoLinks?.length || 0) + (dossier.clientFeedbacks?.length || 0)}
@@ -469,55 +573,12 @@ export function JuryDossierViewer({
         </div>
       </AccordionSection>
 
-      {/* 6. Intercontrat */}
+      {/* 6. Référent LogicLever */}
       <AccordionSection 
-        label="Intercontrat" 
-        isOpen={!!expandedTabs['INTERCONTRAT']} 
-        onToggle={() => toggleTab('INTERCONTRAT')}
-        count={dossier.annualReport?.hadIntercontrat ? 1 : undefined}
-      >
-        <div className="space-y-12">
-          <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-8">
-            <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Informations Intercontrat</h4>
-            
-            <div className="flex items-center gap-4 p-6 bg-white border border-accent/10 rounded-xl shadow-sm">
-              <div className={cn(
-                "w-4 h-4 rounded-full",
-                dossier.annualReport?.hadIntercontrat ? "bg-emerald-500" : "bg-gray-300"
-              )} />
-              <span className="text-sm font-bold text-accent">
-                {dossier.annualReport?.hadIntercontrat 
-                  ? "A été en intercontrat au cours de l'année passée" 
-                  : "N'a pas été en intercontrat au cours de l'année passée"
-                }
-              </span>
-            </div>
-
-            {dossier.annualReport?.hadIntercontrat && (
-              <div className="space-y-8 border-t border-accent/5 pt-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="p-6 bg-white border border-accent/10 rounded-xl shadow-sm">
-                    <div className="text-[10px] font-black uppercase text-accent/40 mb-2">Nombre de jours d'intercontrat</div>
-                    <div className="text-3xl font-bold text-accent">{dossier.annualReport.intercontratDays || 0} jours</div>
-                  </div>
-                </div>
-
-                <ReportSection 
-                  title="Description des réalisations et contributions pendant l'intercontrat" 
-                  content={dossier.annualReport.intercontratAchievements} 
-                  onZoom={setZoomData}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </AccordionSection>
-
-      {/* 7. Référent */}
-      <AccordionSection 
-        label="Référent" 
-        isOpen={!!expandedTabs['REFERENT']} 
-        onToggle={() => toggleTab('REFERENT')}
+        label="Référent LogicLever"
+        tabMode
+        isOpen={false}
+        onToggle={() => toggleTab('REFERENT_LOGICLEVER')}
       >
         <div className="space-y-12">
           {dossier.annualReport?.isReferentOrAspiring ? (
@@ -561,6 +622,7 @@ export function JuryDossierViewer({
       {/* 8. Retours Pairs */}
       <AccordionSection 
         label="Retours Pairs" 
+        tabMode
         isOpen={!!expandedTabs['RETOURS_PAIRS']} 
         onToggle={() => toggleTab('RETOURS_PAIRS')}
         count={Object.keys(dossier.consultantFeedbacks || {}).length}
@@ -664,7 +726,8 @@ export function JuryDossierViewer({
       {/* 9. Souhaits */}
       <AccordionSection 
         label="Souhaits" 
-        isOpen={!!expandedTabs['PRETENTIONS']} 
+        tabMode
+        isOpen={false}
         onToggle={() => toggleTab('PRETENTIONS')}
       >
         <div className="space-y-12">
@@ -723,38 +786,20 @@ export function JuryDossierViewer({
         </div>
       </AccordionSection>
 
-      {/* 10. Pièces */}
-      <AccordionSection 
-        label="Pièces" 
-        isOpen={!!expandedTabs['DOCUMENTS']} 
-        onToggle={() => toggleTab('DOCUMENTS')}
-        count={dossier.documents?.length || 0}
-      >
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dossier.documents && dossier.documents.length > 0 ? (
-              dossier.documents.map((doc, idx) => (
-                <div key={idx} className="p-8 bg-white border border-accent/10 rounded-2xl flex items-center justify-between group hover:shadow-xl transition-all border-b-4 border-b-primary/10">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-accent/5 rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all"><Clock className="w-6 h-6" /></div>
-                    <div>
-                      <div className="font-bold text-accent truncate max-w-[140px]">{doc.name}</div>
-                      <div className="text-[10px] text-accent/30 font-black uppercase">{doc.type}</div>
-                    </div>
-                  </div>
-                  <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-3 bg-accent/5 text-accent/30 hover:bg-secondary hover:text-white rounded-xl transition-all shadow-sm"><Download className="w-5 h-5" /></a>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-3 py-12 border border-dashed border-accent/10 rounded-xl text-center text-accent/30 italic">Aucun document transmis.</div>
-            )}
-          </div>
-        </div>
-      </AccordionSection>
+      {expandedTabs['CALCULATRICE'] && candidate && dossier.annualReport && (
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label="Calculette du salaire en lecture seule">
+          <SalaryCalculatorTab
+            profile={candidate}
+            dossier={dossier}
+            reportData={dossier.annualReport}
+          />
+        </fieldset>
+      )}
 
-      {/* 11. Décision */}
+      {/* Décision du jury */}
       <AccordionSection 
         label="DÉCISION" 
+        tabMode
         isOpen={!!expandedTabs['DECISION']} 
         onToggle={() => toggleTab('DECISION')}
         highlight

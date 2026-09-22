@@ -43,6 +43,7 @@ export function JuryDecisionForm({
     amount: existingMyReview?.proposedSalary || dossier.juryDecision?.amount || candidate?.currentSalary || 0,
     investmentPercentage: dossier.juryDecision?.investmentPercentage || 60,
     missionPercentage: dossier.juryDecision?.missionPercentage || 98,
+    tjCibleDecision: dossier.juryDecision?.tjCibleDecision ?? dossier.annualReport?.targetTJM ?? 0,
     whyThisSalary: existingMyReview?.whyThisSalary || dossier.juryDecision?.whyThisSalary || '',
     whatToDoMore: existingMyReview?.whatToDoMore || dossier.juryDecision?.whatToDoMore || '',
     referentJury: dossier.juryDecision?.referentJury || profile?.displayName || '',
@@ -164,15 +165,19 @@ export function JuryDecisionForm({
 
   // Calculate values for display
   const refDate = referenceDate || dossier.annualReport?.wishedSalaryDate;
-  const yearsLL = candidate?.entryDate ? calculateYears(candidate.entryDate, refDate) : null;
+  const yearsLL = candidate?.ancienneteLL !== undefined && candidate?.ancienneteLL !== null
+    ? candidate.ancienneteLL
+    : candidate?.entryDate
+      ? calculateYears(candidate.entryDate, refDate)
+      : null;
   const prime = getPrimeAnciennete(yearsLL);
-  const tjVendu = candidate?.currentTJM || 0;
-  const tjCible = dossier.annualReport?.targetTJM || 0;
+  const tjVendu = candidate?.currentTJM || dossier.annualReport?.currentTJM || 0;
+  const tjCible = formData.tjCibleDecision ?? dossier.annualReport?.targetTJM ?? 0;
 
   const resFormule = useMemo(() => {
     const currentSalary = candidate?.currentSalary || 0;
-    const invest = formData.investmentPercentage || 60;
-    const mission = formData.missionPercentage || 98;
+    const invest = formData.investmentPercentage ?? 60;
+    const mission = formData.missionPercentage ?? 98;
     
     // For Vendu
     const yearsExpertVal = candidate?.currentGrade === 'Expert' ? (calculateYears(candidate.expertGradeDate, refDate) || 0) : 0;
@@ -219,6 +224,8 @@ export function JuryDecisionForm({
         verdict: formData.verdict || 'Favorable',
         proposedSalary: formData.amount || 0,
         percentage: formData.percentage || 0,
+        investmentPercentage: formData.investmentPercentage ?? 60,
+        missionPercentage: formData.missionPercentage ?? 98,
         isFinalized: true,
         finalizedAt: now,
         updatedAt: now
@@ -325,60 +332,40 @@ export function JuryDecisionForm({
       </h3>
 
       <div className={cn("space-y-12", readOnly && "opacity-90 pointer-events-none")}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          <div>
-            <label className="text-[10px] font-black uppercase text-accent/30 tracking-[0.2em] mb-4 block px-2">Verdict Global</label>
-            <div className="flex gap-3">
-              {['Favorable', 'Réserve', 'Défavorable'].map(v => (
-                <button
-                   key={v}
-                   disabled={readOnly}
-                   onClick={() => setFormData({...formData, verdict: v})}
-                   className={cn(
-                     "flex-1 py-4 rounded-xl text-xs font-black uppercase tracking-widest border-2 transition-all shadow-sm",
-                     formData.verdict === v ? "bg-accent border-accent text-white shadow-accent/20" : "bg-white border-accent/10 text-accent/50 hover:border-secondary/50",
-                     readOnly && "cursor-not-allowed opacity-80"
-                   )}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-end pb-2">
-            <label className={cn(
-              "flex items-center gap-4 select-none bg-accent/5 p-4 rounded-xl border border-accent/10 transition-colors group",
-              readOnly ? "cursor-not-allowed opacity-80" : "cursor-pointer hover:bg-white"
-            )}>
-              <div className={cn(
-                "w-7 h-7 rounded-base flex items-center justify-center border-2 transition-all",
-                formData.unanimous ? "bg-primary border-primary" : "border-accent/20 bg-white group-hover:border-primary/50"
-              )}>
-                {formData.unanimous && <CheckCircle2 className="w-5 h-5 text-white" />}
-              </div>
-              <input 
-                type="checkbox" 
-                className="hidden"
-                disabled={readOnly}
-                checked={formData.unanimous}
-                onChange={e => setFormData({...formData, unanimous: e.target.checked})}
-              />
-              <span className="text-xs font-black uppercase text-accent/60 tracking-[0.1em]">Décision Unanime de la Commission</span>
-            </label>
-          </div>
-        </div>
-
         {/* Analytical Section */}
         <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 space-y-8">
           <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Analyse & Métriques Décisionnelles</h4>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-6">
+            <div>
+              <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">TJ Vendu (€)</label>
+              <input
+                type="number"
+                disabled
+                className="w-full bg-accent/5 border border-accent/10 rounded-lg p-3 text-lg font-bold text-accent/70 outline-none cursor-not-allowed"
+                value={tjVendu || ''}
+                title="Valeur fixe issue du profil du candidat"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">TJ Cible (€)</label>
+              <input
+                type="number"
+                disabled={readOnly}
+                className="w-full bg-white border border-accent/10 rounded-lg p-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-gray-50 disabled:text-accent/70"
+                value={formData.tjCibleDecision ?? ''}
+                onChange={e => {
+                  const parsed = parseFloat(e.target.value);
+                  setFormData({ ...formData, tjCibleDecision: isNaN(parsed) ? undefined : parsed });
+                }}
+              />
+            </div>
             <div>
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">% Investissement (base 60)</label>
               <input 
                 type="number"
                 disabled={readOnly}
                 className="w-full bg-white border border-accent/10 rounded-lg p-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-gray-50 disabled:text-accent/70"
-                value={formData.investmentPercentage || ''}
+                value={formData.investmentPercentage ?? ''}
                 onChange={e => setFormData({...formData, investmentPercentage: parseFloat(e.target.value)})}
               />
             </div>
@@ -388,7 +375,7 @@ export function JuryDecisionForm({
                 type="number"
                 disabled={readOnly}
                 className="w-full bg-white border border-accent/10 rounded-lg p-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-gray-50 disabled:text-accent/70"
-                value={formData.missionPercentage || ''}
+                value={formData.missionPercentage ?? ''}
                 onChange={e => setFormData({...formData, missionPercentage: parseFloat(e.target.value)})}
               />
             </div>
@@ -411,7 +398,7 @@ export function JuryDecisionForm({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
             <div>
-              <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Pourquoi ce salaire ?</label>
+              <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Pourquoi ce salaire proposé</label>
               <textarea 
                 disabled={readOnly}
                 className="w-full bg-white border border-accent/10 rounded-lg p-4 text-sm font-light h-24 outline-none focus:ring-2 focus:ring-primary/20 resize-none shadow-sm disabled:bg-gray-50 disabled:text-accent/70"
@@ -420,7 +407,7 @@ export function JuryDecisionForm({
               />
             </div>
             <div>
-              <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Actions de progrès attendues</label>
+              <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Ce qu'il faut faire pour avoir plus</label>
               <textarea 
                 disabled={readOnly}
                 className="w-full bg-white border border-accent/10 rounded-lg p-4 text-sm font-light h-24 outline-none focus:ring-2 focus:ring-primary/20 resize-none shadow-sm disabled:bg-gray-50 disabled:text-accent/70"
@@ -430,18 +417,7 @@ export function JuryDecisionForm({
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
-            <div>
-              <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Ressenti / Feeling Consultant</label>
-              <input 
-                 type="text"
-                 disabled={readOnly}
-                 className="w-full bg-white border border-accent/10 rounded-lg p-4 text-sm font-light outline-none focus:ring-2 focus:ring-primary/20 shadow-sm disabled:bg-gray-50 disabled:text-accent/70"
-                 value={formData.consultantFeeling}
-                 onChange={e => setFormData({...formData, consultantFeeling: e.target.value})}
-                 placeholder="Commentaire sur l'état d'esprit..."
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-8 pt-4">
             <div>
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Salaire max proposé si augmentation TJ</label>
               <input 
@@ -505,20 +481,10 @@ export function JuryDecisionForm({
           </div>
         </div>
 
-        <div>
-          <label className="text-[10px] font-black uppercase text-accent/30 tracking-[0.2em] mb-4 block px-2">Conseils d'Orientation & Conclusion (Lettre d'augmentation)</label>
-          <textarea 
-            disabled={readOnly}
-            className="w-full bg-accent/5 border border-accent/10 rounded-xl p-8 text-lg font-light min-h-[180px] outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 resize-none shadow-inner transition-all leading-relaxed disabled:bg-gray-100 disabled:text-accent/70"
-            value={formData.conclusion}
-            onChange={e => setFormData({...formData, conclusion: e.target.value})}
-          />
-        </div>
-
         {!readOnly && (
           <button 
             onClick={handleFinalizeMyReview}
-            disabled={loading || !formData.unanimous}
+            disabled={loading}
             className="w-full bg-primary text-white py-6 rounded-xl font-black uppercase tracking-[0.3em] text-lg flex items-center justify-center gap-4 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed group shadow-2xl shadow-primary/30"
           >
             {loading ? "TRAITEMENT EN COURS..." : (

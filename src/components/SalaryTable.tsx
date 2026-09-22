@@ -180,6 +180,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
           email: dossier.candidateEmail,
           currentGrade: dossier.annualReport?.currentGrade || 'Junior',
           currentSalary: dossier.annualReport?.currentSalary || 0,
+          currentTJSalaire: dossier.annualReport?.currentTJSalaire || 0,
           currentTJM: dossier.annualReport?.currentTJM || 0,
           roles: ['CANDIDATE']
         } as UserProfile);
@@ -199,6 +200,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
       const prime = getPrimeAnciennete(yearsLL);
 
       // Calculations
+      const tjSalaire = candidate.currentTJSalaire || dossier.annualReport?.currentTJSalaire || 0;
       const tjVendu = candidate.currentTJM || dossier.annualReport?.currentTJM || 0;
       const tjCible = dossier.annualReport?.targetTJM || 0;
 
@@ -270,6 +272,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
         yearsLL,
         yearsExpert,
         prime,
+        tjSalaire,
         tjVendu,
         salaireVendu,
         salaireVendu100,
@@ -298,22 +301,40 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
     });
   }, [dossiers, candidates, searchTerm, referenceDate, profile]);
 
-  // Moyennes globales de % Mission et % Investissement sur l'ensemble des dossiers
+  // Moyennes issues uniquement des avis individuels des jurys et évaluateurs.
   const globalMetrics = useMemo(() => {
-    if (dossiers.length === 0) {
-      return { avgMission: 98, avgInvestment: 60, totalCount: 0 };
-    }
-    let sumMission = 0;
-    let sumInvest = 0;
+    const missionValues: number[] = [];
+    const investmentValues: number[] = [];
+
+    const addPercentages = (source: { missionPercentage?: number; investmentPercentage?: number }) => {
+      const mission = Number(source.missionPercentage);
+      const investment = Number(source.investmentPercentage);
+      if (Number.isFinite(mission)) missionValues.push(mission);
+      if (Number.isFinite(investment)) investmentValues.push(investment);
+    };
+
     dossiers.forEach(d => {
-      const dec = d.juryDecision;
-      sumMission += (dec?.missionPercentage !== undefined && dec?.missionPercentage !== null) ? Number(dec.missionPercentage) : 98;
-      sumInvest += (dec?.investmentPercentage !== undefined && dec?.investmentPercentage !== null) ? Number(dec.investmentPercentage) : 60;
+      Object.values(d.consultantFeedbacks || {})
+        .filter(feedback => feedback.status === 'VALIDE' || feedback.validated)
+        .forEach(addPercentages);
+
+      const uniqueJuryReviews = new Map<string, JuryMemberReview>();
+      Object.values(d.juryMemberReviews || {}).forEach(review => {
+        if (!review.isFinalized) return;
+        const identity = review.juryUid || review.juryEmail?.toLowerCase() || review.juryName;
+        uniqueJuryReviews.set(identity, review);
+      });
+      uniqueJuryReviews.forEach(addPercentages);
     });
+
     return {
-      avgMission: parseFloat((sumMission / dossiers.length).toFixed(1)),
-      avgInvestment: parseFloat((sumInvest / dossiers.length).toFixed(1)),
-      totalCount: dossiers.length
+      avgMission: missionValues.length
+        ? parseFloat((missionValues.reduce((sum, value) => sum + value, 0) / missionValues.length).toFixed(1))
+        : 98,
+      avgInvestment: investmentValues.length
+        ? parseFloat((investmentValues.reduce((sum, value) => sum + value, 0) / investmentValues.length).toFixed(1))
+        : 60,
+      totalCount: Math.max(missionValues.length, investmentValues.length)
     };
   }, [dossiers]);
 
@@ -624,7 +645,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
             <tr className="bg-accent text-white text-[10px] font-black uppercase tracking-widest text-center">
               <th className="py-2 px-2 border-r border-white/10 w-10"></th>
               <th colSpan={8} className="py-2 border-r border-white/10">Données de référence</th>
-              <th colSpan={6} className="py-2 border-r border-white/10">RG Logiclever (Formule)</th>
+              <th colSpan={7} className="py-2 border-r border-white/10">RG Logiclever (Formule)</th>
               <th colSpan={2} className="py-2 border-r border-white/10">Réel au 30/06</th>
               <th colSpan={3} className="py-2 border-r border-white/10">Souhait Consultant</th>
               <th colSpan={2} className="py-2 border-r border-white/10">Délibération Métriques</th>
@@ -645,7 +666,8 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
               <th onClick={() => requestSort('currentGrade')} className="p-4 min-w-[100px] border-r border-accent/10 cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration">Grade {renderSortIndicator('currentGrade')}</th>
               
               {/* RG Logiclever */}
-              <th onClick={() => requestSort('tjVendu')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Issu du Rapport RH (Col AE : TJ Salaire)">TJ Salaire {renderSortIndicator('tjVendu')}</th>
+              <th className="p-4 min-w-[80px] text-center" title="Issu du Rapport RH (Col AE)">TJ Salaire</th>
+              <th onClick={() => requestSort('tjVendu')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Issu du Rapport RH (Col AF : TJ Vendu)">TJ Vendu {renderSortIndicator('tjVendu')}</th>
               <th onClick={() => requestSort('salaireVendu')} className="p-4 min-w-[100px] text-right cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : (((Taux Grade * 193 * TJ Vendu) - 6000 - Prime Ancienneté - (216 * 5.5)) / 1.45) / 1.01">Salaire Vendu {renderSortIndicator('salaireVendu')}</th>
               <th onClick={() => requestSort('salaireVendu100')} className="p-4 min-w-[120px] text-right cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : (((Taux Grade * 193 * (TJ Vendu + 30)) - 6000 - Prime Ancienneté - (216 * 5.5)) / 1.45) / 1.01">Salaire Vendu 100% {renderSortIndicator('salaireVendu100')}</th>
               <th onClick={() => requestSort('tjCible')} className="p-4 min-w-[80px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le candidat dans son dossier (Prétentions)">TJ Cible {renderSortIndicator('tjCible')}</th>
@@ -764,6 +786,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                 </td>
 
                 {/* RG Logiclever */}
+                <td className="p-4 text-center font-black">{item.tjSalaire}€</td>
                 <td className="p-4 text-center font-black">{item.tjVendu}€</td>
                 <td className="p-4 text-right tabular-nums text-accent/50">{formatCurrency(item.salaireVendu)}</td>
                 <td className="p-4 text-right tabular-nums text-green-600 font-bold">{formatCurrency(item.salaireVendu100)}</td>
@@ -967,7 +990,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
               {/* Sous-lignes détaillées pour les évaluateurs et autres membres du jury */}
               {isExpanded && (
                 <tr className="bg-accent/[0.02] border-b border-accent/10">
-                  <td colSpan={33} className="py-3 px-6">
+                  <td colSpan={34} className="py-3 px-6">
                     {totalSublines === 0 ? (
                       <div className="my-2 py-4 px-6 rounded-xl bg-white/70 border border-dashed border-accent/20 text-xs italic text-accent/40">
                         Aucun autre avis d'évaluateur ou de membre du jury pour ce candidat pour le moment.
