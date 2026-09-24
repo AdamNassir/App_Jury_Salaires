@@ -24,6 +24,9 @@ const sheetsProvider = new GoogleAuthProvider();
 sheetsProvider.addScope(
   'https://www.googleapis.com/auth/spreadsheets'
 );
+sheetsProvider.addScope(
+  'https://www.googleapis.com/auth/drive.file'
+);
 
 sheetsProvider.setCustomParameters({
   prompt: 'select_account',

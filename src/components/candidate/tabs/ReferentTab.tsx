@@ -18,8 +18,9 @@ export function ReferentTab({ reportData, setReportData }: ReferentTabProps) {
               <label className="block text-[10px] font-black text-accent/30 uppercase tracking-widest">Consultants coachés (max 4)</label>
               <input 
                 type="number"
+                min="0"
                 value={reportData.coachedConsultantsCount} 
-                onChange={e => setReportData(prev => ({ ...prev, coachedConsultantsCount: parseInt(e.target.value) || 0 }))}
+                onChange={e => setReportData(prev => ({ ...prev, coachedConsultantsCount: Math.max(0, parseInt(e.target.value) || 0) }))}
                 className="w-full bg-accent/5 px-6 py-4 rounded-xl border border-accent/10 font-bold"
               />
             </div>
@@ -27,8 +28,9 @@ export function ReferentTab({ reportData, setReportData }: ReferentTabProps) {
               <label className="block text-[10px] font-black text-accent/30 uppercase tracking-widest">Entretiens recrutement (min 4)</label>
               <input 
                 type="number"
+                min="0"
                 value={reportData.recruitmentInterviewsCount} 
-                onChange={e => setReportData(prev => ({ ...prev, recruitmentInterviewsCount: parseInt(e.target.value) || 0 }))}
+                onChange={e => setReportData(prev => ({ ...prev, recruitmentInterviewsCount: Math.max(0, parseInt(e.target.value) || 0) }))}
                 className="w-full bg-accent/5 px-6 py-4 rounded-xl border border-accent/10 font-bold"
               />
             </div>

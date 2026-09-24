@@ -566,7 +566,10 @@ ${text}
     const client = new JWT({
       email,
       key: privateKey,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      scopes: [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+      ],
     });
 
     const tokens = await client.authorize();
@@ -580,9 +583,10 @@ ${text}
   app.post("/api/sheets/export", async (req, res) => {
     try {
       const sheetsCfg = getSheetsConfig();
-      const defaultExportSheetId = process.env.VITE_GOOGLE_SHEET_EXPORT_ID || sheetsCfg.defaultSpreadsheetId || "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk";
-      const { 
-        spreadsheetId = defaultExportSheetId,
+      const defaultFolderId = process.env.VITE_GOOGLE_DRIVE_EXPORT_FOLDER_ID || sheetsCfg.exportDriveFolderId || "1BHFi8Z_0K1tTUalK6BKC-B4eXh6PLOx5";
+      let { 
+        spreadsheetId = process.env.VITE_GOOGLE_SHEET_EXPORT_ID || sheetsCfg.defaultSpreadsheetId || "1QbvLbW39EgHCtOtj2LrrP7w1byWlkE6F5deOXOjCWmk",
+        folderId = defaultFolderId,
         tabName = "Délibérations_Jury",
         values 
       } = req.body;
@@ -591,9 +595,62 @@ ${text}
         return res.status(400).json({ error: "No data rows provided to export." });
       }
 
-      console.log(`Exporting ${values.length} rows to spreadsheet ${spreadsheetId}, tab '${tabName}' via Service Account...`);
-
       const token = await getServiceAccountAccessToken();
+
+      // Check or create spreadsheet inside target Drive folder
+      if (folderId) {
+        try {
+          const query = `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
+          const searchUrl = `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({
+            q: query,
+            supportsAllDrives: "true",
+            includeItemsFromAllDrives: "true",
+            corpora: "allDrives",
+            fields: "files(id, name, webViewLink)"
+          })}`;
+
+          const searchRes = await fetch(searchUrl, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (searchRes.ok) {
+            const searchData: any = await searchRes.json();
+            const existing = (searchData.files || []).find((f: any) => 
+              f.name === "Délibérations_Jury" || f.name.includes("Délibérations") || f.name.includes("Salaires")
+            ) || (searchData.files || [])[0];
+
+            if (existing) {
+              spreadsheetId = existing.id;
+            } else {
+              const createRes = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  name: "Délibérations_Jury",
+                  mimeType: "application/vnd.google-apps.spreadsheet",
+                  parents: [folderId]
+                })
+              });
+              if (createRes.ok) {
+                const createData: any = await createRes.json();
+                if (createData.id) {
+                  spreadsheetId = createData.id;
+                }
+              }
+            }
+          } else {
+            return res.status(403).json({ error: "Target folder is not accessible by the server service account. Using client OAuth." });
+          }
+        } catch (folderErr: any) {
+          console.warn("Folder search/create failed in service account:", folderErr);
+          return res.status(403).json({ error: `Service account cannot access folder ${folderId}. Using client OAuth.` });
+        }
+      }
+
+      console.log(`Exporting ${values.length} rows to spreadsheet ${spreadsheetId}, tab '${tabName}' via Service Account...`);
 
       // 1. Ensure tab exists
       try {

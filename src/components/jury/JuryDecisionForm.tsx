@@ -301,7 +301,7 @@ export function JuryDecisionForm({
 
   return (
     <div className="border-t border-accent/10 pt-12">
-      {readOnly ? (
+      {readOnly && (
         <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-4 mb-8">
           <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-900/80 leading-relaxed">
@@ -309,37 +309,17 @@ export function JuryDecisionForm({
             Ce dossier n'est pas sous votre assignation d'arbitrage. Vous pouvez consulter l'ensemble des données, formules et justifications sans pouvoir les modifier.
           </div>
         </div>
-      ) : (
-        <div className="p-5 rounded-2xl bg-secondary/[0.05] border border-secondary/15 flex items-start gap-4 mb-8">
-          <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-          <div className="text-xs text-accent/75 leading-relaxed font-light">
-            <span className="font-bold text-secondary">Note aux membres du jury : </span>
-            Ce dossier est actuellement <strong>Dossier Complet</strong>. Les remarques, justifications et préconisations que vous saisissez sont des éléments d'analyse complémentaires consultatifs. Elles alimentent le dossier du candidat et les échanges collégiaux, et ne deviendront définitives qu'après l'arbitrage final et la validation collégiale (« Dossier Validé »).
-          </div>
-        </div>
       )}
-
-      <h3 className="text-secondary mb-10 flex items-center gap-4">
-        <div className="w-12 h-12 bg-primary rounded-base flex items-center justify-center shadow-lg">
-          <Gavel className="w-7 h-7 text-white" />
-        </div>
-        Verdict Final 2025
-        {readOnly && (
-          <span className="ml-auto text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold uppercase tracking-wider flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5" /> Lecture Seule
-          </span>
-        )}
-      </h3>
 
       <div className={cn("space-y-12", readOnly && "opacity-90 pointer-events-none")}>
         {/* Analytical Section */}
         <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 space-y-8">
-          <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Analyse & Métriques Décisionnelles</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-6">
             <div>
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">TJ Vendu (€)</label>
               <input
                 type="number"
+                min="0"
                 disabled
                 className="w-full bg-accent/5 border border-accent/10 rounded-lg p-3 text-lg font-bold text-accent/70 outline-none cursor-not-allowed"
                 value={tjVendu || ''}
@@ -350,12 +330,13 @@ export function JuryDecisionForm({
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">TJ Cible (€)</label>
               <input
                 type="number"
+                min="0"
                 disabled={readOnly}
                 className="w-full bg-white border border-accent/10 rounded-lg p-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-gray-50 disabled:text-accent/70"
                 value={formData.tjCibleDecision ?? ''}
                 onChange={e => {
                   const parsed = parseFloat(e.target.value);
-                  setFormData({ ...formData, tjCibleDecision: isNaN(parsed) ? undefined : parsed });
+                  setFormData({ ...formData, tjCibleDecision: isNaN(parsed) ? undefined : Math.max(0, parsed) });
                 }}
               />
             </div>
@@ -363,20 +344,32 @@ export function JuryDecisionForm({
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">% Investissement (base 60)</label>
               <input 
                 type="number"
+                min="0"
+                max="100"
+                step="1"
                 disabled={readOnly}
                 className="w-full bg-white border border-accent/10 rounded-lg p-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-gray-50 disabled:text-accent/70"
                 value={formData.investmentPercentage ?? ''}
-                onChange={e => setFormData({...formData, investmentPercentage: parseFloat(e.target.value)})}
+                onChange={e => {
+                  const parsed = parseInt(e.target.value, 10);
+                  setFormData({...formData, investmentPercentage: isNaN(parsed) ? undefined : Math.min(100, Math.max(0, parsed))});
+                }}
               />
             </div>
             <div>
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">% Mission (base 98)</label>
               <input 
                 type="number"
+                min="95"
+                max="100"
+                step="1"
                 disabled={readOnly}
                 className="w-full bg-white border border-accent/10 rounded-lg p-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-gray-50 disabled:text-accent/70"
                 value={formData.missionPercentage ?? ''}
-                onChange={e => setFormData({...formData, missionPercentage: parseFloat(e.target.value)})}
+                onChange={e => {
+                  const parsed = parseInt(e.target.value, 10);
+                  setFormData({...formData, missionPercentage: isNaN(parsed) ? undefined : Math.min(100, Math.max(95, parsed))});
+                }}
               />
             </div>
             <div>
@@ -422,12 +415,13 @@ export function JuryDecisionForm({
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Salaire max proposé si augmentation TJ</label>
               <input 
                  type="number"
+                 min="0"
                  disabled={readOnly}
                  className="w-full bg-white border border-accent/10 rounded-lg p-4 text-sm font-light outline-none focus:ring-2 focus:ring-primary/20 shadow-sm disabled:bg-gray-50 disabled:text-accent/70"
                  value={formData.maxSalaryIfTJIncreases || ''}
                  onChange={e => {
                    const parsed = parseFloat(e.target.value);
-                   setFormData({...formData, maxSalaryIfTJIncreases: isNaN(parsed) ? undefined : parsed});
+                   setFormData({...formData, maxSalaryIfTJIncreases: isNaN(parsed) ? undefined : Math.max(0, parsed)});
                  }}
                  placeholder="Montant..."
               />
@@ -440,13 +434,15 @@ export function JuryDecisionForm({
             <label className="text-[10px] font-black uppercase text-accent/30 tracking-[0.2em] mb-4 block px-2">Salaire Proposé (€)</label>
             <input 
               type="number"
+              min="0"
               disabled={readOnly}
               className="w-full bg-accent/5 border border-accent/10 rounded-xl p-6 text-2xl font-bold tracking-tight focus:bg-white focus:ring-2 focus:ring-primary/20 outline-none shadow-inner disabled:bg-gray-100 disabled:text-accent/70"
               value={formData.amount || ''}
               onChange={e => {
-                const amt = parseFloat(e.target.value) || 0;
+                const amt = Math.max(0, parseFloat(e.target.value) || 0);
                 const current = candidate?.currentSalary || 0;
-                const perc = current ? ((amt - current) / current) * 100 : 0;
+                const rawPerc = current ? ((amt - current) / current) * 100 : 0;
+                const perc = Math.min(100, Math.max(0, rawPerc));
                 setFormData({...formData, amount: amt, percentage: parseFloat(perc.toFixed(1))});
               }}
             />
@@ -467,14 +463,17 @@ export function JuryDecisionForm({
             <div className="text-[9px] font-black text-accent/30 uppercase tracking-widest mb-1">% Augmentation</div>
             <input 
               type="number"
+              min="0"
+              max="100"
               step="0.1"
               disabled={readOnly}
               className="w-full bg-transparent text-3xl font-bold text-accent tabular-nums text-center outline-none focus:ring-2 focus:ring-primary/10 rounded disabled:text-accent/70"
               value={formData.percentage || 0}
               onChange={e => {
-                const perc = parseFloat(e.target.value) || 0;
+                const rawPerc = parseFloat(e.target.value) || 0;
+                const perc = Math.min(100, Math.max(0, rawPerc));
                 const current = candidate?.currentSalary || 0;
-                const amt = Math.round(current * (1 + perc / 100));
+                const amt = Math.max(0, Math.round(current * (1 + perc / 100)));
                 setFormData({...formData, percentage: perc, amount: amt});
               }}
             />

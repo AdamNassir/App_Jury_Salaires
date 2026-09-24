@@ -4,7 +4,7 @@ import { doc, setDoc, collection, getDocs, query, where, getDoc } from '../lib/l
 import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, AnnualReport, ClientFeedback, Grade, PreviousObjective, NextObjective, Satisfaction, DossierStatus, DossierDocument } from '../types';
 import { LocalDatabaseService } from '../services/localDatabaseService';
-import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, ChevronRight, ChevronDown, Eye, Calculator, LogIn, TrendingUp, Maximize2, X, Download } from 'lucide-react';
+import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, ChevronRight, ChevronDown, Eye, Calculator, LogIn, TrendingUp, Maximize2, X, Download, Undo2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
@@ -50,8 +50,17 @@ interface CandidateViewProps {
 
 export function CandidateView({ profile, dossier, currentUser }: CandidateViewProps) {
   const isJuryUser = currentUser?.roles?.includes('JURY') || profile.roles?.includes('JURY');
-  const isLockedForEditing = dossier?.status === 'VALIDE' || (!isJuryUser && dossier?.status === 'COMPLET');
-  const isDossierComplet = dossier?.status === 'COMPLET' || dossier?.status === 'VALIDE';
+  const [dossierStatus, setDossierStatus] = useState<DossierStatus>(() => dossier?.status || 'OUVERT');
+
+  // Keep dossierStatus in sync if dossier prop changes from parent
+  useEffect(() => {
+    if (dossier?.status) {
+      setDossierStatus(dossier.status);
+    }
+  }, [dossier?.status]);
+
+  const isLockedForEditing = dossierStatus === 'VALIDE' || (!isJuryUser && dossierStatus === 'COMPLET');
+  const isDossierComplet = dossierStatus === 'COMPLET' || dossierStatus === 'VALIDE';
 
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -65,14 +74,23 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   const [meteoSubTab, setMeteoSubTab] = useState<'LIST' | 'CHART'>('LIST');
   const [selectedMeteoIndex, setSelectedMeteoIndex] = useState<number | null>(null);
   
-  const [reportData, setReportData] = useState<AnnualReport>({
-    ...defaultReportData,
-    wishedGrade: profile.currentGrade || 'Confirmé',
-    currentSalary: profile.currentSalary || 0,
-    currentGrade: profile.currentGrade,
-    currentTJSalaire: profile.currentTJSalaire || 0,
-    currentTJM: profile.currentTJM || 0,
-    ...(dossier?.annualReport || {})
+  const [reportData, setReportData] = useState<AnnualReport>(() => {
+    const defaultGrade = (profile.currentGrade || 'Junior') as Grade;
+    const initialWished = (
+      defaultGrade === 'Junior' && (!dossier?.annualReport?.wishedGrade || dossier?.annualReport?.wishedGrade === 'Confirmé')
+        ? 'Junior'
+        : (dossier?.annualReport?.wishedGrade || defaultGrade)
+    ) as Grade;
+
+    return {
+      ...defaultReportData,
+      currentSalary: profile.currentSalary || 0,
+      currentTJSalaire: profile.currentTJSalaire || 0,
+      currentTJM: profile.currentTJM || 0,
+      ...(dossier?.annualReport || {}),
+      currentGrade: defaultGrade,
+      wishedGrade: initialWished
+    };
   });
 
   const [feedbacks, setFeedbacks] = useState<ClientFeedback[]>(dossier?.clientFeedbacks || []);
@@ -82,22 +100,29 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   // Re-initialize reportData and feedbacks whenever selected candidate or dossier changes
   useEffect(() => {
     isFirstRenderForAutosave.current = true;
+    const defaultGrade = (profile.currentGrade || 'Junior') as Grade;
+    const initialWished = (
+      defaultGrade === 'Junior' && (!dossier?.annualReport?.wishedGrade || dossier?.annualReport?.wishedGrade === 'Confirmé')
+        ? 'Junior'
+        : (dossier?.annualReport?.wishedGrade || defaultGrade)
+    ) as Grade;
+
     if (dossier?.annualReport) {
       setReportData({
         ...defaultReportData,
-        wishedGrade: profile.currentGrade || 'Confirmé',
         currentSalary: profile.currentSalary || 0,
-        currentGrade: profile.currentGrade,
         currentTJSalaire: profile.currentTJSalaire || 0,
         currentTJM: profile.currentTJM || 0,
-        ...dossier.annualReport
+        ...dossier.annualReport,
+        currentGrade: defaultGrade,
+        wishedGrade: initialWished
       });
     } else {
       setReportData({
         ...defaultReportData,
-        wishedGrade: profile.currentGrade || 'Confirmé',
+        wishedGrade: initialWished,
         currentSalary: profile.currentSalary || 0,
-        currentGrade: profile.currentGrade,
+        currentGrade: defaultGrade,
         currentTJSalaire: profile.currentTJSalaire || 0,
         currentTJM: profile.currentTJM || 0,
       });
@@ -269,7 +294,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     if (reportData.encadrementCoach) filledCount++;
     if (feedbacks.length > 0) filledCount += 5; 
     
-    return Math.min(100, Math.round((filledCount / totalFields) * 100));
+    return Math.min(100, Math.max(0, Math.round((filledCount / totalFields) * 100)));
   };
 
   const handleSave = async (submit: boolean = false, isSilent: boolean = false) => {
@@ -287,8 +312,9 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
       if (submit) {
         // Generate PDF report automatically on submission
+        const activeYear = dossier?.campaignYear || (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, '')) || 2025 : 2025);
         const pdfDataUri = generateDossierPDF(profile, dossier, reportData, feedbacks);
-        const pdfFileName = `Bilan_Annuel_2025_${(profile.displayName || profile.email || 'Candidat').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+        const pdfFileName = `Bilan_Annuel_${activeYear}_${(profile.displayName || profile.email || 'Candidat').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
         const newPdfDoc: DossierDocument = {
           name: pdfFileName,
           type: 'PDF',
@@ -300,10 +326,11 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         updatedDocs = [...filteredDocs, newPdfDoc];
       }
 
-      const status: DossierStatus = submit ? 'COMPLET' : (dossier?.status || 'OUVERT');
-      const targetDossierId = dossier?.id || `${profile.id}_2025`;
+      const status: DossierStatus = submit ? 'COMPLET' : dossierStatus;
+      const targetDossierId = dossier?.id || LocalDatabaseService.getDossiersByCandidate(profile.id, profile.idProfil)[0]?.id || `${profile.id}_2025`;
+      const existingDossier = dossier || LocalDatabaseService.getDossierById(targetDossierId) || LocalDatabaseService.getDossiersByCandidate(profile.id, profile.idProfil)[0];
 
-      if (!dossier) {
+      if (!existingDossier) {
         const q = query(
           collection(db, 'users'), 
           where('assignedCandidateIds', 'array-contains', profile.id)
@@ -348,8 +375,12 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         };
 
         // 1. Sauvegarde locale instantanée
-        LocalDatabaseService.updateDossier(dossier.id, dossierUpdates);
+        LocalDatabaseService.updateDossier(existingDossier.id, dossierUpdates);
 
+      }
+
+      if (submit) {
+        setDossierStatus('COMPLET');
       }
 
       if (!isSilent) {
@@ -371,6 +402,32 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }
   };
 
+  const handleCancelSubmission = async () => {
+    const targetDossier = dossier || LocalDatabaseService.getDossiersByCandidate(profile.id, profile.idProfil)[0] || LocalDatabaseService.getDossierById(`${profile.id}_2025`);
+    if (dossierStatus !== 'COMPLET' && targetDossier?.status !== 'COMPLET') return;
+    
+    const confirmCancel = window.confirm(
+      "Êtes-vous sûr de vouloir annuler la soumission de votre dossier ? Vous pourrez à nouveau modifier son contenu puis le resoumettre."
+    );
+    if (!confirmCancel) return;
+
+    setLoading(true);
+    try {
+      const activeId = targetDossier?.id || `${profile.id}_2025`;
+      LocalDatabaseService.updateDossier(activeId, {
+        status: 'OUVERT',
+        updatedAt: new Date().toISOString()
+      });
+      setDossierStatus('OUVERT');
+      alert("Soumission annulée avec succès ! Votre dossier est de nouveau ouvert pour modification.");
+    } catch (error) {
+      console.error("Cancel submission error:", error);
+      alert("Une erreur est survenue lors de l'annulation de la soumission.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const addObjectivePast = () => {
     setReportData({
       ...reportData,
@@ -385,7 +442,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     });
   };
 
-  if (dossier?.status === 'VALIDE') {
+  if (dossierStatus === 'VALIDE') {
     return (
       <div className="space-y-8">
         <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm relative overflow-hidden mb-12">
@@ -483,7 +540,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   const prime = getPrimeAnciennete(yearsLL);
   const yearsExpert = calculateYears(profile.expertGradeDate, refDate);
 
-  const effectiveCurrentGrade: Grade | 'Junior' = (reportData.currentGrade || profile.currentGrade || 'Confirmé') as Grade | 'Junior';
+  const effectiveCurrentGrade: Grade | 'Junior' = (profile.currentGrade || reportData.currentGrade || 'Junior') as Grade | 'Junior';
 
   // Grade hierarchy: Junior (0) < Confirmé (1) < Senior (2) < Expert (3)
   const gradeOrder: Record<string, number> = {
@@ -493,9 +550,9 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     'Expert': 3
   };
 
-  const currentGradeRank = gradeOrder[effectiveCurrentGrade] ?? 1;
-  const availableWishedGrades = (['Confirmé', 'Senior', 'Expert'] as Grade[]).filter(
-    g => (gradeOrder[g] ?? 1) >= currentGradeRank
+  const currentGradeRank = gradeOrder[effectiveCurrentGrade] ?? 0;
+  const availableWishedGrades = (['Junior', 'Confirmé', 'Senior', 'Expert'] as Grade[]).filter(
+    g => (gradeOrder[g] ?? 0) >= currentGradeRank
   );
 
   // Calculate target salary corridor based on target TJM
@@ -598,26 +655,41 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
               </button>
             )}
             
-            <div className="relative w-full">
-              <div className="w-full">
+            {dossierStatus === 'COMPLET' ? (
+              <div className="space-y-2">
                 <button 
-                  onClick={() => {
-                    if (!loading && !isLockedForEditing) {
-                      handleSave(true);
-                    }
-                  }}
-                  disabled={loading || isLockedForEditing}
-                  className={cn(
-                    "w-full py-4 rounded-xl text-base font-bold transition-all flex items-center justify-center gap-3 shadow-xl",
-                    !isLockedForEditing
-                      ? "bg-primary text-white shadow-primary/20 cursor-pointer" 
-                      : "bg-accent/5 text-accent/20 cursor-not-allowed"
-                  )}
+                  onClick={handleCancelSubmission}
+                  disabled={loading}
+                  className="w-full py-4 rounded-xl text-base font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center justify-center gap-3 shadow-xl shadow-amber-500/20 cursor-pointer active:scale-[0.98]"
                 >
-                  <Send className="w-5 h-5" /> {isJuryUser && dossier?.status === 'COMPLET' ? 'Mettre à jour & Générer PDF' : 'Soumettre le dossier'}
+                  <Undo2 className="w-5 h-5" /> Annuler Soumission
                 </button>
+                <p className="text-[11px] text-accent/50 text-center leading-tight px-1">
+                  Permet de rouvrir votre dossier pour le corriger et le modifier à nouveau.
+                </p>
               </div>
-            </div>
+            ) : (
+              <div className="relative w-full">
+                <div className="w-full">
+                  <button 
+                    onClick={() => {
+                      if (!loading && !isLockedForEditing) {
+                        handleSave(true);
+                      }
+                    }}
+                    disabled={loading || isLockedForEditing}
+                    className={cn(
+                      "w-full py-4 rounded-xl text-base font-bold transition-all flex items-center justify-center gap-3 shadow-xl",
+                      !isLockedForEditing
+                        ? "bg-primary text-white shadow-primary/20 cursor-pointer" 
+                        : "bg-accent/5 text-accent/20 cursor-not-allowed"
+                    )}
+                  >
+                    <Send className="w-5 h-5" /> Soumettre le dossier
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

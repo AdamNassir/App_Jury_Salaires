@@ -22,11 +22,15 @@ import {
   Briefcase,
   Award,
   Lock,
-  Percent
+  Percent,
+  Sliders,
+  Dices,
+  Trash2
 } from 'lucide-react';
 import { updateDoc, doc, serverTimestamp } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
 import { UserDirectoryService } from '../services/userDirectoryService';
+import { seed50DummyUsers, clearDummyUsers } from '../services/dummyUsersGenerator';
 import { 
   exportDeliberationsToGoogleSheet, 
   PREDEFINED_EXPORT_SPREADSHEET_ID, 
@@ -40,6 +44,7 @@ import {
   calculateMargin,
   getTauxGrade
 } from '../lib/salaryUtils';
+import { OptimizerSuggestionsModal } from './salary/OptimizerSuggestionsModal';
 
 const sanitizeForStorage = (obj: any): any => {
   if (obj === undefined) return null;
@@ -70,6 +75,12 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
   const [editValues, setEditValues] = useState<any>({});
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
   const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>({});
+  const [showOptimizerModal, setShowOptimizerModal] = useState(false);
+  const [dummyNotice, setDummyNotice] = useState<string | null>(null);
+
+  const hasDummyUsers = useMemo(() => {
+    return dossiers.some(d => d.id.startsWith('DUMMY_DOS_'));
+  }, [dossiers]);
 
   const toggleRow = (dossierId: string) => {
     setExpandedRowIds(prev => ({
@@ -223,8 +234,8 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
       const marginPostJury = calculateMargin(tjVendu, proposedSalary, prime);
 
       // Logic for Salaire Formule Result
-      const invest = decision.investmentPercentage || 60;
-      const mission = decision.missionPercentage || 98;
+      const invest = decision.investmentPercentage ?? 60;
+      const mission = decision.missionPercentage ?? 98;
       
       const calc1 = (mission / 100) * (((invest * (salaireCible100 - salaireCible)) / 100) + salaireCible);
       const calc2 = (mission / 100) * (((invest * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu);
@@ -295,46 +306,38 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
       return (
         item.candidate.displayName.toLowerCase().includes(search) ||
         item.candidate.matricule?.toLowerCase().includes(search) ||
+        (item.decision.whyThisSalary && item.decision.whyThisSalary.toLowerCase().includes(search)) ||
+        (item.decision.whatToDoMore && item.decision.whatToDoMore.toLowerCase().includes(search)) ||
         item.evaluatorFeedbacks.some(f => f.consultantName?.toLowerCase().includes(search) || f.justification?.toLowerCase().includes(search)) ||
         item.otherJuryReviews.some(r => r.juryName?.toLowerCase().includes(search) || r.whyThisSalary?.toLowerCase().includes(search))
       );
     });
   }, [dossiers, candidates, searchTerm, referenceDate, profile]);
 
-  // Moyennes issues uniquement des avis individuels des jurys et évaluateurs.
+  // Moyennes calculées directement à partir des dossiers affichés dans la table
   const globalMetrics = useMemo(() => {
-    const missionValues: number[] = [];
-    const investmentValues: number[] = [];
+    if (!dossiers || dossiers.length === 0) {
+      return {
+        avgMission: 98,
+        avgInvestment: 60,
+        totalCount: 0
+      };
+    }
 
-    const addPercentages = (source: { missionPercentage?: number; investmentPercentage?: number }) => {
-      const mission = Number(source.missionPercentage);
-      const investment = Number(source.investmentPercentage);
-      if (Number.isFinite(mission)) missionValues.push(mission);
-      if (Number.isFinite(investment)) investmentValues.push(investment);
-    };
+    let sumMission = 0;
+    let sumInvestment = 0;
 
     dossiers.forEach(d => {
-      Object.values(d.consultantFeedbacks || {})
-        .filter(feedback => feedback.status === 'VALIDE' || feedback.validated)
-        .forEach(addPercentages);
-
-      const uniqueJuryReviews = new Map<string, JuryMemberReview>();
-      Object.values(d.juryMemberReviews || {}).forEach(review => {
-        if (!review.isFinalized) return;
-        const identity = review.juryUid || review.juryEmail?.toLowerCase() || review.juryName;
-        uniqueJuryReviews.set(identity, review);
-      });
-      uniqueJuryReviews.forEach(addPercentages);
+      const m = d.juryDecision?.missionPercentage;
+      const i = d.juryDecision?.investmentPercentage;
+      sumMission += (m !== undefined && m !== null && Number.isFinite(Number(m))) ? Number(m) : 98;
+      sumInvestment += (i !== undefined && i !== null && Number.isFinite(Number(i))) ? Number(i) : 60;
     });
 
     return {
-      avgMission: missionValues.length
-        ? parseFloat((missionValues.reduce((sum, value) => sum + value, 0) / missionValues.length).toFixed(1))
-        : 98,
-      avgInvestment: investmentValues.length
-        ? parseFloat((investmentValues.reduce((sum, value) => sum + value, 0) / investmentValues.length).toFixed(1))
-        : 60,
-      totalCount: Math.max(missionValues.length, investmentValues.length)
+      avgMission: parseFloat((sumMission / dossiers.length).toFixed(1)),
+      avgInvestment: parseFloat((sumInvestment / dossiers.length).toFixed(1)),
+      totalCount: dossiers.length
     };
   }, [dossiers]);
 
@@ -458,9 +461,17 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
           aVal = a.decision.maxSalaryIfTJIncreases || 0;
           bVal = b.decision.maxSalaryIfTJIncreases || 0;
           break;
-        case 'verdict':
-          aVal = a.decision.verdict || '';
-          bVal = b.decision.verdict || '';
+        case 'referentJury':
+          aVal = a.decision.referentJury || '';
+          bVal = b.decision.referentJury || '';
+          break;
+        case 'whyThisSalary':
+          aVal = a.decision.whyThisSalary || '';
+          bVal = b.decision.whyThisSalary || '';
+          break;
+        case 'whatToDoMore':
+          aVal = a.decision.whatToDoMore || '';
+          bVal = b.decision.whatToDoMore || '';
           break;
         default:
           return 0;
@@ -482,8 +493,8 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
     setEditValues({
       amount: decision.amount || item.currentSalary,
       verdict: decision.verdict || 'Favorable',
-      investmentPercentage: decision.investmentPercentage || 60,
-      missionPercentage: decision.missionPercentage || 98,
+      investmentPercentage: decision.investmentPercentage ?? 60,
+      missionPercentage: decision.missionPercentage ?? 98,
       whyThisSalary: decision.whyThisSalary || '',
       whatToDoMore: decision.whatToDoMore || '',
       referentJury: decision.referentJury || '',
@@ -504,7 +515,20 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
       let finalValues = { ...editValues };
       if (candidate && finalValues.amount !== undefined) {
         const current = candidate.currentSalary || 0;
-        finalValues.percentage = current ? parseFloat((((finalValues.amount - current) / current) * 100).toFixed(1)) : 0;
+        const rawPerc = current ? ((finalValues.amount - current) / current) * 100 : 0;
+        finalValues.percentage = parseFloat(Math.min(100, Math.max(0, rawPerc)).toFixed(1));
+      }
+      if (finalValues.investmentPercentage !== undefined) {
+        finalValues.investmentPercentage = Math.round(Math.min(100, Math.max(0, finalValues.investmentPercentage)));
+      }
+      if (finalValues.missionPercentage !== undefined) {
+        finalValues.missionPercentage = Math.round(Math.min(100, Math.max(95, finalValues.missionPercentage)));
+      }
+      if (finalValues.amount !== undefined) {
+        finalValues.amount = Math.max(0, finalValues.amount);
+      }
+      if (finalValues.maxSalaryIfTJIncreases !== undefined) {
+        finalValues.maxSalaryIfTJIncreases = Math.max(0, finalValues.maxSalaryIfTJIncreases);
       }
 
       await updateDoc(dossierRef, sanitizeForStorage({
@@ -538,9 +562,15 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
 
         {/* Action Button: Destination is predetermined and handled by code */}
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* Indicateurs Moyennes Globales Jury */}
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-accent/10 shadow-xs">
-            <Percent className="w-4 h-4 text-secondary shrink-0" />
+          {/* Indicateurs Moyennes Globales Jury - cliquables pour afficher les ajustements suggérés */}
+          <div 
+            onClick={() => setShowOptimizerModal(true)}
+            role="button"
+            tabIndex={0}
+            title="Cliquer pour afficher les ajustements suggérés par consultant"
+            className="flex items-center gap-3 bg-white hover:bg-secondary/5 px-4 py-2 rounded-xl border border-accent/10 shadow-xs cursor-pointer transition-all group"
+          >
+            <Percent className="w-4 h-4 text-secondary shrink-0 group-hover:scale-110 transition-transform" />
             <div className="flex items-center gap-4 text-xs font-semibold">
               <div 
                 className="flex items-center gap-1.5" 
@@ -549,9 +579,9 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                 <span className="text-[10px] uppercase font-bold text-accent/50 tracking-wider">Moy. % Mission :</span>
                 <span className={cn(
                   "px-2 py-0.5 rounded-full font-black text-xs tabular-nums",
-                  Math.abs(globalMetrics.avgMission - 98) <= 2
+                  Math.abs(globalMetrics.avgMission - 98) <= 0.3
                     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : Math.abs(globalMetrics.avgMission - 98) <= 5
+                    : Math.abs(globalMetrics.avgMission - 98) <= 1.0
                       ? "bg-amber-50 text-amber-700 border border-amber-200"
                       : "bg-red-50 text-red-700 border border-red-200"
                 )}>
@@ -578,18 +608,64 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                 </span>
               </div>
             </div>
+            
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-black uppercase text-secondary bg-secondary/10 px-2 py-1 rounded-md ml-1 group-hover:bg-secondary group-hover:text-white transition-all">
+              <Sliders className="w-3 h-3" />
+              <span>Ajustements</span>
+            </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowOptimizerModal(true)}
+            title="Afficher les ajustements suggérés par consultant"
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-secondary text-white hover:bg-secondary/90 rounded-xl font-bold text-xs shadow-md transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Ajustements suggérés</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const activeCampaignId = dossiers[0]?.campaignId || 'campaign_2025';
+              const res = seed50DummyUsers(activeCampaignId);
+              setDummyNotice(`50 utilisateurs de test générés avec succès (${res.dossierCount} dossiers) avec % Mission ∈ [95%, 100%]`);
+              setTimeout(() => setDummyNotice(null), 4000);
+            }}
+            title="Générer 50 utilisateurs de test (Mission 95-100%, Invest. 0-100%)"
+            className="flex items-center justify-center gap-2 px-3.5 py-3 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl font-bold text-xs shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <Dices className="w-4 h-4" />
+            <span>{hasDummyUsers ? "Régénérer 50 aléatoires" : "Générer 50 tests"}</span>
+          </button>
+
+          {hasDummyUsers && (
+            <button
+              type="button"
+              onClick={() => {
+                const res = clearDummyUsers();
+                setDummyNotice(`${res.removedDossiers} dossiers de test supprimés.`);
+                setTimeout(() => setDummyNotice(null), 3500);
+              }}
+              title="Supprimer les 50 utilisateurs de test"
+              className="flex items-center justify-center gap-1.5 px-3 py-3 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-xs shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Nettoyer tests</span>
+            </button>
+          )}
 
           <button
             onClick={handleExportToGoogleSheets}
             disabled={isExporting}
-            title={`Destination prédéterminée dans le code : Onglet "${DEFAULT_SHEET_TAB_NAME}" du Google Sheet`}
+            title="Exporter dans votre dossier Google Drive (Délibérations_Jury)"
             className="flex items-center justify-center gap-2.5 px-5 py-3 bg-[#0F9D58] hover:bg-[#0B8043] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             {isExporting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Exportation vers Google Sheet...</span>
+                <span>Exportation vers Google Drive...</span>
               </>
             ) : (
               <>
@@ -607,18 +683,44 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              <strong>{exportResult.rowsExported} délibérations</strong> exportées avec succès dans l'onglet <em>"{DEFAULT_SHEET_TAB_NAME}"</em> du Google Sheet à {exportResult.timestamp}.
+              <strong>{exportResult.rowsExported} délibérations</strong> exportées avec succès dans votre dossier Google Drive à {exportResult.timestamp}.
             </span>
           </div>
-          <a 
-            href={exportResult.sheetUrl} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 font-bold text-emerald-700 hover:text-emerald-900 underline ml-4 shrink-0"
+          <div className="flex items-center gap-3">
+            <a 
+              href="https://drive.google.com/drive/folders/1BHFi8Z_0K1tTUalK6BKC-B4eXh6PLOx5"
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 font-bold text-emerald-800 hover:text-emerald-950 underline shrink-0"
+            >
+              <span>Ouvrir le dossier Drive</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <a 
+              href={exportResult.sheetUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 font-bold text-emerald-700 hover:text-emerald-900 underline ml-2 shrink-0"
+            >
+              <span>Ouvrir le classeur Sheet</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {dummyNotice && (
+        <div className="p-4 bg-purple-50 border border-purple-200 text-purple-900 rounded-xl flex items-center justify-between text-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
+            <span>{dummyNotice}</span>
+          </div>
+          <button 
+            onClick={() => setDummyNotice(null)}
+            className="text-purple-600 hover:text-purple-900 font-bold ml-4 cursor-pointer text-base"
           >
-            <span>Consulter le Google Sheet</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+            ×
+          </button>
         </div>
       )}
 
@@ -649,7 +751,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
               <th colSpan={2} className="py-2 border-r border-white/10">Réel au 30/06</th>
               <th colSpan={3} className="py-2 border-r border-white/10">Souhait Consultant</th>
               <th colSpan={2} className="py-2 border-r border-white/10">Délibération Métriques</th>
-              <th colSpan={12} className="py-2">Décision Jury</th>
+              <th colSpan={11} className="py-2">Décision Jury</th>
             </tr>
             <tr className="bg-accent/5 text-[9px] font-black text-accent/50 border-b border-accent/10 uppercase tracking-tighter">
               {/* Expand column */}
@@ -696,10 +798,9 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
               <th onClick={() => requestSort('resFormule')} className="p-4 min-w-[120px] text-right text-primary font-bold italic cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : Max(Salaire Actuel, Formule1, Formule2) où FormuleX = (Pourcentage mission / 100) * ((Pourcentage investissement * (SalaireX 100% - SalaireX)) / 100 + SalaireX)">Salaire Formule {renderSortIndicator('resFormule')}</th>
               <th onClick={() => requestSort('diffFormule')} className="p-4 min-w-[120px] text-right font-bold cursor-pointer hover:bg-accent/10 transition-colors" title="Différence entre le Salaire Proposé et le Salaire calculé par la formule (Calculette du salaire)">Écart Formule {renderSortIndicator('diffFormule')}</th>
               <th onClick={() => requestSort('maxSalaryIfTJIncreases')} className="p-4 min-w-[150px] text-right cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury (Onglet Décision) ou via ce tableau">Salaire max proposé si augmentation TJ {renderSortIndicator('maxSalaryIfTJIncreases')}</th>
-              <th onClick={() => requestSort('verdict')} className="p-4 min-w-[120px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Favorable, Réservé, Défavorable">Verdict {renderSortIndicator('verdict')}</th>
-              <th className="p-4 min-w-[200px]" title="Saisi par le Jury (Explication de la décision)">Pourquoi ce salaire ?</th>
-              <th className="p-4 min-w-[200px]" title="Saisi par le Jury (Axes d'amélioration)">Actions Progrès</th>
-              <th className="p-4 min-w-[140px]" title="Saisi par le Jury">Référent Jury</th>
+              <th onClick={() => requestSort('referentJury')} className="p-4 min-w-[140px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Référent Jury assigné au dossier">Référent Jury {renderSortIndicator('referentJury')}</th>
+              <th onClick={() => requestSort('whyThisSalary')} className="p-4 min-w-[220px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Pourquoi ce salaire proposé">Pourquoi ce salaire proposé {renderSortIndicator('whyThisSalary')}</th>
+              <th onClick={() => requestSort('whatToDoMore')} className="p-4 min-w-[220px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Ce qu'il faut faire pour avoir plus">Ce qu'il faut faire pour avoir plus {renderSortIndicator('whatToDoMore')}</th>
               <th className="p-4 min-w-[150px]" title="Saisi par le Jury ou le Manager lors du point collaborateur">Ressenti</th>
             </tr>
           </thead>
@@ -819,13 +920,19 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                   {editingId === item.dossier.id ? (
                     <input 
                       type="number"
+                      min="0"
+                      max="100"
+                      step="1"
                       className="w-16 p-1 text-center bg-white border border-secondary rounded outline-none"
                       value={editValues.investmentPercentage}
-                      onChange={e => setEditValues({...editValues, investmentPercentage: parseFloat(e.target.value)})}
+                      onChange={e => {
+                        const parsed = parseInt(e.target.value, 10);
+                        setEditValues({...editValues, investmentPercentage: isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed))});
+                      }}
                     />
                   ) : (
-                    <span className={cn(item.decision.investmentPercentage < 60 ? "text-orange-500" : "text-accent")}>
-                      {item.decision.investmentPercentage || 60}%
+                    <span className={cn((item.decision.investmentPercentage ?? 60) < 60 ? "text-orange-500" : "text-accent")}>
+                      {Math.round(item.decision.investmentPercentage ?? 60)}%
                     </span>
                   )}
                 </td>
@@ -833,13 +940,19 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                   {editingId === item.dossier.id ? (
                     <input 
                       type="number"
+                      min="95"
+                      max="100"
+                      step="1"
                       className="w-16 p-1 text-center bg-white border border-secondary rounded outline-none"
                       value={editValues.missionPercentage}
-                      onChange={e => setEditValues({...editValues, missionPercentage: parseFloat(e.target.value)})}
+                      onChange={e => {
+                        const parsed = parseInt(e.target.value, 10);
+                        setEditValues({...editValues, missionPercentage: isNaN(parsed) ? 98 : Math.min(100, Math.max(95, parsed))});
+                      }}
                     />
                   ) : (
-                    <span className={cn(item.decision.missionPercentage < 98 ? "text-orange-500" : "text-accent")}>
-                      {item.decision.missionPercentage || 98}%
+                    <span className={cn((item.decision.missionPercentage ?? 98) < 98 ? "text-orange-500" : "text-accent")}>
+                      {Math.round(item.decision.missionPercentage ?? 98)}%
                     </span>
                   )}
                 </td>
@@ -849,16 +962,17 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                   {editingId === item.dossier.id ? (
                     <input 
                       type="number"
+                      min="0"
                       className="w-24 p-1 text-right bg-white border border-secondary rounded outline-none"
                       value={editValues.amount}
-                      onChange={e => setEditValues({...editValues, amount: parseFloat(e.target.value)})}
+                      onChange={e => setEditValues({...editValues, amount: Math.max(0, parseFloat(e.target.value) || 0)})}
                     />
                   ) : formatCurrency(item.decision.amount || item.currentSalary)}
                 </td>
                 <td className="p-4 text-center opacity-40">{item.prime}€</td>
                 <td className="p-4 text-center font-bold text-secondary">{item.prime}€</td>
                 <td className="p-4 text-center font-bold">
-                  {item.decision.amount ? (((item.decision.amount - item.currentSalary) / item.currentSalary) * 100).toFixed(1) + '%' : '0%'}
+                  {item.decision.amount ? Math.min(100, Math.max(0, ((item.decision.amount - item.currentSalary) / item.currentSalary) * 100)).toFixed(1) + '%' : '0%'}
                 </td>
                 <td className={cn(
                   "p-4 text-center font-black tabular-nums",
@@ -879,60 +993,15 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                   {editingId === item.dossier.id ? (
                     <input 
                       type="number"
+                      min="0"
                       className="w-24 p-1 text-right bg-white border border-secondary rounded outline-none"
                       value={editValues.maxSalaryIfTJIncreases || ''}
                       onChange={e => {
                         const parsed = parseFloat(e.target.value);
-                        setEditValues({...editValues, maxSalaryIfTJIncreases: isNaN(parsed) ? undefined : parsed});
+                        setEditValues({...editValues, maxSalaryIfTJIncreases: isNaN(parsed) ? undefined : Math.max(0, parsed)});
                       }}
                     />
                   ) : item.decision.maxSalaryIfTJIncreases ? formatCurrency(item.decision.maxSalaryIfTJIncreases) : '-'}
-                </td>
-                <td className="p-4">
-                  {editingId === item.dossier.id ? (
-                    <select 
-                      className="w-full p-1 bg-white border border-secondary rounded outline-none"
-                      value={editValues.verdict}
-                      onChange={e => setEditValues({...editValues, verdict: e.target.value})}
-                    >
-                      <option value="Favorable">Favorable</option>
-                      <option value="Réserve">Réserve</option>
-                      <option value="Défavorable">Défavorable</option>
-                    </select>
-                  ) : (
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
-                      item.decision.verdict === 'Favorable' ? "bg-green-100 text-green-700" :
-                      item.decision.verdict === 'Réserve' ? "bg-orange-100 text-orange-700" :
-                      item.decision.verdict === 'Défavorable' ? "bg-red-100 text-red-700" : "bg-accent/10 text-accent/40"
-                    )}>
-                      {item.decision.verdict || 'N/A'}
-                    </span>
-                  )}
-                </td>
-                <td className="p-4">
-                  {editingId === item.dossier.id ? (
-                    <textarea 
-                      className="w-full p-2 text-[10px] bg-white border border-secondary rounded outline-none resize-none"
-                      rows={2}
-                      value={editValues.whyThisSalary}
-                      onChange={e => setEditValues({...editValues, whyThisSalary: e.target.value})}
-                    />
-                  ) : (
-                    <div className="max-w-[200px] truncate italic text-accent/60" title={item.decision.whyThisSalary}>{item.decision.whyThisSalary || '-'}</div>
-                  )}
-                </td>
-                <td className="p-4">
-                  {editingId === item.dossier.id ? (
-                    <textarea 
-                      className="w-full p-2 text-[10px] bg-white border border-secondary rounded outline-none resize-none"
-                      rows={2}
-                      value={editValues.whatToDoMore}
-                      onChange={e => setEditValues({...editValues, whatToDoMore: e.target.value})}
-                    />
-                  ) : (
-                    <div className="max-w-[200px] truncate italic text-accent/60" title={item.decision.whatToDoMore}>{item.decision.whatToDoMore || '-'}</div>
-                  )}
                 </td>
                 <td className="p-4 min-w-[140px]">
                   {editingId === item.dossier.id ? (
@@ -965,6 +1034,50 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                     </select>
                   )}
                 </td>
+                <td className="p-4 min-w-[220px]">
+                  {editingId === item.dossier.id ? (
+                    <textarea 
+                      className="w-full p-2 text-[11px] bg-white border border-secondary rounded-lg outline-none resize-y min-h-[48px]"
+                      rows={2}
+                      placeholder="Pourquoi ce salaire..."
+                      value={editValues.whyThisSalary || ''}
+                      onChange={e => setEditValues({...editValues, whyThisSalary: e.target.value})}
+                    />
+                  ) : (
+                    <div 
+                      className="text-xs text-accent/80 font-normal leading-snug line-clamp-2 hover:line-clamp-none transition-all cursor-default"
+                      title={item.decision.whyThisSalary || 'Non renseigné'}
+                    >
+                      {item.decision.whyThisSalary ? (
+                        <span>{item.decision.whyThisSalary}</span>
+                      ) : (
+                        <span className="text-accent/30 italic font-light">-</span>
+                      )}
+                    </div>
+                  )}
+                </td>
+                <td className="p-4 min-w-[220px]">
+                  {editingId === item.dossier.id ? (
+                    <textarea 
+                      className="w-full p-2 text-[11px] bg-white border border-secondary rounded-lg outline-none resize-y min-h-[48px]"
+                      rows={2}
+                      placeholder="Ce qu'il faut faire pour avoir plus..."
+                      value={editValues.whatToDoMore || ''}
+                      onChange={e => setEditValues({...editValues, whatToDoMore: e.target.value})}
+                    />
+                  ) : (
+                    <div 
+                      className="text-xs text-accent/80 font-normal leading-snug line-clamp-2 hover:line-clamp-none transition-all cursor-default"
+                      title={item.decision.whatToDoMore || 'Non renseigné'}
+                    >
+                      {item.decision.whatToDoMore ? (
+                        <span>{item.decision.whatToDoMore}</span>
+                      ) : (
+                        <span className="text-accent/30 italic font-light">-</span>
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td className="p-4 min-w-[200px]">
                   {editingId === item.dossier.id ? (
                     <div className="flex items-center gap-2">
@@ -990,7 +1103,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
               {/* Sous-lignes détaillées pour les évaluateurs et autres membres du jury */}
               {isExpanded && (
                 <tr className="bg-accent/[0.02] border-b border-accent/10">
-                  <td colSpan={34} className="py-3 px-6">
+                  <td colSpan={33} className="py-3 px-6">
                     {totalSublines === 0 ? (
                       <div className="my-2 py-4 px-6 rounded-xl bg-white/70 border border-dashed border-accent/20 text-xs italic text-accent/40">
                         Aucun autre avis d'évaluateur ou de membre du jury pour ce candidat pour le moment.
@@ -1185,6 +1298,13 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
           Double-cliquer sur une ligne pour l'éditer.
         </div>
       </div>
+
+      <OptimizerSuggestionsModal 
+        isOpen={showOptimizerModal}
+        onClose={() => setShowOptimizerModal(false)}
+        dossiers={dossiers}
+        candidates={candidates}
+      />
     </div>
   );
 }

@@ -15,6 +15,15 @@ export const PREDEFINED_EXPORT_SPREADSHEET_ID =
   GoogleSheetsConfigService.findAnyTabByPurpose('EXPORT_SALARY_DELIBERATIONS')?.spreadsheetId || 
   GoogleSheetsConfigService.getDefaultSpreadsheetId();
 
+/**
+ * Dossier Google Drive de destination pour l'export des Délibérations :
+ * https://drive.google.com/drive/folders/1BHFi8Z_0K1tTUalK6BKC-B4eXh6PLOx5
+ */
+export const EXPORT_DRIVE_FOLDER_ID = 
+  metaEnv.VITE_GOOGLE_DRIVE_EXPORT_FOLDER_ID || 
+  (GoogleSheetsConfigService.getConfig() as any).exportDriveFolderId ||
+  '1BHFi8Z_0K1tTUalK6BKC-B4eXh6PLOx5';
+
 export const PREDEFINED_IMPORT_SPREADSHEET_ID = 
   metaEnv.VITE_GOOGLE_SHEET_IMPORT_ID || 
   GoogleSheetsConfigService.findAnyTabByPurpose('IMPORT_ACCOUNTS')?.spreadsheetId || 
@@ -44,10 +53,10 @@ export interface SheetImportResult {
 }
 
 /**
- * Ensures an active Google OAuth access token is present with sheets scope
+ * Ensures an active Google OAuth access token is present with sheets and drive.file scope
  */
-async function getValidToken(): Promise<string> {
-  let token = getGoogleAccessToken();
+async function getValidToken(forceFresh: boolean = false): Promise<string> {
+  let token = forceFresh ? null : getGoogleAccessToken();
   if (!token) {
     token = await requestGoogleSheetsAccess();
   }
@@ -179,9 +188,6 @@ export function prepareDeliberationsData(
     'Salaire Formule (€)',
     'Écart Formule (€)',
     'Salaire Max si Hausse TJ (€)',
-    'Verdict Jury',
-    'Pourquoi ce salaire',
-    'Actions Progrès',
     'Référent Jury',
     'Ressenti Consultant',
     'Horodatage Export'
@@ -268,9 +274,6 @@ export function prepareDeliberationsData(
       Math.round(resFormule),
       Math.round((proposedSalary || currentSalary) - resFormule),
       decision.maxSalaryIfTJIncreases || 0,
-      decision.verdict || 'Favorable',
-      decision.whyThisSalary || '',
-      decision.whatToDoMore || '',
       decision.referentJury || '',
       decision.consultantFeeling || '',
       nowStr
@@ -278,6 +281,96 @@ export function prepareDeliberationsData(
   });
 
   return { headers, rows };
+}
+
+/**
+ * Resolves an existing Google Sheet in the specific Drive folder or creates one in it.
+ */
+async function resolveDriveFolderSpreadsheet(
+  initialToken: string, 
+  folderId: string = EXPORT_DRIVE_FOLDER_ID, 
+  desiredTitle: string = 'Délibérations_Jury'
+): Promise<{ spreadsheetId: string; sheetUrl: string; token: string }> {
+  let activeToken = initialToken;
+
+  // 1. Search if a spreadsheet already exists in the destination folder
+  const searchInFolder = async (tok: string) => {
+    const query = `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
+    const searchUrl = `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({
+      q: query,
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+      corpora: 'allDrives',
+      fields: 'files(id, name, webViewLink)'
+    })}`;
+    return fetch(searchUrl, {
+      headers: { Authorization: `Bearer ${tok}` }
+    });
+  };
+
+  let searchRes = await searchInFolder(activeToken);
+
+  // If unauthorized or insufficient scope (e.g. drive.file required), re-prompt for fresh token
+  if (searchRes.status === 401 || searchRes.status === 403) {
+    try {
+      activeToken = await getValidToken(true);
+      searchRes = await searchInFolder(activeToken);
+    } catch (authErr) {
+      console.warn("Re-authorization for Google Drive scope failed:", authErr);
+    }
+  }
+
+  if (searchRes.ok) {
+    const searchData = await searchRes.json();
+    const existing = (searchData.files || []).find((f: any) => 
+      f.name === desiredTitle || f.name.includes('Délibérations') || f.name.includes('Salaires')
+    ) || (searchData.files || [])[0];
+
+    if (existing) {
+      return {
+        spreadsheetId: existing.id,
+        sheetUrl: existing.webViewLink || `https://docs.google.com/spreadsheets/d/${existing.id}`,
+        token: activeToken
+      };
+    }
+  }
+
+  // 2. If not found, create directly inside the folder via Drive API
+  const createInFolder = async (tok: string) => {
+    return fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tok}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: desiredTitle,
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+        parents: [folderId]
+      })
+    });
+  };
+
+  let createRes = await createInFolder(activeToken);
+  if (createRes.status === 401 || createRes.status === 403) {
+    activeToken = await getValidToken(true);
+    createRes = await createInFolder(activeToken);
+  }
+
+  if (createRes.ok) {
+    const createData = await createRes.json();
+    if (createData.id) {
+      return {
+        spreadsheetId: createData.id,
+        sheetUrl: createData.webViewLink || `https://docs.google.com/spreadsheets/d/${createData.id}`,
+        token: activeToken
+      };
+    }
+  }
+
+  const errJson = await createRes.json().catch(() => ({}));
+  const errorDetails = errJson?.error?.message || `Statut HTTP ${createRes.status}`;
+  throw new Error(`Impossible de créer le fichier dans votre dossier Google Drive (${folderId}) : ${errorDetails}`);
 }
 
 /**
@@ -292,20 +385,21 @@ export async function exportDeliberationsToGoogleSheet(
   tabName: string = DEFAULT_SHEET_TAB_NAME,
   referenceDate?: string | Date | null
 ): Promise<SheetExportResult> {
-  const spreadsheetId = customSpreadsheetId || PREDEFINED_EXPORT_SPREADSHEET_ID;
-  const sheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+  let spreadsheetId = customSpreadsheetId || '';
+  let sheetUrl = spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}` : '';
 
   // 1. Prepare data rows
   const { headers, rows } = prepareDeliberationsData(dossiers, candidates, referenceDate);
   const allValues = [headers, ...rows];
 
-  // 2. Attempt server-side export via Google Service Account
+  // 2. Attempt server-side export via Google Service Account (if configured)
   try {
     const serverRes = await fetch('/api/sheets/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        spreadsheetId,
+        spreadsheetId: spreadsheetId || undefined,
+        folderId: EXPORT_DRIVE_FOLDER_ID,
         tabName,
         values: allValues
       })
@@ -316,8 +410,8 @@ export async function exportDeliberationsToGoogleSheet(
       return {
         success: true,
         rowsExported: serverData.rowsExported ?? rows.length,
-        spreadsheetId,
-        sheetUrl,
+        spreadsheetId: serverData.spreadsheetId,
+        sheetUrl: serverData.sheetUrl || `https://docs.google.com/spreadsheets/d/${serverData.spreadsheetId}`,
         timestamp: serverData.timestamp || new Date().toLocaleTimeString('fr-FR')
       };
     }
@@ -326,19 +420,31 @@ export async function exportDeliberationsToGoogleSheet(
     const errorMsg = serverErrJson?.error || '';
 
     // If error is about missing server key, log and proceed to client OAuth
-    if (errorMsg.includes('GOOGLE_PRIVATE_KEY is missing')) {
-      console.info("Notice: GOOGLE_PRIVATE_KEY non renseignée sur le serveur. Utilisation du jeton OAuth connecté...");
+    if (errorMsg.includes('GOOGLE_PRIVATE_KEY is missing') || errorMsg.includes('client OAuth')) {
+      console.info("Notice: Utilisation du compte Google connecté pour l'export Drive...");
     } else {
       throw new Error(errorMsg || `Erreur serveur (${serverRes.status})`);
     }
   } catch (err: any) {
-    if (!err.message?.includes('GOOGLE_PRIVATE_KEY is missing')) {
+    if (!err.message?.includes('GOOGLE_PRIVATE_KEY is missing') && !err.message?.includes('client OAuth')) {
       console.warn("Notice backend Sheets:", err.message);
     }
   }
 
-  // 3. Client-side OAuth fallback
-  const token = await getValidToken();
+  // 3. Client-side OAuth
+  let token = await getValidToken();
+
+  // If no custom spreadsheet was given, locate or create file inside the specified Drive folder
+  if (!customSpreadsheetId && EXPORT_DRIVE_FOLDER_ID) {
+    const folderSheet = await resolveDriveFolderSpreadsheet(token, EXPORT_DRIVE_FOLDER_ID, 'Délibérations_Jury');
+    spreadsheetId = folderSheet.spreadsheetId;
+    sheetUrl = folderSheet.sheetUrl;
+    token = folderSheet.token;
+  }
+
+  if (!spreadsheetId) {
+    throw new Error("Aucun identifiant de classeur Google Sheet n'a pu être obtenu.");
+  }
 
   // Ensure sheet tab exists
   await ensureSheetTabExists(spreadsheetId, tabName, token);

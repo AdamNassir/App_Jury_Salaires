@@ -252,7 +252,11 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
           >
-            <SalaryTable dossiers={dossiers} candidates={candidates} profile={profile} />
+            <SalaryTable 
+              dossiers={dossiers} 
+              candidates={candidates} 
+              profile={profile} 
+            />
           </motion.div>
         ) : (
           <motion.div

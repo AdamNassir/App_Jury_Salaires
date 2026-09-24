@@ -57,7 +57,14 @@ export function ProfileField({
   }, [value]);
 
   const handleBlur = () => {
-    onSave(val.toString());
+    if (type === "number") {
+      const num = parseFloat(val.toString());
+      const clamped = isNaN(num) ? 0 : Math.max(0, num);
+      setVal(clamped);
+      onSave(clamped.toString());
+    } else {
+      onSave(val.toString());
+    }
   };
 
   return (
@@ -65,8 +72,16 @@ export function ProfileField({
       <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">{label}</label>
       <input 
         type={type}
+        min={type === "number" ? 0 : undefined}
         value={val}
-        onChange={e => setVal(e.target.value)}
+        onChange={e => {
+          if (type === "number") {
+            const num = parseFloat(e.target.value);
+            setVal(isNaN(num) ? '' : Math.max(0, num));
+          } else {
+            setVal(e.target.value);
+          }
+        }}
         onBlur={handleBlur}
         className="w-full bg-accent/5 border border-accent/10 rounded-base px-5 py-4 text-sm font-bold text-accent focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-inner"
       />

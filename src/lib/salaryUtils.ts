@@ -60,5 +60,6 @@ export const calculateMargin = (tj: number, salary: number, prime: number) => {
   const ticketsRestoValue = 216 * 5.5;
   const totalCostAnnual = (salary * 1.45 * 1.01) + 6000 + prime + ticketsRestoValue;
   const costPerDay = totalCostAnnual / 193;
-  return ((tj - costPerDay) / tj) * 100;
+  const rawMargin = ((tj - costPerDay) / tj) * 100;
+  return Math.min(100, Math.max(0, rawMargin));
 };

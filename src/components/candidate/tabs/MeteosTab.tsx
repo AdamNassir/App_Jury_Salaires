@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Plus, Trash2, ExternalLink, FileSpreadsheet, CloudSun, AlertCircle, Copy, Check } from 'lucide-react';
 import { ClientFeedback } from '../../../types';
+import { extractPlainTextUrl, getValidUrl, copyPlainTextToClipboard } from '../../../utils/urlUtils';
 
 interface MeteosTabProps {
   meteoLinks?: string[];
@@ -13,41 +14,6 @@ interface MeteosTabProps {
   setMeteoSubTab?: (tab: 'LIST' | 'CHART') => void;
   selectedMeteoIndex?: number | null;
   setSelectedMeteoIndex?: (index: number | null) => void;
-}
-
-function getValidUrl(url: string): string {
-  if (!url) return '';
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^\/\//.test(trimmed)) return `https:${trimmed}`;
-  return `https://${trimmed}`;
-}
-
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fallback to execCommand
-  }
-
-  try {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    const successful = document.execCommand('copy');
-    textArea.remove();
-    return successful;
-  } catch {
-    return false;
-  }
 }
 
 export function MeteosTab({
@@ -67,7 +33,7 @@ export function MeteosTab({
         ...(f.liensMeteo ? [f.liensMeteo] : []),
         ...(f.fileUrl ? [f.fileUrl] : [])
       ])
-    ].filter(Boolean))
+    ].map(l => extractPlainTextUrl(l)).filter(Boolean))
   );
 
   const handleOpenAndCopy = async (link: string, idx: number, e?: React.MouseEvent) => {
@@ -75,10 +41,11 @@ export function MeteosTab({
       e.preventDefault();
       e.stopPropagation();
     }
-    const validUrl = getValidUrl(link);
+    const plainText = extractPlainTextUrl(link);
+    const validUrl = getValidUrl(plainText);
     
-    // 1. Toujours copier l'URL dans le presse-papier
-    await copyToClipboard(validUrl || link);
+    // 1. Toujours copier l'URL propre en format texte brut dans le presse-papier
+    await copyPlainTextToClipboard(plainText || validUrl);
     setCopiedIndex(idx);
     setTimeout(() => {
       setCopiedIndex(prev => (prev === idx ? null : prev));
@@ -97,8 +64,9 @@ export function MeteosTab({
       e.preventDefault();
       e.stopPropagation();
     }
-    const validUrl = getValidUrl(link);
-    await copyToClipboard(validUrl || link);
+    const plainText = extractPlainTextUrl(link);
+    const validUrl = getValidUrl(plainText);
+    await copyPlainTextToClipboard(plainText || validUrl);
     setCopiedIndex(idx);
     setTimeout(() => {
       setCopiedIndex(prev => (prev === idx ? null : prev));
@@ -107,11 +75,11 @@ export function MeteosTab({
 
   const handleAddLink = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = newLinkInput.trim();
-    if (!trimmed) return;
+    const cleaned = extractPlainTextUrl(newLinkInput);
+    if (!cleaned) return;
 
     if (setMeteoLinks) {
-      setMeteoLinks(prev => Array.from(new Set([...(prev || []), trimmed])));
+      setMeteoLinks(prev => Array.from(new Set([...(prev || []), cleaned])));
     }
     setNewLinkInput('');
     setShowAddForm(false);
@@ -206,7 +174,8 @@ export function MeteosTab({
 
             <div className="grid grid-cols-1 gap-4">
               {allMeteoLinks.map((link, idx) => {
-                const validUrl = getValidUrl(link);
+                const plainTextUrl = extractPlainTextUrl(link);
+                const validUrl = getValidUrl(plainTextUrl);
                 return (
                   <div
                     key={idx}
@@ -228,12 +197,12 @@ export function MeteosTab({
                             rel="noopener noreferrer"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleCopyOnly(link, idx);
+                              handleCopyOnly(plainTextUrl, idx);
                             }}
                             className="text-xs font-mono text-primary hover:text-secondary hover:underline break-all select-all inline-flex items-center gap-1.5 transition-colors cursor-pointer text-left"
-                            title="Ouvrir le lien dans un nouvel onglet"
+                            title="Ouvrir le lien dans un nouvel onglet (cliquer copie également le lien en format texte)"
                           >
-                            <span>{link}</span>
+                            <span>{plainTextUrl || link}</span>
                             <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
                           </a>
                           {copiedIndex === idx && (
@@ -248,13 +217,13 @@ export function MeteosTab({
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                       <button
                         type="button"
-                        onClick={(e) => handleCopyOnly(link, idx, e)}
+                        onClick={(e) => handleCopyOnly(plainTextUrl, idx, e)}
                         className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                           copiedIndex === idx
                             ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                             : 'bg-white border-accent/20 text-accent/80 hover:bg-accent/5 hover:text-accent'
                         }`}
-                        title="Copier l'URL dans le presse-papier"
+                        title="Copier le lien en texte brut dans le presse-papier"
                       >
                         {copiedIndex === idx ? (
                           <>
@@ -275,7 +244,7 @@ export function MeteosTab({
                         rel="noopener noreferrer"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCopyOnly(link, idx);
+                          handleCopyOnly(plainTextUrl, idx);
                         }}
                         className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer ${
                           copiedIndex === idx

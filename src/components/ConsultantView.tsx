@@ -6,6 +6,8 @@ import { UserDirectoryService } from '../services/userDirectoryService';
 import { LocalDatabaseService } from '../services/localDatabaseService';
 import { User, MessageSquare, CheckCircle2, Search, AlertCircle, Building2, Briefcase, Plus, ShieldCheck, History, Clock, FileEdit, Check, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { JuryDossierViewer } from './jury/JuryDossierViewer';
+import { JuryZoomModal } from './jury/JuryUI';
 
 interface ConsultantViewProps {
   dossiers: Dossier[];
@@ -31,6 +33,13 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
   );
   const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
   const [isCreatingNewEvaluation, setIsCreatingNewEvaluation] = useState(false);
+  const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({
+    EVALUATION: true
+  });
+  const toggleTab = (tab: string) => {
+    setExpandedTabs({ [tab]: true });
+  };
+  const [zoomData, setZoomData] = useState<{ title: string; content: string } | null>(null);
 
   // Load campaigns from LocalStorage
   useEffect(() => {
@@ -137,6 +146,21 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const selectedDossier = dossiers.find(d => d.id === selectedDossierId) || null;
+  const selectedCandidate = selectedDossier ? (
+    candidates[selectedDossier.candidateId] ||
+    (selectedDossier.idProfil && candidates[selectedDossier.idProfil]) ||
+    {
+      id: selectedDossier.candidateId,
+      idProfil: selectedDossier.idProfil,
+      displayName: selectedDossier.candidateName,
+      email: selectedDossier.candidateEmail || '',
+      roles: ['CANDIDATE'],
+      currentGrade: selectedDossier.annualReport?.currentGrade,
+      currentSalary: selectedDossier.annualReport?.currentSalary,
+      currentTJSalaire: selectedDossier.annualReport?.currentTJSalaire,
+      currentTJM: selectedDossier.annualReport?.currentTJM
+    } as UserProfile
+  ) : null;
 
   // Campagne ciblée et dossiers rattachés à supprimer
   const targetCampaign = campaigns.find(c => c.id === selectedCampaignId);
@@ -154,10 +178,14 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
       // 1. Suppression via LocalDatabaseService
       LocalDatabaseService.deleteDossiersByCampaign(selectedCampaignId, campaignYear);
 
-      // 2. Suppression explicite de chaque document
+      // 2. Suppression explicite de chaque document et des profils de test associés
       for (const d of campaignDossiersToDelete) {
         if (d.id) {
           await deleteDoc(doc(db, 'dossiers', d.id));
+        }
+        const candId = d.candidateId || d.idProfil;
+        if (candId && candId.startsWith('DUMMY_USR_')) {
+          await deleteDoc(doc(db, 'users', candId));
         }
       }
 
@@ -374,7 +402,7 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 pb-6 text-sm border-b border-accent/10 mb-6">
                   <div>
                     <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">TJ Vendu</div>
                     <div className="font-bold text-accent text-lg">
@@ -394,19 +422,35 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Formulaire d'évaluation multi-avis */}
-              <ConsultantFeedbackForm 
-                dossier={selectedDossier} 
-                consultant={profile}
-                selectedCampaign={activeCampaign}
-                isCampaignClosed={isCampaignClosed}
-                selectedEvaluationKey={selectedEvaluationKey}
-                setSelectedEvaluationKey={setSelectedEvaluationKey}
-                isCreatingNewEvaluation={isCreatingNewEvaluation}
-                setIsCreatingNewEvaluation={setIsCreatingNewEvaluation}
-              />
+                {/* Onglets et contenu du dossier au format Jury */}
+                <JuryDossierViewer
+                  dossier={selectedDossier}
+                  candidate={selectedCandidate}
+                  profile={profile}
+                  expandedTabs={expandedTabs}
+                  toggleTab={toggleTab}
+                  setZoomData={setZoomData}
+                  isAssigned={checkIsAssigned(selectedDossier)}
+                  hideDecisionTab={true}
+                  extraTab={{
+                    id: 'EVALUATION',
+                    label: 'Mon Évaluation',
+                    content: (
+                      <ConsultantFeedbackForm 
+                        dossier={selectedDossier} 
+                        consultant={profile}
+                        selectedCampaign={activeCampaign}
+                        isCampaignClosed={isCampaignClosed}
+                        selectedEvaluationKey={selectedEvaluationKey}
+                        setSelectedEvaluationKey={setSelectedEvaluationKey}
+                        isCreatingNewEvaluation={isCreatingNewEvaluation}
+                        setIsCreatingNewEvaluation={setIsCreatingNewEvaluation}
+                      />
+                    )
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <div className="h-full min-h-[500px] flex flex-col items-center justify-center bg-white border border-dashed border-accent/10 rounded-xl text-accent/20 p-8 text-center">
@@ -477,6 +521,9 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
           </div>
         </div>
       )}
+
+      {/* Zoom Modal */}
+      <JuryZoomModal zoomData={zoomData} onClose={() => setZoomData(null)} />
     </div>
   );
 }
@@ -654,10 +701,10 @@ function ConsultantFeedbackForm({
         relationType: finalRelationType,
         type: finalRelationType,
         // Financial & technical recommendations
-        targetTJMin: Number(formData.targetTJMin) || 0,
-        targetTJMax: Number(formData.targetTJMax) || 0,
-        missionPercentage: formData.missionPercentage !== undefined ? Number(formData.missionPercentage) : 98,
-        investmentPercentage: formData.investmentPercentage !== undefined ? Number(formData.investmentPercentage) : 60,
+        targetTJMin: Math.max(0, Number(formData.targetTJMin) || 0),
+        targetTJMax: Math.max(0, Number(formData.targetTJMax) || 0),
+        missionPercentage: formData.missionPercentage !== undefined ? Math.min(100, Math.max(0, Number(formData.missionPercentage))) : 98,
+        investmentPercentage: formData.investmentPercentage !== undefined ? Math.min(100, Math.max(0, Number(formData.investmentPercentage))) : 60,
         confidenceIndex: Math.min(5, Math.max(1, Number(formData.confidenceIndex) || 4)),
         justification: formData.justification?.trim() || '',
         improvementAxes: formData.improvementAxes?.trim() || '',
@@ -868,9 +915,10 @@ function ConsultantFeedbackForm({
             </label>
             <input
               type="number"
+              min="0"
               disabled={isReadOnly}
               value={formData.targetTJMin || ''}
-              onChange={(e) => setFormData({ ...formData, targetTJMin: Number(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, targetTJMin: Math.max(0, Number(e.target.value)) })}
               placeholder="Ex: 600"
               className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
             />
@@ -882,9 +930,10 @@ function ConsultantFeedbackForm({
             </label>
             <input
               type="number"
+              min="0"
               disabled={isReadOnly}
               value={formData.targetTJMax || ''}
-              onChange={(e) => setFormData({ ...formData, targetTJMax: Number(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, targetTJMax: Math.max(0, Number(e.target.value)) })}
               placeholder="Ex: 680"
               className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
             />
@@ -928,12 +977,12 @@ function ConsultantFeedbackForm({
             </div>
             <input
               type="number"
-              min="0"
-              max="150"
+              min="95"
+              max="100"
               step="1"
               disabled={isReadOnly}
               value={formData.missionPercentage !== undefined ? formData.missionPercentage : 98}
-              onChange={(e) => setFormData({ ...formData, missionPercentage: Number(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, missionPercentage: Math.min(100, Math.max(95, Number(e.target.value))) })}
               placeholder="98"
               className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
             />
@@ -950,11 +999,11 @@ function ConsultantFeedbackForm({
             <input
               type="number"
               min="0"
-              max="150"
+              max="100"
               step="1"
               disabled={isReadOnly}
               value={formData.investmentPercentage !== undefined ? formData.investmentPercentage : 60}
-              onChange={(e) => setFormData({ ...formData, investmentPercentage: Number(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, investmentPercentage: Math.min(100, Math.max(0, Number(e.target.value))) })}
               placeholder="60"
               className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
             />

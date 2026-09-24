@@ -118,7 +118,7 @@ export function UserRowDrawer({
             <ProfileField 
               label="Exp. (années)" 
               value={user.experienceYears || 0} 
-              onSave={v => updateDoc(doc(db, 'users', user.id), { experienceYears: parseInt(v) || 0 })} 
+              onSave={v => updateDoc(doc(db, 'users', user.id), { experienceYears: Math.max(0, parseInt(v) || 0) })} 
               type="number"
             />
           </div>
@@ -126,13 +126,13 @@ export function UserRowDrawer({
             <ProfileField 
               label="Salaire Fixe" 
               value={user.currentSalary || 0} 
-              onSave={v => updateDoc(doc(db, 'users', user.id), { currentSalary: parseFloat(v) || 0 })} 
+              onSave={v => updateDoc(doc(db, 'users', user.id), { currentSalary: Math.max(0, parseFloat(v) || 0) })} 
               type="number"
             />
             <ProfileField 
               label="TJM Quotidien" 
               value={user.currentTJM || 0} 
-              onSave={v => updateDoc(doc(db, 'users', user.id), { currentTJM: parseFloat(v) || 0 })} 
+              onSave={v => updateDoc(doc(db, 'users', user.id), { currentTJM: Math.max(0, parseFloat(v) || 0) })} 
               type="number"
             />
           </div>

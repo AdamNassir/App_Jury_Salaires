@@ -8,6 +8,7 @@ import { SalaryCalculatorTab } from '../candidate/tabs/SalaryCalculatorTab';
 import { EngagementTab, engagementSections } from '../candidate/tabs/EngagementTab';
 import { SyntheseTab } from '../candidate/tabs/SyntheseTab';
 import { PretentionsTab } from '../candidate/tabs/PretentionsTab';
+import { extractPlainTextUrl, getValidUrl, copyPlainTextToClipboard } from '../../utils/urlUtils';
 
 interface JuryDossierViewerProps {
   dossier: Dossier;
@@ -16,43 +17,10 @@ interface JuryDossierViewerProps {
   expandedTabs: Record<string, boolean>;
   toggleTab: (tab: string) => void;
   setZoomData: (data: { title: string; content: string }) => void;
-  onDoneDecision: () => void;
+  onDoneDecision?: () => void;
   isAssigned?: boolean;
-}
-
-function getValidUrl(url: string): string {
-  if (!url) return '';
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^\/\//.test(trimmed)) return `https:${trimmed}`;
-  return `https://${trimmed}`;
-}
-
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fallback to execCommand
-  }
-
-  try {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    const successful = document.execCommand('copy');
-    textArea.remove();
-    return successful;
-  } catch {
-    return false;
-  }
+  hideDecisionTab?: boolean;
+  extraTab?: { id: string; label: string; content: React.ReactNode };
 }
 
 export function JuryDossierViewer({
@@ -63,7 +31,9 @@ export function JuryDossierViewer({
   toggleTab,
   setZoomData,
   onDoneDecision,
-  isAssigned = true
+  isAssigned = true,
+  hideDecisionTab = false,
+  extraTab
 }: JuryDossierViewerProps) {
   const [copiedMeteoIndex, setCopiedMeteoIndex] = useState<number | null>(null);
 
@@ -72,8 +42,9 @@ export function JuryDossierViewer({
       e.preventDefault();
       e.stopPropagation();
     }
-    const validUrl = getValidUrl(link);
-    await copyToClipboard(validUrl || link);
+    const plainText = extractPlainTextUrl(link);
+    const validUrl = getValidUrl(plainText);
+    await copyPlainTextToClipboard(plainText || validUrl);
     setCopiedMeteoIndex(idx);
     setTimeout(() => {
       setCopiedMeteoIndex(prev => (prev === idx ? null : prev));
@@ -91,8 +62,9 @@ export function JuryDossierViewer({
       e.preventDefault();
       e.stopPropagation();
     }
-    const validUrl = getValidUrl(link);
-    await copyToClipboard(validUrl || link);
+    const plainText = extractPlainTextUrl(link);
+    const validUrl = getValidUrl(plainText);
+    await copyPlainTextToClipboard(plainText || validUrl);
     setCopiedMeteoIndex(idx);
     setTimeout(() => {
       setCopiedMeteoIndex(prev => (prev === idx ? null : prev));
@@ -103,7 +75,8 @@ export function JuryDossierViewer({
     profile.email?.toLowerCase() === 'adam.nassir@logiclever.com' ||
     profile.email?.toLowerCase() === 'guillaume.best@logiclever.com';
   const isReadOnly = !isAssigned && !isAdmin;
-  const dossierTabs = ([
+  const dossierTabs: Array<[string, string]> = [
+    ...(extraTab ? [[extraTab.id, extraTab.label] as [string, string]] : []),
     ['SYNTHESE', 'Introduction & Synthèse'],
     ['OBJECTIFS_PASSES', 'Objectifs Année Passée'],
     ['EXPERTISES', 'Savoir-faire'],
@@ -113,13 +86,13 @@ export function JuryDossierViewer({
     ['RECRUTEMENT', 'Recrutement'],
     ['ENCADREMENT', 'Encadrement'],
     ['AMELIORATION', 'Amélioration Continue'],
-    ['REFERENT_LOGICLEVER', 'Référent LogicLever'],
+    ...(dossier.annualReport?.isReferentOrAspiring ? [['REFERENT_LOGICLEVER', 'Référent LogicLever'] as [string, string]] : []),
     ['METEOS', 'Météos Client'],
     ['RETOURS_PAIRS', 'Retours Pairs'],
     ['PRETENTIONS', 'Objectifs'],
     ['CALCULATRICE', 'Calculette du salaire'],
-    ['DECISION', 'Décision']
-  ] as const).filter(([id]) => id !== 'REFERENT_LOGICLEVER' || !!dossier.annualReport?.isReferentOrAspiring);
+    ...(!hideDecisionTab ? [['DECISION', 'Décision'] as [string, string]] : [])
+  ];
   const activeEngagementSection = engagementSections.find(section =>
     !!expandedTabs[section.id] &&
     (section.id !== 'REFERENT_LOGICLEVER' || !!dossier.annualReport?.isReferentOrAspiring)
@@ -144,6 +117,12 @@ export function JuryDossierViewer({
           </button>
         ))}
       </div>
+
+      {extraTab && expandedTabs[extraTab.id] && (
+        <div className="space-y-6">
+          {extraTab.content}
+        </div>
+      )}
 
       {activeEngagementSection && dossier.annualReport && (
         <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label={`${activeEngagementSection.label} en lecture seule`}>
@@ -389,7 +368,8 @@ export function JuryDossierViewer({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {dossier.meteoLinks.map((link, idx) => {
-                  const validUrl = getValidUrl(link);
+                  const plainTextUrl = extractPlainTextUrl(link);
+                  const validUrl = getValidUrl(plainTextUrl);
                   return (
                     <div key={idx} className="p-5 bg-white border border-accent/10 rounded-xl shadow-xs hover:border-primary/40 transition-all flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3 overflow-hidden min-w-0">
@@ -405,12 +385,12 @@ export function JuryDossierViewer({
                               rel="noopener noreferrer"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleCopyOnly(link, idx);
+                                handleCopyOnly(plainTextUrl, idx);
                               }}
                               className="text-[11px] text-primary hover:text-secondary hover:underline font-mono truncate select-all inline-flex items-center gap-1 cursor-pointer transition-colors text-left"
                               title="Ouvrir le lien dans un nouvel onglet"
                             >
-                              <span>{link}</span>
+                              <span>{plainTextUrl || link}</span>
                               <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
                             </a>
                             {copiedMeteoIndex === idx && (
@@ -425,13 +405,13 @@ export function JuryDossierViewer({
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
-                          onClick={(e) => handleCopyOnly(link, idx, e)}
+                          onClick={(e) => handleCopyOnly(plainTextUrl, idx, e)}
                           className={`p-2 rounded-lg border transition-all cursor-pointer ${
                             copiedMeteoIndex === idx
                               ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                               : 'bg-white border-accent/20 text-accent/70 hover:bg-accent/5 hover:text-accent'
                           }`}
-                          title="Copier le lien"
+                          title="Copier le lien en texte brut"
                         >
                           {copiedMeteoIndex === idx ? (
                             <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -446,7 +426,7 @@ export function JuryDossierViewer({
                           rel="noopener noreferrer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCopyOnly(link, idx);
+                            handleCopyOnly(plainTextUrl, idx);
                           }}
                           className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all shadow-xs cursor-pointer ${
                             copiedMeteoIndex === idx
@@ -789,6 +769,7 @@ export function JuryDossierViewer({
       {expandedTabs['CALCULATRICE'] && candidate && dossier.annualReport && (
         <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label="Calculette du salaire en lecture seule">
           <SalaryCalculatorTab
+            key={dossier.id}
             profile={candidate}
             dossier={dossier}
             reportData={dossier.annualReport}
@@ -797,59 +778,61 @@ export function JuryDossierViewer({
       )}
 
       {/* Décision du jury */}
-      <AccordionSection 
-        label="DÉCISION" 
-        tabMode
-        isOpen={!!expandedTabs['DECISION']} 
-        onToggle={() => toggleTab('DECISION')}
-        highlight
-      >
-        <div>
-          {(dossier.status === 'COMPLET' && profile.roles.includes('JURY')) ? (
-            <div key={dossier.id}>
-              <JuryDecisionForm 
-                dossier={dossier} 
-                candidate={candidate} 
-                onDone={onDoneDecision} 
-                readOnly={isReadOnly}
-                profile={profile}
-              />
-            </div>
-          ) : dossier.status === 'VALIDE' ? (
-            <div className="bg-green-50 p-12 rounded-[40px] border border-green-100 text-center space-y-8">
-              <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 className="w-10 h-10" /></div>
-              <div>
-                <h4 className="text-3xl font-serif text-green-800 mb-2">Décision Entérinée</h4>
-                <p className="text-green-600/60 uppercase tracking-widest text-[10px] font-black">Augmentation validée pour 2025</p>
+      {!hideDecisionTab && (
+        <AccordionSection 
+          label="DÉCISION" 
+          tabMode
+          isOpen={!!expandedTabs['DECISION']} 
+          onToggle={() => toggleTab('DECISION')}
+          highlight
+        >
+          <div>
+            {(dossier.status === 'COMPLET' && profile.roles.includes('JURY')) ? (
+              <div key={dossier.id}>
+                <JuryDecisionForm 
+                  dossier={dossier} 
+                  candidate={candidate} 
+                  onDone={onDoneDecision || (() => {})} 
+                  readOnly={isReadOnly}
+                  profile={profile}
+                />
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-8 max-w-2xl mx-auto py-8 border-y border-green-200/50">
-                <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Verdict</div><div className="text-2xl font-bold text-green-800">{dossier.juryDecision?.verdict}</div></div>
-                <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Nouveau Salaire</div><div className="text-2xl font-bold text-green-800">{formatCurrency(dossier.juryDecision?.amount || 0)}</div></div>
-                {dossier.juryDecision?.maxSalaryIfTJIncreases && (
-                  <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Max si ↑ TJ</div><div className="text-2xl font-bold text-green-800">{formatCurrency(dossier.juryDecision.maxSalaryIfTJIncreases)}</div></div>
+            ) : dossier.status === 'VALIDE' ? (
+              <div className="bg-green-50 p-12 rounded-[40px] border border-green-100 text-center space-y-8">
+                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 className="w-10 h-10" /></div>
+                <div>
+                  <h4 className="text-3xl font-serif text-green-800 mb-2">Décision Entérinée</h4>
+                  <p className="text-green-600/60 uppercase tracking-widest text-[10px] font-black">Augmentation validée pour 2025</p>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-8 max-w-2xl mx-auto py-8 border-y border-green-200/50">
+                  <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Verdict</div><div className="text-2xl font-bold text-green-800">{dossier.juryDecision?.verdict}</div></div>
+                  <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Nouveau Salaire</div><div className="text-2xl font-bold text-green-800">{formatCurrency(dossier.juryDecision?.amount || 0)}</div></div>
+                  {dossier.juryDecision?.maxSalaryIfTJIncreases && (
+                    <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Max si ↑ TJ</div><div className="text-2xl font-bold text-green-800">{formatCurrency(dossier.juryDecision.maxSalaryIfTJIncreases)}</div></div>
+                  )}
+                </div>
+                {dossier.juryDecision?.conclusion && (
+                  <div className="p-8 bg-white/50 rounded-2xl text-green-800/70 italic font-light leading-relaxed group/conclusion relative">
+                    <div className="absolute top-3 right-3">
+                      <button
+                        type="button"
+                        onClick={() => setZoomData({ title: "Conclusion Décision Jury", content: dossier.juryDecision?.conclusion || "" })}
+                        className="opacity-0 group-hover/conclusion:opacity-100 focus:opacity-100 p-1 text-green-800/40 hover:text-green-800 hover:bg-green-100/50 rounded transition-all cursor-pointer"
+                        title="Agrandir"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    "{dossier.juryDecision.conclusion}"
+                  </div>
                 )}
               </div>
-              {dossier.juryDecision?.conclusion && (
-                <div className="p-8 bg-white/50 rounded-2xl text-green-800/70 italic font-light leading-relaxed group/conclusion relative">
-                  <div className="absolute top-3 right-3">
-                    <button
-                      type="button"
-                      onClick={() => setZoomData({ title: "Conclusion Décision Jury", content: dossier.juryDecision?.conclusion || "" })}
-                      className="opacity-0 group-hover/conclusion:opacity-100 focus:opacity-100 p-1 text-green-800/40 hover:text-green-800 hover:bg-green-100/50 rounded transition-all cursor-pointer"
-                      title="Agrandir"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  "{dossier.juryDecision.conclusion}"
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="p-20 text-center text-accent/30 italic">Décision en cours de délibération...</div>
-          )}
-        </div>
-      </AccordionSection>
+            ) : (
+              <div className="p-20 text-center text-accent/30 italic">Décision en cours de délibération...</div>
+            )}
+          </div>
+        </AccordionSection>
+      )}
     </div>
   );
 }

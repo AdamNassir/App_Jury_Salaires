@@ -62,10 +62,10 @@ export const defaultReportData: AnnualReport = {
   careerGoal2: '',
   nextObjectives: [],
   salaryExpectations: '',
-  wishedGrade: 'Confirmé',
+  wishedGrade: 'Junior',
   wishedSalary: 0,
   currentSalary: 0,
-  currentGrade: 'Confirmé',
+  currentGrade: 'Junior',
   currentTJM: 0,
   targetTJM: 0,
   satisfaction: {

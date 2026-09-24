@@ -7,14 +7,19 @@ import { formatCurrency } from '../../../lib/utils';
 import { calculateYears, calculateSalaryFormule, getPrimeAnciennete } from '../../../lib/salaryUtils';
 
 interface SalaryCalculatorTabProps {
+  key?: React.Key;
   profile: UserProfile;
   dossier?: Dossier;
   reportData: AnnualReport;
 }
 
 export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalculatorTabProps) {
-  const effectiveCurrent = (reportData.currentGrade || profile.currentGrade || 'Confirmé') as Grade | 'Junior';
-  const effectiveWished = (reportData.wishedGrade || effectiveCurrent) as Grade | 'Junior';
+  const effectiveCurrent = (profile.currentGrade || reportData.currentGrade || 'Junior') as Grade | 'Junior';
+  const effectiveWished = (
+    effectiveCurrent === 'Junior' && (!reportData.wishedGrade || reportData.wishedGrade === 'Confirmé')
+      ? 'Junior'
+      : (reportData.wishedGrade || effectiveCurrent)
+  ) as Grade | 'Junior';
 
   const [tjVendu, setTjVendu] = useState<number>(profile.currentTJM || reportData.currentTJM || 0);
   const [tjCible, setTjCible] = useState<number>(reportData.targetTJM || profile.currentTJM || 0);
@@ -23,8 +28,34 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
   const [grade, setGrade] = useState<Grade | 'Junior'>(effectiveWished);
   const [currentSalary, setCurrentSalary] = useState<number>(profile.currentSalary || 0);
   
-  const [investPerc, setInvestPerc] = useState<number>(60);
-  const [missionPerc, setMissionPerc] = useState<number>(98);
+  const [investPerc, setInvestPerc] = useState<number>(dossier?.juryDecision?.investmentPercentage ?? 60);
+  const [missionPerc, setMissionPerc] = useState<number>(dossier?.juryDecision?.missionPercentage ?? 98);
+
+  // Sync if dossier, profile or decision updates
+  useEffect(() => {
+    setInvestPerc(dossier?.juryDecision?.investmentPercentage ?? 60);
+    setMissionPerc(dossier?.juryDecision?.missionPercentage ?? 98);
+  }, [dossier?.id, dossier?.juryDecision?.investmentPercentage, dossier?.juryDecision?.missionPercentage]);
+
+  useEffect(() => {
+    const cur = (profile.currentGrade || reportData.currentGrade || 'Junior') as Grade | 'Junior';
+    const wish = (
+      cur === 'Junior' && (!reportData.wishedGrade || reportData.wishedGrade === 'Confirmé')
+        ? 'Junior'
+        : (reportData.wishedGrade || cur)
+    ) as Grade | 'Junior';
+    setCurrentGrade(cur);
+    setGrade(wish);
+    setTjVendu(profile.currentTJM || reportData.currentTJM || 0);
+    setTjCible(reportData.targetTJM || profile.currentTJM || 0);
+    setCurrentSalary(profile.currentSalary || 0);
+  }, [profile.id, profile.currentGrade, profile.currentTJM, profile.currentSalary, reportData.currentGrade, reportData.wishedGrade, reportData.targetTJM]);
+
+  useEffect(() => {
+    setTjVendu(profile.currentTJM || reportData.currentTJM || 0);
+    setTjCible(reportData.targetTJM || profile.currentTJM || 0);
+    setCurrentSalary(profile.currentSalary || 0);
+  }, [profile.id, profile.currentTJM, profile.currentSalary, reportData.currentTJM, reportData.targetTJM]);
 
   // Sync if candidate updates current grade or wished grade in other tabs
   useEffect(() => {
@@ -42,7 +73,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
     'Expert': 3
   };
 
-  const currentGradeRank = gradeHierarchy[currentGrade] ?? 1;
+  const currentGradeRank = gradeHierarchy[currentGrade] ?? 0;
   const availableTargetGrades = (['Junior', 'Confirmé', 'Senior', 'Expert'] as (Grade | 'Junior')[]).filter(
     g => (gradeHierarchy[g] ?? 0) >= currentGradeRank
   );
@@ -163,9 +194,9 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
           <div className="space-y-6">
             <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Valeurs de base (Modifiables)</div>
             
-            <NumberInput label="TJ Vendu (€)" value={tjVendu} onChange={setTjVendu} />
-            <NumberInput label="TJ Cible (€)" value={tjCible} onChange={setTjCible} />
-            <NumberInput label="Salaire Actuel (€)" value={currentSalary} onChange={setCurrentSalary} />
+            <NumberInput label="TJ Vendu (€)" value={tjVendu} onChange={v => setTjVendu(Math.max(0, v))} min={0} />
+            <NumberInput label="TJ Cible (€)" value={tjCible} onChange={v => setTjCible(Math.max(0, v))} min={0} />
+            <NumberInput label="Salaire Actuel (€)" value={currentSalary} onChange={v => setCurrentSalary(Math.max(0, v))} min={0} />
             
             <div className="w-full" title="Le taux applicable pour les projections Vendu actuelles.">
               <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Grade Actuel</label>
@@ -203,7 +234,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
             <NumberInput 
               label="% Investissement (0-100)" 
               value={investPerc} 
-              onChange={setInvestPerc} 
+              onChange={v => setInvestPerc(Math.min(100, Math.max(0, v)))} 
               min={0} 
               max={100} 
               step={1} 
@@ -211,13 +242,13 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
             />
             
             <NumberInput 
-              label="% Mission (0-100)" 
+              label="% Mission (95-100)" 
               value={missionPerc} 
-              onChange={setMissionPerc} 
-              min={0} 
+              onChange={v => setMissionPerc(Math.min(100, Math.max(95, v)))} 
+              min={95} 
               max={100} 
               step={1} 
-              tooltip="Taux entre 0% et 100%"
+              tooltip="Taux de mission (recommandé entre 95% et 100%, cible 98%)"
             />
           </div>
           

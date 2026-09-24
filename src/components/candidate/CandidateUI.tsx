@@ -293,6 +293,8 @@ export function NumberInput({
     }
   }, [value, isFocused]);
 
+  const effectiveMin = Math.max(0, min);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     setLocalStr(raw);
@@ -301,19 +303,19 @@ export function NumberInput({
     }
     const num = Number(raw);
     if (!isNaN(num)) {
-      onChange(num);
+      onChange(Math.max(effectiveMin, Math.min(max, num)));
     }
   };
 
   const handleBlur = () => {
     setIsFocused(false);
     if (localStr === '' || isNaN(Number(localStr))) {
-      setLocalStr(String(min));
-      onChange(min);
+      setLocalStr(String(effectiveMin));
+      onChange(effectiveMin);
       return;
     }
     const num = Number(localStr);
-    const clamped = Math.max(min, Math.min(max, num));
+    const clamped = Math.max(effectiveMin, Math.min(max, num));
     setLocalStr(String(clamped));
     onChange(clamped);
   };
@@ -330,7 +332,7 @@ export function NumberInput({
       </div>
       <input
         type="number"
-        min={min}
+        min={effectiveMin}
         max={max}
         step={step}
         value={isFocused ? localStr : (value ? String(value) : '')}

@@ -38,7 +38,7 @@ export function IntercontratTab({ reportData, setReportData }: IntercontratTabPr
                   type="number"
                   min="0"
                   value={reportData.intercontratDays || 0} 
-                  onChange={e => setReportData(prev => ({ ...prev, intercontratDays: parseInt(e.target.value) || 0 }))}
+                  onChange={e => setReportData(prev => ({ ...prev, intercontratDays: Math.max(0, parseInt(e.target.value) || 0) }))}
                   className="w-full max-w-[200px] bg-accent/5 px-6 py-4 rounded-xl border border-accent/10 font-bold focus:bg-white text-accent outline-none"
                   placeholder="0"
                 />

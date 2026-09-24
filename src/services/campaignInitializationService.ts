@@ -5,6 +5,7 @@ import { db } from '../lib/localDatabase';
 import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole, ClientFeedback } from '../types';
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
+import { extractPlainTextUrl } from '../utils/urlUtils';
 
 export interface RawRow {
   [key: string]: any;
@@ -190,9 +191,9 @@ export function parseFrenchNumber(val: any): number {
     // Sécurité : si un nombre comme 5800008 ou 4500050 a été produit
     // par la suppression de la virgule décimale lors d'un parsing CSV préalable (ex: 58000,08 -> 5800008)
     if (val >= 1000000 && val <= 30000000 && Number.isInteger(val)) {
-      return Math.round((val / 100) * 100) / 100;
+      return Math.max(0, Math.round((val / 100) * 100) / 100);
     }
-    return val;
+    return Math.max(0, val);
   }
   let str = String(val)
     .replace(/[\s\u00A0\u202F]+/g, '')
@@ -211,9 +212,9 @@ export function parseFrenchNumber(val: any): number {
 
   // Sécurité supplémentaire si la chaîne d'origine avait déjà été altérée en entier > 1M
   if (num >= 1000000 && num <= 30000000 && Number.isInteger(num)) {
-    return Math.round((num / 100) * 100) / 100;
+    return Math.max(0, Math.round((num / 100) * 100) / 100);
   }
-  return num;
+  return Math.max(0, num);
 }
 
 /**
@@ -427,6 +428,7 @@ export class CampaignInitializationService {
    * - "Consultant", column I (index 8), contains name and surname (split par espace, 2ème et 3ème éléments)
    * - "Matricule", column L (index 11)
    * - "Grade", column M (index 12), split par espace et dernier élément
+   * - "Date_Entree_LL", column R (index 17)
    * - "Experience_Arrivee_Valorisee_LL", column S (index 18)
    * - "Date_Expert", column U (index 20)
    * - "Salaire_Annuel", column V (index 21)
@@ -502,6 +504,11 @@ export class CampaignInitializationService {
         return row[colIdx];
       };
 
+      // Col R (index 17) : Date_Entree_LL
+      const dateEntreeRaw = getRawCellVal(17);
+      const dEntree = parseExcelDate(dateEntreeRaw);
+      const entryDate = dEntree ? dEntree.toISOString().split('T')[0] : (dateEntreeRaw ? cleanString(dateEntreeRaw) : undefined);
+
       // Col S (index 18) : Experience_Arrivee_Valorisee_LL
       const experienceArrivee = parseFrenchNumber(getRawCellVal(18));
 
@@ -541,6 +548,7 @@ export class CampaignInitializationService {
         currentSalary,
         currentTJSalaire,
         currentTJM,
+        entryDate,
         expertPassageDate,
         ancienneteLL,
         experienceArrivee,
@@ -617,7 +625,7 @@ export class CampaignInitializationService {
 
       if (idProfil && linkValue) {
         // Découpage si la cellule contient plusieurs liens séparés par un saut de ligne
-        const splitLinks = linkValue.split(/\r?\n/).map(l => l.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
+        const splitLinks = linkValue.split(/\r?\n/).map(l => extractPlainTextUrl(l)).filter(Boolean);
         for (const singleLink of splitLinks) {
           items.push({
             idProfil,
@@ -689,7 +697,7 @@ export class CampaignInitializationService {
 
     // Vérification des 3 fichiers obligatoires
     if (!rapportRhSpreadsheet) {
-      blockingErrors.push("Le fichier 'Rapport_RH_Query_Salaries' est obligatoire (Col C: Id_Profil, Col I: Consultant, Col L: Matricule, Col M: Grade, Col S: Exp. Arrivée, Col U: Date Expert, Col V: Salaire Annuel, Col AF: TJ Vendu, Col AS: Ancienneté LL).");
+      blockingErrors.push("Le fichier 'Rapport_RH_Query_Salaries' est obligatoire (Col C: Id_Profil, Col I: Consultant, Col L: Matricule, Col M: Grade, Col R: Date Entrée, Col S: Exp. Arrivée, Col U: Date Expert, Col V: Salaire Annuel, Col AF: TJ Vendu, Col AS: Ancienneté LL).");
     }
 
     if (!primesSpreadsheet) {

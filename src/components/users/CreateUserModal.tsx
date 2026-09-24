@@ -90,9 +90,9 @@ export function CreateUserModal({
         matricule: newMatricule.trim() || `M-${Date.now().toString().slice(-6)}`,
         currentGrade: newGrade || 'Confirmé',
         entryDate: newEntryDate || new Date().toISOString().split('T')[0],
-        experienceYears: Number(newExperience) || 0,
-        currentSalary: Number(newSalary) || 0,
-        currentTJM: Number(newTJM) || 0,
+        experienceYears: Math.max(0, Number(newExperience) || 0),
+        currentSalary: Math.max(0, Number(newSalary) || 0),
+        currentTJM: Math.max(0, Number(newTJM) || 0),
         assignedCandidateIds: newAssignedCandidates
       });
       onClose();
@@ -260,7 +260,7 @@ export function CreateUserModal({
                   type="number"
                   min="0"
                   value={newExperience || ''}
-                  onChange={e => setNewExperience(Number(e.target.value))}
+                  onChange={e => setNewExperience(Math.max(0, Number(e.target.value)))}
                   className="w-full bg-accent/5 border border-accent/10 rounded-base px-5 py-4 text-sm font-bold text-accent focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
               </div>
@@ -270,7 +270,7 @@ export function CreateUserModal({
                   type="number"
                   min="0"
                   value={newTJM || ''}
-                  onChange={e => setNewTJM(Number(e.target.value))}
+                  onChange={e => setNewTJM(Math.max(0, Number(e.target.value)))}
                   placeholder="Ex: 650"
                   className="w-full bg-accent/5 border border-accent/10 rounded-base px-5 py-4 text-sm font-bold text-accent focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
@@ -284,7 +284,7 @@ export function CreateUserModal({
                   type="number"
                   min="0"
                   value={newSalary || ''}
-                  onChange={e => setNewSalary(Number(e.target.value))}
+                  onChange={e => setNewSalary(Math.max(0, Number(e.target.value)))}
                   placeholder="Ex: 45000"
                   className="w-full bg-accent/5 border border-accent/10 rounded-base px-5 py-4 text-sm font-bold text-accent focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                 />
