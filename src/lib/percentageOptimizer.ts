@@ -43,12 +43,18 @@ const SCORE_EPSILON = 1e-9;
 // Target closeness is very important, but not absolute: severe individual
 // salary damage can still outweigh a tiny improvement in the target error.
 const TARGET_WEIGHT = 50_000_000;
-const WORST_SALARY_WEIGHT = 30_000;
-const INDIVIDUAL_SALARY_WEIGHT = 10_000;
-const TOTAL_SALARY_WEIGHT = 2_500;
-const EXCELLENCE_WEIGHT = 250;
-const MOVEMENT_WEIGHT = 150;
+const WORST_SALARY_WEIGHT = 5_000;
+const INDIVIDUAL_SALARY_WEIGHT = 20_000;
+const TOTAL_SALARY_WEIGHT = 5_000;
+const EXCELLENCE_WEIGHT = 50_000;
+const MOVEMENT_WEIGHT = 20_000;
 const PCA_WEIGHT = 1;
+
+// The worst-person term is intentionally very steep. It is a soft barrier,
+// not a hard salary-loss cap: a large loss remains possible if genuinely
+// unavoidable, but the optimizer strongly prefers distributing reductions.
+const WORST_SALARY_EXPONENT = 50;
+const INDIVIDUAL_SALARY_EXPONENT = 12;
 
 const MISSION_EXCELLENCE_STRENGTH = 8;
 const INVESTMENT_EXCELLENCE_STRENGTH = 8;
@@ -353,46 +359,59 @@ function buildProfile(user: OptimizerUser): InternalProfile {
       soldSalary
     );
 
-  // Canonical personal Mission scale at maximum Investissement.
-  const missionLowSalary = salaryAt(MIN_M, MAX_I);
-  const missionHighSalary = salaryAt(MAX_M, MAX_I);
-  const missionRange = missionHighSalary - missionLowSalary;
-  const missionActive = Math.abs(missionRange) > SALARY_TOLERANCE;
+  /**
+   * State-dependent economic coordinates.
+   *
+   * This is deliberately evaluated at the OTHER percentage of the candidate
+   * state. A plateau can appear/disappear depending on the Mission /
+   * Investissement combination because Salaire Formule is clamped between
+   * currentSalary and soldSalary.
+   *
+   * If an axis is completely inactive at that state, it contributes the
+   * neutral global target for that axis. This prevents raw percentage changes
+   * inside a salary plateau from falsifying the economic global average.
+   */
+  const effectiveMAt = (m: number, i: number): number => {
+    const lowSalary = salaryAt(MIN_M, i);
+    const highSalary = salaryAt(MAX_M, i);
+    const range = highSalary - lowSalary;
 
-  const effectiveM = (m: number): number => {
-    if (!missionActive) return TARGET_M;
+    if (Math.abs(range) <= SALARY_TOLERANCE) {
+      return TARGET_M;
+    }
 
     const value =
       MIN_M +
       (MAX_M - MIN_M) *
-        (
-          (salaryAt(m, MAX_I) - missionLowSalary) /
-          missionRange
-        );
+        ((salaryAt(m, i) - lowSalary) / range);
 
     return clamp(value, MIN_M, MAX_M);
   };
 
-  // Canonical personal Investissement scale at maximum Mission.
-  const investmentLowSalary = salaryAt(MAX_M, MIN_I);
-  const investmentHighSalary = salaryAt(MAX_M, MAX_I);
-  const investmentRange =
-    investmentHighSalary - investmentLowSalary;
-  const investmentActive =
-    Math.abs(investmentRange) > SALARY_TOLERANCE;
+  const effectiveIAt = (m: number, i: number): number => {
+    const lowSalary = salaryAt(m, MIN_I);
+    const highSalary = salaryAt(m, MAX_I);
+    const range = highSalary - lowSalary;
 
-  const effectiveI = (i: number): number => {
-    if (!investmentActive) return TARGET_I;
+    if (Math.abs(range) <= SALARY_TOLERANCE) {
+      return TARGET_I;
+    }
 
     const value =
-      100 *
-      (
-        (salaryAt(MAX_M, i) - investmentLowSalary) /
-        investmentRange
-      );
+      (MAX_I - MIN_I) *
+      ((salaryAt(m, i) - lowSalary) / range);
 
     return clamp(value, MIN_I, MAX_I);
   };
+
+  // Kept as diagnostic metadata only.
+  const missionActive =
+    Math.abs(salaryAt(MAX_M, MAX_I) - salaryAt(MIN_M, MAX_I)) >
+    SALARY_TOLERANCE;
+
+  const investmentActive =
+    Math.abs(salaryAt(MAX_M, MAX_I) - salaryAt(MAX_M, MIN_I)) >
+    SALARY_TOLERANCE;
 
   const states: EconomicState[] = [];
   const stateByKey = new Map<string, number>();
@@ -425,8 +444,8 @@ function buildProfile(user: OptimizerUser): InternalProfile {
         i,
         rawSalary,
         salary,
-        effectiveM: effectiveM(m),
-        effectiveI: effectiveI(i),
+        effectiveM: effectiveMAt(m, i),
+        effectiveI: effectiveIAt(m, i),
       });
 
       stateByKey.set(stateKey(m, i), index);
@@ -626,7 +645,7 @@ function evaluateSolution(
     );
 
     individualSalaryPenalty += Math.expm1(
-      6 * salaryLoss
+      INDIVIDUAL_SALARY_EXPONENT * salaryLoss
     );
 
     // Rewards salary preservation / increases without allowing a very
@@ -700,7 +719,7 @@ function evaluateSolution(
     normalizedIError * normalizedIError;
 
   const worstSalaryPenalty = Math.expm1(
-    8 * worstSalaryLoss
+    WORST_SALARY_EXPONENT * worstSalaryLoss
   );
 
   const aggregateRetention =
@@ -752,6 +771,72 @@ function evaluateSolution(
  * the optimizer can evaluate 100 -> 97 directly instead of getting stuck
  * because the intermediate plateau steps offer no immediate target benefit.
  */
+function economicallyAdjacentStateIndices(
+  profile: InternalProfile
+): number[] {
+  const current = profile.states[profile.currentStateIndex];
+  const result = new Set<number>();
+
+  const addNextSalaryDistinctMission = (direction: -1 | 1) => {
+    for (
+      let m = current.m + direction * MISSION_STEP;
+      m >= MIN_M && m <= MAX_M;
+      m += direction * MISSION_STEP
+    ) {
+      const index = profile.stateByKey.get(stateKey(m, current.i));
+      if (index === undefined) continue;
+
+      const candidate = profile.states[index];
+
+      // Skip raw-only moves inside a plateau. They neither improve salary nor
+      // count as genuine economic movement. Jump to the first state that
+      // actually changes Salaire Formule.
+      if (Math.abs(candidate.salary - current.salary) <= SALARY_TOLERANCE) {
+        continue;
+      }
+
+      result.add(index);
+      break;
+    }
+  };
+
+  const addNextSalaryDistinctInvestment = (direction: -1 | 1) => {
+    for (
+      let i = current.i + direction * INVESTMENT_STEP;
+      i >= MIN_I && i <= MAX_I;
+      i += direction * INVESTMENT_STEP
+    ) {
+      const index = profile.stateByKey.get(stateKey(current.m, i));
+      if (index === undefined) continue;
+
+      const candidate = profile.states[index];
+
+      if (Math.abs(candidate.salary - current.salary) <= SALARY_TOLERANCE) {
+        continue;
+      }
+
+      result.add(index);
+      break;
+    }
+  };
+
+  addNextSalaryDistinctMission(-1);
+  addNextSalaryDistinctMission(1);
+  addNextSalaryDistinctInvestment(-1);
+  addNextSalaryDistinctInvestment(1);
+
+  return [...result];
+}
+
+/**
+ * Joint discrete economic coordinate descent.
+ *
+ * Unlike the previous implementation, a dossier cannot jump directly from
+ * Investissement 80 to 0 merely because that gives a large target gain.
+ * Each iteration can move only to the next salary-distinct state on one axis.
+ * Raw plateau points are skipped automatically, so plateau handling is kept
+ * without enabling destructive giant jumps.
+ */
 function coordinateDescent(
   profiles: InternalProfile[],
   eigen: EigenResult
@@ -759,8 +844,8 @@ function coordinateDescent(
   let current = evaluateSolution(profiles, eigen);
 
   const maxIterations = Math.max(
-    50,
-    Math.min(500, profiles.length * 12)
+    100,
+    Math.min(2000, profiles.length * 40)
   );
 
   for (
@@ -772,51 +857,31 @@ function coordinateDescent(
     let bestProfileIndex = -1;
     let bestStateIndex = -1;
 
-    for (
-      let p = 0;
-      p < profiles.length;
-      p++
-    ) {
+    for (let p = 0; p < profiles.length; p++) {
       const profile = profiles[p];
       const originalIndex = profile.currentStateIndex;
 
-      for (
-        let s = 0;
-        s < profile.states.length;
-        s++
-      ) {
+      for (const s of economicallyAdjacentStateIndices(profile)) {
         if (s === originalIndex) continue;
 
         profile.currentStateIndex = s;
+        const candidate = evaluateSolution(profiles, eigen);
 
-        const candidate = evaluateSolution(
-          profiles,
-          eigen
-        );
-
-        if (
-          candidate.score <
-          bestScore - SCORE_EPSILON
-        ) {
+        if (candidate.score < bestScore - SCORE_EPSILON) {
           bestScore = candidate.score;
           bestProfileIndex = p;
           bestStateIndex = s;
         }
-      }
 
-      profile.currentStateIndex = originalIndex;
+        profile.currentStateIndex = originalIndex;
+      }
     }
 
-    if (
-      bestProfileIndex < 0 ||
-      bestStateIndex < 0
-    ) {
+    if (bestProfileIndex < 0 || bestStateIndex < 0) {
       break;
     }
 
-    profiles[bestProfileIndex].currentStateIndex =
-      bestStateIndex;
-
+    profiles[bestProfileIndex].currentStateIndex = bestStateIndex;
     current = evaluateSolution(profiles, eigen);
   }
 }
@@ -879,6 +944,21 @@ function pairwiseRefinement(
 
     from.currentStateIndex = fromNextIndex;
     to.currentStateIndex = toNextIndex;
+
+    const fromNextState = from.states[fromNextIndex];
+    const toNextState = to.states[toNextIndex];
+
+    // Never use a pair of raw-only plateau moves to manipulate the global
+    // economic percentages. At least one dossier must have a real salary
+    // response to the transfer.
+    if (
+      Math.abs(fromNextState.salary - fromState.salary) <= SALARY_TOLERANCE &&
+      Math.abs(toNextState.salary - toState.salary) <= SALARY_TOLERANCE
+    ) {
+      from.currentStateIndex = oldFrom;
+      to.currentStateIndex = oldTo;
+      return false;
+    }
 
     const candidate = evaluateSolution(
       profiles,
