@@ -51,10 +51,7 @@ export function JuryDossierViewer({
     }, 3000);
   };
 
-  const isAdmin = profile.roles?.includes('ADMIN') || 
-    profile.email?.toLowerCase() === 'adam.nassir@logiclever.com' ||
-    profile.email?.toLowerCase() === 'guillaume.best@logiclever.com';
-  const isReadOnly = !isAssigned && !isAdmin;
+  const isReadOnly = !isAssigned;
   const dossierTabs: Array<[string, string]> = [
     ...(extraTab ? [[extraTab.id, extraTab.label] as [string, string]] : []),
     ['SYNTHESE', 'Introduction & Synthèse'],
@@ -774,12 +771,7 @@ export function JuryDossierViewer({
             ) : dossier.status === 'VALIDE' ? (
               <div className="bg-green-50 p-12 rounded-[40px] border border-green-100 text-center space-y-8">
                 <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 className="w-10 h-10" /></div>
-                <div>
-                  <h4 className="text-3xl font-serif text-green-800 mb-2">Décision Entérinée</h4>
-                  <p className="text-green-600/60 uppercase tracking-widest text-[10px] font-black">Augmentation validée pour 2025</p>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-8 max-w-2xl mx-auto py-8 border-y border-green-200/50">
-                  <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Verdict</div><div className="text-2xl font-bold text-green-800">{dossier.juryDecision?.verdict}</div></div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-2xl mx-auto py-8 border-y border-green-200/50">
                   <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Nouveau Salaire</div><div className="text-2xl font-bold text-green-800">{formatCurrency(dossier.juryDecision?.amount || 0)}</div></div>
                   {dossier.juryDecision?.maxSalaryIfTJIncreases && (
                     <div><div className="text-[10px] font-bold uppercase text-green-800/40 mb-2">Max si ↑ TJ</div><div className="text-2xl font-bold text-green-800">{formatCurrency(dossier.juryDecision.maxSalaryIfTJIncreases)}</div></div>

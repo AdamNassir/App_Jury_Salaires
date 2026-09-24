@@ -40,7 +40,6 @@ export function JuryDecisionForm({
     (profile?.idProfil ? dossier.juryMemberReviews?.[profile.idProfil] : undefined);
 
   const [formData, setFormData] = useState<Partial<JuryDecision>>({
-    verdict: existingMyReview?.verdict || dossier.juryDecision?.verdict || 'Favorable',
     amount: existingMyReview?.proposedSalary || dossier.juryDecision?.amount || candidate?.currentSalary || 0,
     investmentPercentage: dossier.juryDecision?.investmentPercentage ?? 60,
     missionPercentage: dossier.juryDecision?.missionPercentage ?? 98,
@@ -157,7 +156,6 @@ export function JuryDecisionForm({
         juryEmail: profile?.email || '',
         whyThisSalary: formData.whyThisSalary || '',
         whatToDoMore: formData.whatToDoMore || '',
-        verdict: formData.verdict || 'Favorable',
         proposedSalary: formData.amount || 0,
         percentage: formData.percentage || 0,
         investmentPercentage: formData.investmentPercentage ?? 60,

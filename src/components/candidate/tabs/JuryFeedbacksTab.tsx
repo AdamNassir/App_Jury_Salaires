@@ -115,9 +115,6 @@ export function JuryFeedbacksTab({ dossier }: JuryFeedbacksTabProps) {
                         <div className="font-bold text-accent text-sm">
                           {review.juryName || 'Membre du Jury'}
                         </div>
-                        <div className="text-[10px] text-accent/40 font-black uppercase tracking-wider">
-                          Membre de la commission salaires
-                        </div>
                       </div>
                     </div>
                     {review.updatedAt && (

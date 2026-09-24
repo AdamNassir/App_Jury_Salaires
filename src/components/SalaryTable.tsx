@@ -493,7 +493,6 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
     setEditingId(item.dossier.id);
     setEditValues({
       amount: decision.amount || item.currentSalary,
-      verdict: decision.verdict || 'Favorable',
       investmentPercentage: decision.investmentPercentage ?? 60,
       missionPercentage: decision.missionPercentage ?? 98,
       whyThisSalary: decision.whyThisSalary || '',

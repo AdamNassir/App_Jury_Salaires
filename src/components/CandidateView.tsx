@@ -500,28 +500,6 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             <DataBox label="Grade Actuel" value={profile.currentGrade} />
           </div>
           
-          <div className="h-px bg-accent/10 my-8" />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="p-6 bg-accent/5 rounded-xl border border-accent/10">
-              <div className="flex items-center gap-3 mb-4">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-accent/40">Projection 100% Invest.</span>
-              </div>
-              <p className="text-sm text-accent/60 italic leading-relaxed">
-                Basé sur votre TJM de <span className="font-bold text-accent">{profile.currentTJM}€</span>, votre positionnement actuel est calculé selon les règles du RG Logiclever.
-              </p>
-            </div>
-            <div className="p-6 bg-primary/5 rounded-xl border border-primary/10">
-              <div className="flex items-center gap-3 mb-4 text-primary">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Validation Admin</span>
-              </div>
-              <p className="text-sm text-accent/60 italic leading-relaxed">
-                Ces données ont été importées depuis votre dossier RH. En cas d'erreur manifeste, veuillez contacter la Direction.
-              </p>
-            </div>
-          </div>
         </div>
 
         <div className="bg-white p-16 rounded-xl border border-green-200 shadow-2xl flex flex-col items-center text-center max-w-4xl mx-auto relative overflow-hidden">
@@ -529,19 +507,8 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
           <div className="w-24 h-24 bg-green-50 rounded-base flex items-center justify-center mb-10 shadow-inner">
             <CheckCircle2 className="w-12 h-12 text-green-600" />
           </div>
-          <h1 className="text-green-600 mb-4 px-4 py-1 bg-green-50 rounded-base inline-block">Campagne 2025 Clôturée</h1>
           <h2 className="text-accent mb-8">Dossier Validé</h2>
           <div className="w-full bg-accent/5 p-12 rounded-xl border border-accent/10 space-y-10 group hover:bg-white transition-all shadow-inner hover:shadow-xl">
-            <div className="flex flex-col items-center">
-              <h4 className="text-[10px] font-black text-primary uppercase tracking-[0.4em] mb-6">Synthèse Décisionnelle</h4>
-              <div className="text-4xl font-bold text-secondary tracking-tight mb-2">
-                {dossier.juryDecision?.verdict}
-              </div>
-              <div className="text-xs font-black uppercase text-accent/20 tracking-widest">Décision Finale du Jury</div>
-            </div>
-            
-            <div className="h-px bg-accent/10 w-24 mx-auto" />
-
             <div className="flex flex-col items-center pb-4">
               <div className="text-8xl font-black text-primary tracking-tighter mb-4 tabular-nums group-hover:scale-105 transition-transform">
                 +{dossier.juryDecision?.amount}€

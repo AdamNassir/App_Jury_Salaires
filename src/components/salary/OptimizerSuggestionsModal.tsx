@@ -65,7 +65,7 @@ export function OptimizerSuggestionsModal({
   const handleGenerate50TestUsers = () => {
     const activeCampaignId = dossiers[0]?.campaignId || 'campaign_2025';
     const res = seed50DummyUsers(activeCampaignId);
-    setDummyNotice(`50 utilisateurs de test générés aléatoirement (% Mission: 95-100%, % Investissement: 0-100%) !`);
+    setDummyNotice(`50 utilisateurs de test générés (% Mission: 95-100%, % Investissement recalé sur 0/10/.../100) !`);
     setTimeout(() => setDummyNotice(null), 4000);
   };
 
@@ -122,9 +122,34 @@ export function OptimizerSuggestionsModal({
       const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
       const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
 
-      const b = Math.max(salaireCible, salaireVendu);
-      const a = Math.max(salaireCible100, salaireVendu100);
-      const currentSalary = candidate?.currentSalary || dossier.annualReport?.currentSalary || 0;
+      /*
+       * Revised economic model:
+       *
+       * - currentSalary is the fixed lower bound (b / Salaire Actuel)
+       * - salaireVendu is the fixed upper bound produced by TJ Vendu
+       * - a stays dossier-specific and is the theoretical formula ceiling
+       *
+       * The optimizer itself clamps the formula between currentSalary and
+       * soldSalary and derives each dossier's plateau-aware economic scales.
+       */
+      const fallbackCurrentSalary = Math.min(salaireCible, salaireVendu);
+      const currentSalary =
+        candidate?.currentSalary ||
+        dossier.annualReport?.currentSalary ||
+        fallbackCurrentSalary;
+
+      const soldSalary = Math.max(currentSalary, salaireVendu);
+
+      const a = Math.max(
+        salaireCible100,
+        salaireVendu100,
+        soldSalary + 0.01,
+        currentSalary + 0.01
+      );
+
+      // Kept because OptimizerUser historically exposed b.
+      // In the revised model b is exactly Salaire Actuel.
+      const b = currentSalary;
 
       return {
         id: candidate?.id || dossier.candidateId,
@@ -138,6 +163,7 @@ export function OptimizerSuggestionsModal({
         a,
         b,
         currentSalary,
+        soldSalary,
       };
     });
   }, [dossiers, candidates]);
@@ -201,13 +227,15 @@ export function OptimizerSuggestionsModal({
       sumOldSalary += rec.originalSalary;
       const isSelected = selectedUserIds.has(rec.id);
       if (isSelected) {
-        sumM += rec.newM;
-        sumI += rec.newI;
+        // Global targets use plateau-aware ECONOMIC percentages.
+        // Raw recommended values are still stored/applied to the dossier.
+        sumM += rec.newEffectiveM;
+        sumI += rec.newEffectiveI;
         sumSalary += rec.newSalary;
       } else {
-        // Keep original values if unchecked
-        sumM += rec.oldM;
-        sumI += rec.oldI;
+        // Keep original economic values if unchecked.
+        sumM += rec.oldEffectiveM;
+        sumI += rec.oldEffectiveI;
         sumSalary += rec.originalSalary;
       }
     });
@@ -306,7 +334,7 @@ export function OptimizerSuggestionsModal({
           {/* Mission Card */}
           <div className="p-4 rounded-xl border border-accent/10 bg-secondary/5 flex items-center justify-between">
             <div>
-              <div className="text-[10px] font-black uppercase text-secondary tracking-widest mb-1">Moyenne Globale % Mission</div>
+              <div className="text-[10px] font-black uppercase text-secondary tracking-widest mb-1">Moyenne Globale % Mission Économique</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-black text-accent tabular-nums">{Math.round(optimizationResult.oldMeanM)}%</span>
                 <ArrowRight className="w-4 h-4 text-accent/40 inline" />
@@ -316,6 +344,9 @@ export function OptimizerSuggestionsModal({
               </div>
               <div className="text-[10px] text-accent/40 mt-1">
                 {effectiveSimulation.selectedCount} / {effectiveSimulation.totalCount} consultant(s) inclus
+              </div>
+              <div className="text-[9px] text-accent/35 mt-0.5">
+                Moyenne brute initiale : {optimizationResult.oldRawMeanM.toFixed(1)}%
               </div>
             </div>
             <div className="text-right">
@@ -335,7 +366,7 @@ export function OptimizerSuggestionsModal({
           {/* Investment Card */}
           <div className="p-4 rounded-xl border border-accent/10 bg-primary/5 flex items-center justify-between">
             <div>
-              <div className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Moyenne Globale % Investissement</div>
+              <div className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Moyenne Globale % Investissement Économique</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-black text-accent tabular-nums">{Math.round(optimizationResult.oldMeanI)}%</span>
                 <ArrowRight className="w-4 h-4 text-accent/40 inline" />
@@ -345,6 +376,9 @@ export function OptimizerSuggestionsModal({
               </div>
               <div className="text-[10px] text-accent/40 mt-1">
                 {effectiveSimulation.selectedCount} / {effectiveSimulation.totalCount} consultant(s) inclus
+              </div>
+              <div className="text-[9px] text-accent/35 mt-0.5">
+                Moyenne brute initiale : {optimizationResult.oldRawMeanI.toFixed(1)}%
               </div>
             </div>
             <div className="text-right">
@@ -450,7 +484,7 @@ export function OptimizerSuggestionsModal({
             <button
               type="button"
               onClick={handleGenerate50TestUsers}
-              title="Générer 50 utilisateurs de test avec valeurs complètement aléatoires (Mission 95-100%, Invest. 0-100%)"
+              title="Générer 50 utilisateurs de test (Mission 95-100%, Investissement recalé sur 0/10/.../100)"
               className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
             >
               <Dices className="w-3.5 h-3.5" />
@@ -701,7 +735,7 @@ export function OptimizerSuggestionsModal({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-accent/10 bg-accent/5 flex items-center justify-between text-xs text-accent/60">
           <div>
-            Les ajustements minimisent la variance globale et appliquent une protection non linéaire sur les scores d'excellence.
+            Les cibles utilisent des pourcentages économiques propres à chaque dossier : les mouvements dans un plateau de Salaire Formule ne falsifient pas les moyennes globales. La rétention salariale et les scores d'excellence restent fortement protégés.
           </div>
           <div className="flex items-center gap-3">
             <button
