@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Dossier, UserProfile, JuryDecision, JuryMemberReview } from '../../types';
 import { LocalDatabaseService } from '../../services/localDatabaseService';
-import { UserDirectoryService } from '../../services/userDirectoryService';
-import { Gavel, CheckCircle2, Info, Clock, Lock, Users } from 'lucide-react';
+import { Gavel, CheckCircle2, Info, Lock } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { 
   calculateYears, 
   getPrimeAnciennete, 
-  calculateSalaryFormule, 
-  calculateMargin 
+  calculateSalaryFormule,
+  calculateSalaryFormulaResult,
+  calculateMargin,
+  resolveTargetGrade
 } from '../../lib/salaryUtils';
 
 
@@ -41,8 +42,8 @@ export function JuryDecisionForm({
   const [formData, setFormData] = useState<Partial<JuryDecision>>({
     verdict: existingMyReview?.verdict || dossier.juryDecision?.verdict || 'Favorable',
     amount: existingMyReview?.proposedSalary || dossier.juryDecision?.amount || candidate?.currentSalary || 0,
-    investmentPercentage: dossier.juryDecision?.investmentPercentage || 60,
-    missionPercentage: dossier.juryDecision?.missionPercentage || 98,
+    investmentPercentage: dossier.juryDecision?.investmentPercentage ?? 60,
+    missionPercentage: dossier.juryDecision?.missionPercentage ?? 98,
     tjCibleDecision: dossier.juryDecision?.tjCibleDecision ?? dossier.annualReport?.targetTJM ?? 0,
     whyThisSalary: existingMyReview?.whyThisSalary || dossier.juryDecision?.whyThisSalary || '',
     whatToDoMore: existingMyReview?.whatToDoMore || dossier.juryDecision?.whatToDoMore || '',
@@ -57,70 +58,6 @@ export function JuryDecisionForm({
   const isInitialMount = useRef(true);
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
-
-  // Calcul des membres du jury assignés à ce dossier
-  const assignedJuries = useMemo(() => {
-    const allUsers = UserDirectoryService.getAllUsers();
-    const candId = dossier.candidateId;
-    const candIdProfil = dossier.idProfil;
-
-    const juries = allUsers.filter(u => {
-      if (!u.roles?.includes('JURY')) return false;
-      // 1. Le jury a explicitement ce candidat dans ses assignedCandidateIds
-      const hasCandidate = (u.assignedCandidateIds || []).some(id => 
-        id === candId || (candIdProfil && id === candIdProfil)
-      );
-      if (hasCandidate) return true;
-
-      // 2. Le jury est dans assignedConsultantIds du dossier
-      const isInDossier = (dossier.assignedConsultantIds || []).some(id => 
-        id === u.id || (u.idProfil && id === u.idProfil)
-      );
-      if (isInDossier) return true;
-
-      return false;
-    });
-
-    // Si aucun jury n'a été assigné via les listes, on inclut le jury connecté ou ceux avec review existante
-    if (juries.length === 0) {
-      const fallbackList: UserProfile[] = [];
-      if (profile && profile.roles?.includes('JURY')) {
-        fallbackList.push(profile);
-      }
-      Object.values(dossier.juryMemberReviews || {}).forEach(r => {
-        if (!fallbackList.some(u => u.email?.toLowerCase() === r.juryEmail?.toLowerCase() || u.id === r.juryUid)) {
-          fallbackList.push({
-            id: r.juryUid,
-            displayName: r.juryName,
-            email: r.juryEmail,
-            roles: ['JURY']
-          } as UserProfile);
-        }
-      });
-      return fallbackList;
-    }
-
-    return juries;
-  }, [dossier, profile]);
-
-  // Suivi de la finalisation individuelle de chaque jury
-  const juryFinalizationStatus = useMemo(() => {
-    const reviews = dossier.juryMemberReviews || {};
-    return assignedJuries.map(jury => {
-      const juryKey = jury.id || jury.idProfil || jury.email;
-      const rev = reviews[juryKey] || (jury.email ? reviews[jury.email] : undefined) || (jury.idProfil ? reviews[jury.idProfil] : undefined);
-      const isFinalized = !!(rev?.isFinalized);
-      return {
-        jury,
-        isFinalized,
-        review: rev
-      };
-    });
-  }, [assignedJuries, dossier.juryMemberReviews]);
-
-  const finalizedCount = juryFinalizationStatus.filter(s => s.isFinalized).length;
-  const totalJuriesCount = Math.max(assignedJuries.length, 1);
-  const isMyDecisionFinalized = !!existingMyReview?.isFinalized;
 
   useEffect(() => {
     if (isInitialMount.current) {
@@ -171,37 +108,36 @@ export function JuryDecisionForm({
       ? calculateYears(candidate.entryDate, refDate)
       : null;
   const prime = getPrimeAnciennete(yearsLL);
-  const tjVendu = candidate?.currentTJM || dossier.annualReport?.currentTJM || 0;
+  const tjVendu = dossier.annualReport?.currentTJM || candidate?.currentTJM || 0;
   const tjCible = formData.tjCibleDecision ?? dossier.annualReport?.targetTJM ?? 0;
 
   const resFormule = useMemo(() => {
-    const currentSalary = candidate?.currentSalary || 0;
+    const currentSalary = dossier.annualReport?.currentSalary || candidate?.currentSalary || 0;
     const invest = formData.investmentPercentage ?? 60;
     const mission = formData.missionPercentage ?? 98;
-    
-    // For Vendu
-    const yearsExpertVal = candidate?.currentGrade === 'Expert' ? (calculateYears(candidate.expertGradeDate, refDate) || 0) : 0;
-    const salaireVendu = calculateSalaryFormule(tjVendu, candidate?.currentGrade || 'Junior', yearsExpertVal, prime);
-    const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, candidate?.currentGrade || 'Junior', yearsExpertVal, prime);
 
-    // For Cible
-    const targetGrade = dossier.annualReport?.wishedGrade || candidate?.currentGrade || 'Junior';
+    // Projection cible définie par le jury.
+    const currentGrade = dossier.annualReport?.currentGrade || candidate?.currentGrade || 'Junior';
+    const targetGrade = resolveTargetGrade(currentGrade, dossier.annualReport?.wishedGrade);
     const targetYearsExpert = targetGrade === 'Expert' ? (calculateYears(candidate?.expertGradeDate, refDate) || 0) : 0;
     const salaireCibleFinal = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
     const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
 
-    const calc1 = (mission / 100) * (((invest * (salaireCible100 - salaireCibleFinal)) / 100) + salaireCibleFinal);
-    const calc2 = (mission / 100) * (((invest * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu);
-    
-    if (currentSalary >= calc1 && currentSalary >= calc2) {
-      return currentSalary;
-    } else if (calc1 > currentSalary && calc1 <= calc2) {
-      return Math.round(calc1);
-    } else if (calc2 > currentSalary && calc2 <= calc1) {
-      return Math.round(calc2);
-    }
-    return currentSalary;
-  }, [candidate, formData.investmentPercentage, formData.missionPercentage, tjVendu, tjCible, prime, dossier.annualReport?.wishedGrade]);
+    // Le TJ vendu fixe le plafond de la proposition calculée.
+    const currentYearsExpert = currentGrade === 'Expert' ? (calculateYears(candidate?.expertGradeDate, refDate) || 0) : 0;
+    const salaireVendu = calculateSalaryFormule(tjVendu, currentGrade, currentYearsExpert, prime);
+    const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, currentGrade, currentYearsExpert, prime);
+
+    return calculateSalaryFormulaResult(
+      currentSalary,
+      salaireCibleFinal,
+      salaireCible100,
+      salaireVendu,
+      salaireVendu100,
+      invest,
+      mission
+    );
+  }, [candidate, formData.investmentPercentage, formData.missionPercentage, tjVendu, tjCible, prime, dossier.annualReport?.wishedGrade, refDate]);
 
   const marginPostJury = useMemo(() => {
     return calculateMargin(tjVendu, formData.amount || 0, prime);
@@ -244,53 +180,22 @@ export function JuryDecisionForm({
         updatedJuryMemberReviews[profile.id] = myUpdatedReview;
       }
 
-      // Vérifier si TOUS les membres du jury assignés ont maintenant finalisé leur décision
-      let allFinalized = true;
-      for (const jury of assignedJuries) {
-        const jKey = jury.id || jury.idProfil || jury.email;
-        const isCurrent = jKey === myKey || jury.id === profile?.id || jury.email === profile?.email;
-        if (isCurrent) {
-          continue; // Le jury courant vient d'être finalisé ci-dessus
-        }
-        const existing = updatedJuryMemberReviews[jKey] || 
-          (jury.email ? updatedJuryMemberReviews[jury.email] : undefined) || 
-          (jury.idProfil ? updatedJuryMemberReviews[jury.idProfil] : undefined);
-        
-        if (!existing || !existing.isFinalized) {
-          allFinalized = false;
-          break;
-        }
-      }
-
       const consolidatedDecision: JuryDecision = {
         ...formData as JuryDecision,
         date: now
       };
 
-      // RÈGLE COLLÉGIALE STRICTE :
-      // S'il reste des jurys assignés n'ayant pas encore finalisé, le dossier RESTE OBLIGATOIREMENT en statut 'COMPLET'.
-      // Dès que le dernier membre du jury finalise sa décision, le dossier devient alors 'VALIDE'.
-      const nextStatus = allFinalized ? 'VALIDE' : 'COMPLET';
-
       LocalDatabaseService.updateDossier(dossier.id, {
         juryMemberReviews: updatedJuryMemberReviews,
         juryDecision: consolidatedDecision,
-        status: nextStatus,
+        status: 'VALIDE',
         updatedAt: now
       });
 
-      if (allFinalized) {
-        setFeedbackSuccess("Tous les membres du jury ont finalisé leur décision ! Le dossier est désormais officiellement VALIDÉ.");
-        setTimeout(() => {
-          onDone();
-        }, 1200);
-      } else {
-        const remaining = totalJuriesCount - (finalizedCount + (isMyDecisionFinalized ? 0 : 1));
-        setFeedbackSuccess(`Votre avis a été finalisé avec succès ! Le dossier restera "Complet" jusqu'à la finalisation par les ${remaining} autre(s) membre(s) du jury.`);
-        setTimeout(() => {
-          setFeedbackSuccess(null);
-        }, 4000);
-      }
+      setFeedbackSuccess("La décision a été scellée. Le dossier est désormais VALIDÉ.");
+      setTimeout(() => {
+        onDone();
+      }, 1200);
     } catch (error) {
       console.error(error);
       alert("Erreur lors de l'enregistrement de votre avis.");
@@ -376,14 +281,13 @@ export function JuryDecisionForm({
               <label className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-3 block px-1">Référent Jury</label>
               <input 
                 type="text"
-                disabled={readOnly}
+                disabled
                 className="w-full bg-white border border-accent/10 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-gray-50 disabled:text-accent/70"
                 value={formData.referentJury || ''}
-                onChange={e => setFormData({...formData, referentJury: e.target.value})}
-                placeholder="Initiales..."
+                title="Affectation définie dans le Tableau des salaires & Délibérations"
               />
             </div>
-            <div className="bg-primary/10 p-4 rounded-xl border border-primary/10 flex flex-col justify-center" title="Calcul Automatique : Max(Salaire Actuel, Formule1, Formule2) où FormuleX = (Pourcentage mission / 100) * ((Pourcentage investissement * (SalaireX 100% - SalaireX)) / 100 + SalaireX)">
+            <div className="bg-primary/10 p-4 rounded-xl border border-primary/10 flex flex-col justify-center" title="Calcul basé sur le TJ cible et les pourcentages saisis par le jury, plafonné par le TJ vendu et sans diminution du salaire actuel.">
               <label className="text-[8px] font-black uppercase text-primary/60 tracking-widest mb-1">Salaire Formule RG</label>
               <div className="text-xl font-bold text-primary">{formatCurrency(resFormule)}</div>
             </div>

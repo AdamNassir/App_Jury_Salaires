@@ -205,7 +205,15 @@ export default function App() {
     syncLocalDossiers();
     const unsubLocal = LocalDatabaseService.subscribeDossiers(syncLocalDossiers);
 
-    return unsubLocal;
+    void LocalDatabaseService.refreshDossiersFromServer();
+    const refreshTimer = window.setInterval(() => {
+      void LocalDatabaseService.refreshDossiersFromServer();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(refreshTimer);
+      unsubLocal();
+    };
   }, [profile, activeView, showRoleSelection]);
 
   const handleViewSelection = (view: ActiveViewType) => {

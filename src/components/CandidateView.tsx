@@ -8,7 +8,7 @@ import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, C
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
-import { calculateYears, calculateSalaryFormule, getPrimeAnciennete } from '../lib/salaryUtils';
+import { calculateYears, calculateSalaryFormule, getPrimeAnciennete, resolveTargetGrade } from '../lib/salaryUtils';
 import { generateDossierPDF } from '../utils/pdfGenerator';
 import { requestGoogleDriveAccess } from '../lib/firebase';
 import { DriveObjectivesService } from '../services/driveObjectivesService';
@@ -77,11 +77,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
   
   const [reportData, setReportData] = useState<AnnualReport>(() => {
     const defaultGrade = (profile.currentGrade || 'Junior') as Grade;
-    const initialWished = (
-      defaultGrade === 'Junior' && (!dossier?.annualReport?.wishedGrade || dossier?.annualReport?.wishedGrade === 'Confirmé')
-        ? 'Junior'
-        : (dossier?.annualReport?.wishedGrade || defaultGrade)
-    ) as Grade;
+    const initialWished = resolveTargetGrade(defaultGrade, dossier?.annualReport?.wishedGrade);
 
     return {
       ...defaultReportData,
@@ -112,11 +108,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
   useEffect(() => {
     isFirstRenderForAutosave.current = true;
     const defaultGrade = (profile.currentGrade || 'Junior') as Grade;
-    const initialWished = (
-      defaultGrade === 'Junior' && (!dossier?.annualReport?.wishedGrade || dossier?.annualReport?.wishedGrade === 'Confirmé')
-        ? 'Junior'
-        : (dossier?.annualReport?.wishedGrade || defaultGrade)
-    ) as Grade;
+    const initialWished = resolveTargetGrade(defaultGrade, dossier?.annualReport?.wishedGrade);
 
     if (dossier?.annualReport) {
       setReportData({
@@ -455,10 +447,10 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
 
     setLoading(true);
     try {
-      await setDoc(doc(db, 'dossiers', activeId), {
+      LocalDatabaseService.updateDossier(activeId, {
         status: 'OUVERT',
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      });
       activeDossierIdRef.current = activeId;
       setDossierStatus('OUVERT');
       setShowCancelConfirmation(false);
@@ -854,6 +846,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
               profile={profile}
               dossier={dossier}
               reportData={reportData}
+              setReportData={setReportData}
             />
           )}
         </AnimatePresence>

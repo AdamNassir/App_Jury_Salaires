@@ -42,7 +42,8 @@ import {
   getPrimeAnciennete, 
   calculateSalaryFormule, 
   calculateMargin,
-  getTauxGrade
+  getTauxGrade,
+  resolveTargetGrade
 } from '../lib/salaryUtils';
 import { OptimizerSuggestionsModal } from './salary/OptimizerSuggestionsModal';
 
@@ -218,7 +219,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
       const salaireVendu = calculateSalaryFormule(tjVendu, effectiveGrade, yearsExpert, prime);
       const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, effectiveGrade, yearsExpert, prime);
       
-      const targetGrade = dossier.annualReport?.wishedGrade || effectiveGrade;
+      const targetGrade = resolveTargetGrade(effectiveGrade, dossier.annualReport?.wishedGrade);
       const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(expertGradeDate, referenceDate) : 0;
 
       const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
@@ -760,6 +761,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
               {/* Reference */}
               <th onClick={() => requestSort('matricule')} className="p-4 sticky left-10 bg-white z-20 min-w-[80px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration (Profil Utilisateur)">Matricule {renderSortIndicator('matricule')}</th>
               <th onClick={() => requestSort('displayName')} className="p-4 sticky left-[120px] bg-white z-20 min-w-[170px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi dans l'administration (Profil Utilisateur)">Collaborateur {renderSortIndicator('displayName')}</th>
+              <th onClick={() => requestSort('referentJury')} className="p-4 min-w-[140px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Référent Jury assigné au dossier">Référent Jury {renderSortIndicator('referentJury')}</th>
               <th onClick={() => requestSort('experienceYears')} className="p-4 min-w-[60px] text-center cursor-pointer hover:bg-accent/10 transition-colors" title="Expérience initiale (Saisie dans l'administration)">Exp. {renderSortIndicator('experienceYears')}</th>
               <th onClick={() => requestSort('entryDate')} className="p-4 min-w-[100px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisie dans l'administration">Entrée LL {renderSortIndicator('entryDate')}</th>
               <th onClick={() => requestSort('expertGradeDate')} className="p-4 min-w-[100px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisie dans l'administration">Expert Grade {renderSortIndicator('expertGradeDate')}</th>
@@ -798,7 +800,6 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
               <th onClick={() => requestSort('resFormule')} className="p-4 min-w-[120px] text-right text-primary font-bold italic cursor-pointer hover:bg-accent/10 transition-colors" title="Calcul Automatique : Max(Salaire Actuel, Formule1, Formule2) où FormuleX = (Pourcentage mission / 100) * ((Pourcentage investissement * (SalaireX 100% - SalaireX)) / 100 + SalaireX)">Salaire Formule {renderSortIndicator('resFormule')}</th>
               <th onClick={() => requestSort('diffFormule')} className="p-4 min-w-[120px] text-right font-bold cursor-pointer hover:bg-accent/10 transition-colors" title="Différence entre le Salaire Proposé et le Salaire calculé par la formule (Calculette du salaire)">Écart Formule {renderSortIndicator('diffFormule')}</th>
               <th onClick={() => requestSort('maxSalaryIfTJIncreases')} className="p-4 min-w-[150px] text-right cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury (Onglet Décision) ou via ce tableau">Salaire max proposé si augmentation TJ {renderSortIndicator('maxSalaryIfTJIncreases')}</th>
-              <th onClick={() => requestSort('referentJury')} className="p-4 min-w-[140px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Référent Jury assigné au dossier">Référent Jury {renderSortIndicator('referentJury')}</th>
               <th onClick={() => requestSort('whyThisSalary')} className="p-4 min-w-[220px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Pourquoi ce salaire proposé">Pourquoi ce salaire proposé {renderSortIndicator('whyThisSalary')}</th>
               <th onClick={() => requestSort('whatToDoMore')} className="p-4 min-w-[220px] cursor-pointer hover:bg-accent/10 transition-colors" title="Saisi par le Jury : Ce qu'il faut faire pour avoir plus">Ce qu'il faut faire pour avoir plus {renderSortIndicator('whatToDoMore')}</th>
               <th className="p-4 min-w-[150px]" title="Saisi par le Jury ou le Manager lors du point collaborateur">Ressenti</th>
@@ -871,6 +872,37 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                         )}
                       </div>
                     </td>
+                <td className="p-4 min-w-[140px]">
+                  {editingId === item.dossier.id ? (
+                    <select
+                      className="w-full p-1 bg-white border border-secondary rounded outline-none text-xs"
+                      value={editValues.referentJury || ''}
+                      onChange={e => setEditValues({...editValues, referentJury: e.target.value})}
+                    >
+                      <option value="">-- Non assigné --</option>
+                      {juryMembers.map(m => (
+                        <option key={m.id} value={m.displayName}>{m.displayName}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      className={cn(
+                        "text-xs px-2 py-1 rounded-lg border outline-none font-medium transition-all cursor-pointer",
+                        item.decision.referentJury
+                          ? "bg-secondary/5 border-secondary/20 text-secondary font-bold"
+                          : "bg-white border-accent/20 text-accent/40 italic"
+                      )}
+                      value={item.decision.referentJury || ''}
+                      onChange={e => handleAssignReferent(item.dossier.id, e.target.value)}
+                      title="Assigner un membre du jury à ce dossier"
+                    >
+                      <option value="">Non assigné</option>
+                      {juryMembers.map(m => (
+                        <option key={m.id} value={m.displayName}>{m.displayName}</option>
+                      ))}
+                    </select>
+                  )}
+                </td>
                 <td className="p-4 text-center">{item.candidate.experienceYears !== undefined && item.candidate.experienceYears !== null ? item.candidate.experienceYears : '-'}</td>
                 <td className="p-4 text-accent/60">{item.candidate.entryDate ? new Date(item.candidate.entryDate).toLocaleDateString() : '-'}</td>
                 <td className="p-4 text-accent/60">{item.candidate.expertGradeDate ? new Date(item.candidate.expertGradeDate).toLocaleDateString() : '-'}</td>
@@ -1002,37 +1034,6 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                       }}
                     />
                   ) : item.decision.maxSalaryIfTJIncreases ? formatCurrency(item.decision.maxSalaryIfTJIncreases) : '-'}
-                </td>
-                <td className="p-4 min-w-[140px]">
-                  {editingId === item.dossier.id ? (
-                    <select
-                      className="w-full p-1 bg-white border border-secondary rounded outline-none text-xs"
-                      value={editValues.referentJury || ''}
-                      onChange={e => setEditValues({...editValues, referentJury: e.target.value})}
-                    >
-                      <option value="">-- Non assigné --</option>
-                      {juryMembers.map(m => (
-                        <option key={m.id} value={m.displayName}>{m.displayName}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <select
-                      className={cn(
-                        "text-xs px-2 py-1 rounded-lg border outline-none font-medium transition-all cursor-pointer",
-                        item.decision.referentJury
-                          ? "bg-secondary/5 border-secondary/20 text-secondary font-bold"
-                          : "bg-white border-accent/20 text-accent/40 italic"
-                      )}
-                      value={item.decision.referentJury || ''}
-                      onChange={e => handleAssignReferent(item.dossier.id, e.target.value)}
-                      title="Assigner un membre du jury à ce dossier"
-                    >
-                      <option value="">Non assigné</option>
-                      {juryMembers.map(m => (
-                        <option key={m.id} value={m.displayName}>{m.displayName}</option>
-                      ))}
-                    </select>
-                  )}
                 </td>
                 <td className="p-4 min-w-[220px]">
                   {editingId === item.dossier.id ? (

@@ -15,7 +15,7 @@ import {
   snapMission,
   snapInvestment
 } from '../../lib/percentageOptimizer';
-import { calculateSalaryFormule, getPrimeAnciennete, calculateYears } from '../../lib/salaryUtils';
+import { calculateSalaryFormule, getPrimeAnciennete, calculateYears, resolveTargetGrade } from '../../lib/salaryUtils';
 import { formatCurrency, cn } from '../../lib/utils';
 import { updateDoc, doc, serverTimestamp, db, writeBatch } from '../../lib/localDatabase';
 import { seed50DummyUsers, clearDummyUsers } from '../../services/dummyUsersGenerator';
@@ -113,7 +113,7 @@ export function OptimizerSuggestionsModal({
       const tjVendu = candidate?.currentTJM || dossier.annualReport?.currentTJM || 650;
       const tjCible = dossier.juryDecision?.tjCibleDecision || dossier.annualReport?.targetTJM || tjVendu;
 
-      const targetGrade = dossier.annualReport?.wishedGrade || effectiveGrade;
+      const targetGrade = resolveTargetGrade(effectiveGrade, dossier.annualReport?.wishedGrade);
       const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(expertGradeDate) : 0;
 
       const salaireVendu = calculateSalaryFormule(tjVendu, effectiveGrade, yearsExpert, prime);

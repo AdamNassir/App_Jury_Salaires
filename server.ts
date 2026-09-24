@@ -159,6 +159,35 @@ async function startServer() {
     }
   });
 
+  // Shared dossier storage used by candidates, evaluators and jury members.
+  app.get("/api/data/dossiers", (_req, res) => {
+    res.json({ dossiers: readJsonArray("dossiers.json") });
+  });
+
+  app.post("/api/sync/dossiers", (req, res) => {
+    try {
+      const incoming = Array.isArray(req.body)
+        ? req.body
+        : req.body?.dossiers && Array.isArray(req.body.dossiers)
+          ? req.body.dossiers
+          : [req.body];
+      const currentDossiers = readJsonArray("dossiers.json");
+
+      for (const dossier of incoming) {
+        if (!dossier || typeof dossier !== "object" || !dossier.id) continue;
+        const index = currentDossiers.findIndex((item: any) => item.id === dossier.id);
+        if (index >= 0) currentDossiers[index] = { ...currentDossiers[index], ...dossier };
+        else currentDossiers.push(dossier);
+      }
+
+      saveJsonFiles("dossiers.json", currentDossiers);
+      res.json({ success: true, count: currentDossiers.length });
+    } catch (error: any) {
+      console.error("Error syncing dossiers.json:", error);
+      res.status(500).json({ error: error.message || "Failed to sync dossiers.json" });
+    }
+  });
+
   // API Route: Parse Bilan/Dossier Document (PDF or DOCX) with Gemini
   app.post("/api/parse-document", async (req, res) => {
     try {

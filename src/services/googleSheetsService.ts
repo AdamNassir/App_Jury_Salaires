@@ -4,7 +4,8 @@ import {
   calculateYears, 
   getPrimeAnciennete, 
   calculateSalaryFormule, 
-  calculateMargin 
+  calculateMargin,
+  resolveTargetGrade
 } from '../lib/salaryUtils';
 import { GoogleSheetsConfigService } from './googleSheetsConfigService';
 
@@ -216,7 +217,7 @@ export function prepareDeliberationsData(
     const salaireVendu = calculateSalaryFormule(tjVendu, candidate.currentGrade || 'Junior', yearsExpert, prime);
     const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, candidate.currentGrade || 'Junior', yearsExpert, prime);
 
-    const targetGrade = dossier.annualReport?.wishedGrade || candidate.currentGrade || 'Junior';
+    const targetGrade = resolveTargetGrade(candidate.currentGrade, dossier.annualReport?.wishedGrade);
     const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
     const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
     const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);

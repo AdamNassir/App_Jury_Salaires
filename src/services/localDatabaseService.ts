@@ -2,6 +2,15 @@ import { Campaign, Dossier, CampaignParticipant, Personne } from '../types';
 import { CollectionName, readCollection, readRecord, commitMutations, subscribeLocal } from './localStore';
 
 class LocalDatabaseServiceImpl {
+  private syncDossiersToServer(dossiers: Dossier[]) {
+    if (typeof window === 'undefined' || dossiers.length === 0) return;
+    fetch('/api/sync/dossiers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dossiers),
+    }).catch(error => console.warn('Could not sync dossiers to server:', error));
+  }
+
   private save(name: CollectionName, id: string, data: object, merge = false) {
     commitMutations([{ collection: name, id, kind: 'set', data: { ...data, updatedAt: new Date().toISOString() }, merge }]);
   }
@@ -60,8 +69,36 @@ class LocalDatabaseServiceImpl {
     const ids = [candidateId?.trim(), idProfil?.trim()].filter(Boolean);
     return this.getDossiers().filter(d => ids.includes(d.candidateId) || ids.includes(d.idProfil));
   }
-  saveDossier(dossier: Dossier) { this.save('dossiers', dossier.id, dossier); }
-  updateDossier(id: string, updates: Partial<Dossier>) { this.update('dossiers', id, updates); }
+  saveDossier(dossier: Dossier) {
+    this.save('dossiers', dossier.id, dossier);
+    const saved = this.getDossierById(dossier.id);
+    if (saved) this.syncDossiersToServer([saved]);
+  }
+  updateDossier(id: string, updates: Partial<Dossier>) {
+    this.update('dossiers', id, updates);
+    const saved = this.getDossierById(id);
+    if (saved) this.syncDossiersToServer([saved]);
+  }
+  async refreshDossiersFromServer(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+      const response = await fetch('/api/data/dossiers', { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const remoteDossiers = Array.isArray(payload?.dossiers) ? payload.dossiers as Dossier[] : [];
+      const localById = new Map(this.getDossiers().map(dossier => [dossier.id, dossier]));
+      const newer = remoteDossiers.filter(remote => {
+        const local = localById.get(remote.id);
+        if (!local) return true;
+        const remoteTime = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+        const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+        return remoteTime > localTime;
+      });
+      if (newer.length > 0) this.bulkSaveDossiers(newer);
+    } catch (error) {
+      console.warn('Could not refresh dossiers from server:', error);
+    }
+  }
   deleteDossier(id: string) {
     commitMutations([{ collection: 'dossiers', id, kind: 'delete' }]);
   }

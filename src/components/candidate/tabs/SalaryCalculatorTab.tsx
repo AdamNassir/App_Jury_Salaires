@@ -4,29 +4,26 @@ import { Calculator } from 'lucide-react';
 import { NumberInput } from '../CandidateUI';
 import { UserProfile, Dossier, AnnualReport, Grade } from '../../../types';
 import { formatCurrency } from '../../../lib/utils';
-import { calculateYears, calculateSalaryFormule, getPrimeAnciennete } from '../../../lib/salaryUtils';
+import { calculateYears, calculateSalaryFormule, calculateSalaryFormulaResult, getPrimeAnciennete, resolveTargetGrade } from '../../../lib/salaryUtils';
 
 interface SalaryCalculatorTabProps {
   key?: React.Key;
   profile: UserProfile;
   dossier?: Dossier;
   reportData: AnnualReport;
+  setReportData?: React.Dispatch<React.SetStateAction<AnnualReport>>;
 }
 
-export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalculatorTabProps) {
-  const effectiveCurrent = (profile.currentGrade || reportData.currentGrade || 'Junior') as Grade | 'Junior';
-  const effectiveWished = (
-    effectiveCurrent === 'Junior' && (!reportData.wishedGrade || reportData.wishedGrade === 'Confirmé')
-      ? 'Junior'
-      : (reportData.wishedGrade || effectiveCurrent)
-  ) as Grade | 'Junior';
+export function SalaryCalculatorTab({ profile, dossier, reportData, setReportData }: SalaryCalculatorTabProps) {
+  const effectiveCurrent = (reportData.currentGrade || profile.currentGrade || 'Junior') as Grade | 'Junior';
+  const effectiveWished = resolveTargetGrade(effectiveCurrent, reportData.wishedGrade);
 
-  const [tjVendu, setTjVendu] = useState<number>(profile.currentTJM || reportData.currentTJM || 0);
+  const [tjVendu, setTjVendu] = useState<number>(reportData.currentTJM || profile.currentTJM || 0);
   const [tjCible, setTjCible] = useState<number>(reportData.targetTJM || profile.currentTJM || 0);
   
   const [currentGrade, setCurrentGrade] = useState<Grade | 'Junior'>(effectiveCurrent);
   const [grade, setGrade] = useState<Grade | 'Junior'>(effectiveWished);
-  const [currentSalary, setCurrentSalary] = useState<number>(profile.currentSalary || 0);
+  const [currentSalary, setCurrentSalary] = useState<number>(reportData.currentSalary || profile.currentSalary || 0);
   
   const [investPerc, setInvestPerc] = useState<number>(dossier?.juryDecision?.investmentPercentage ?? 60);
   const [missionPerc, setMissionPerc] = useState<number>(dossier?.juryDecision?.missionPercentage ?? 98);
@@ -38,23 +35,19 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
   }, [dossier?.id, dossier?.juryDecision?.investmentPercentage, dossier?.juryDecision?.missionPercentage]);
 
   useEffect(() => {
-    const cur = (profile.currentGrade || reportData.currentGrade || 'Junior') as Grade | 'Junior';
-    const wish = (
-      cur === 'Junior' && (!reportData.wishedGrade || reportData.wishedGrade === 'Confirmé')
-        ? 'Junior'
-        : (reportData.wishedGrade || cur)
-    ) as Grade | 'Junior';
+    const cur = (reportData.currentGrade || profile.currentGrade || 'Junior') as Grade | 'Junior';
+    const wish = resolveTargetGrade(cur, reportData.wishedGrade);
     setCurrentGrade(cur);
     setGrade(wish);
-    setTjVendu(profile.currentTJM || reportData.currentTJM || 0);
+    setTjVendu(reportData.currentTJM || profile.currentTJM || 0);
     setTjCible(reportData.targetTJM || profile.currentTJM || 0);
-    setCurrentSalary(profile.currentSalary || 0);
+    setCurrentSalary(reportData.currentSalary || profile.currentSalary || 0);
   }, [profile.id, profile.currentGrade, profile.currentTJM, profile.currentSalary, reportData.currentGrade, reportData.wishedGrade, reportData.targetTJM]);
 
   useEffect(() => {
-    setTjVendu(profile.currentTJM || reportData.currentTJM || 0);
+    setTjVendu(reportData.currentTJM || profile.currentTJM || 0);
     setTjCible(reportData.targetTJM || profile.currentTJM || 0);
-    setCurrentSalary(profile.currentSalary || 0);
+    setCurrentSalary(reportData.currentSalary || profile.currentSalary || 0);
   }, [profile.id, profile.currentTJM, profile.currentSalary, reportData.currentTJM, reportData.targetTJM]);
 
   // Sync if candidate updates current grade or wished grade in other tabs
@@ -79,7 +72,9 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
   );
 
   const refDate = reportData.wishedSalaryDate || dossier?.annualReport?.wishedSalaryDate;
-  const yearsLL = calculateYears(profile.entryDate, refDate);
+  const yearsLL = profile.ancienneteLL !== undefined && profile.ancienneteLL !== null
+    ? profile.ancienneteLL
+    : calculateYears(profile.entryDate, refDate);
   const targetYearsExpert = grade === 'Expert' ? (calculateYears(profile.expertGradeDate, refDate) || 0) : 0;
   const currentYearsExpert = currentGrade === 'Expert' ? (calculateYears(profile.expertGradeDate, refDate) || 0) : 0;
   const prime = getPrimeAnciennete(yearsLL);
@@ -90,17 +85,15 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
   const salaireCible = calculateSalaryFormule(tjCible, grade, targetYearsExpert, prime);
   const salaireCible100 = calculateSalaryFormule(tjCible + 30, grade, targetYearsExpert, prime);
   
-  const calc1 = (missionPerc / 100) * (((investPerc * (salaireCible100 - salaireCible)) / 100) + salaireCible);
-  const calc2 = (missionPerc / 100) * (((investPerc * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu);
-  
-  let resFormule = currentSalary;
-  if (currentSalary >= calc1 && currentSalary >= calc2) {
-    resFormule = currentSalary;
-  } else if (calc1 > currentSalary && calc1 <= calc2) {
-    resFormule = calc1;
-  } else if (calc2 > currentSalary && calc2 <= calc1) {
-    resFormule = calc2;
-  }
+  const resFormule = calculateSalaryFormulaResult(
+    currentSalary,
+    salaireCible,
+    salaireCible100,
+    salaireVendu,
+    salaireVendu100,
+    investPerc,
+    missionPerc
+  );
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
@@ -193,9 +186,21 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
           <div className="space-y-6">
             <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Valeurs de base (Modifiables)</div>
             
-            <NumberInput label="TJ Vendu (€)" value={tjVendu} onChange={v => setTjVendu(Math.max(0, v))} min={0} />
-            <NumberInput label="TJ Cible (€)" value={tjCible} onChange={v => setTjCible(Math.max(0, v))} min={0} />
-            <NumberInput label="Salaire Actuel (€)" value={currentSalary} onChange={v => setCurrentSalary(Math.max(0, v))} min={0} />
+            <NumberInput label="TJ Vendu (€)" value={tjVendu} onChange={v => {
+              const value = Math.max(0, v);
+              setTjVendu(value);
+              setReportData?.(prev => ({ ...prev, currentTJM: value }));
+            }} min={0} />
+            <NumberInput label="TJ Cible (€)" value={tjCible} onChange={v => {
+              const value = Math.max(0, v);
+              setTjCible(value);
+              setReportData?.(prev => ({ ...prev, targetTJM: value }));
+            }} min={0} />
+            <NumberInput label="Salaire Actuel (€)" value={currentSalary} onChange={v => {
+              const value = Math.max(0, v);
+              setCurrentSalary(value);
+              setReportData?.(prev => ({ ...prev, currentSalary: value }));
+            }} min={0} />
             
             <div className="w-full" title="Le taux applicable pour les projections Vendu actuelles.">
               <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Grade Actuel</label>
@@ -207,6 +212,13 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
                   if ((gradeHierarchy[grade] ?? 0) < (gradeHierarchy[newCurrent] ?? 0)) {
                     setGrade(newCurrent);
                   }
+                  setReportData?.(prev => ({
+                    ...prev,
+                    currentGrade: newCurrent,
+                    wishedGrade: (gradeHierarchy[prev.wishedGrade] ?? 0) < (gradeHierarchy[newCurrent] ?? 0)
+                      ? newCurrent
+                      : prev.wishedGrade
+                  }));
                 }}
                 className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
               >
@@ -221,7 +233,11 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
               <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Grade Cible / Attendu</label>
               <select
                 value={grade}
-                onChange={e => setGrade(e.target.value as Grade | 'Junior')}
+                onChange={e => {
+                  const value = e.target.value as Grade | 'Junior';
+                  setGrade(value);
+                  setReportData?.(prev => ({ ...prev, wishedGrade: value }));
+                }}
                 className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
               >
                 {availableTargetGrades.map(g => (

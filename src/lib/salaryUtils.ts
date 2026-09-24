@@ -1,5 +1,21 @@
 import { Grade } from '../types';
 
+const gradeRank: Record<Grade, number> = {
+  Junior: 0,
+  'Confirmé': 1,
+  Senior: 2,
+  Expert: 3,
+};
+
+export const resolveTargetGrade = (
+  currentGrade: Grade | null | undefined,
+  wishedGrade: Grade | null | undefined
+): Grade => {
+  const current = currentGrade || 'Junior';
+  if (!wishedGrade || gradeRank[wishedGrade] < gradeRank[current]) return current;
+  return wishedGrade;
+};
+
 export const calculateYears = (
   fromDate: string | null | undefined,
   referenceDate?: string | Date | null
@@ -53,6 +69,25 @@ export const calculateSalaryFormule = (
   const ticketsResto = 216 * 5.5;
   const raw = (rate * 193 * tj) - 6000 - prime - ticketsResto;
   return Math.round(raw / 1.45 / 1.01);
+};
+
+export const calculateSalaryFormulaResult = (
+  currentSalary: number,
+  salaireCible: number,
+  salaireCible100: number,
+  salaireVendu: number,
+  salaireVendu100: number,
+  investmentPercentage: number,
+  missionPercentage: number
+) => {
+  const targetProjection = (missionPercentage / 100) * (
+    ((investmentPercentage * (salaireCible100 - salaireCible)) / 100) + salaireCible
+  );
+  const soldCap = (missionPercentage / 100) * (
+    ((investmentPercentage * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu
+  );
+
+  return Math.round(Math.max(currentSalary, Math.min(targetProjection, soldCap)));
 };
 
 export const calculateMargin = (tj: number, salary: number, prime: number) => {
