@@ -48,21 +48,22 @@ interface CandidateViewProps {
 }
 
 
-export function CandidateView({ profile, dossier, currentUser }: CandidateViewProps) {
-  const isJuryUser = currentUser?.roles?.includes('JURY') || profile.roles?.includes('JURY');
+export function CandidateView({ profile, dossier }: CandidateViewProps) {
   const [dossierStatus, setDossierStatus] = useState<DossierStatus>(() => dossier?.status || 'OUVERT');
 
   // Keep dossierStatus in sync if dossier prop changes from parent
   useEffect(() => {
     if (dossier?.status) {
       setDossierStatus(dossier.status);
+      if (dossier.status !== 'COMPLET') setShowCancelConfirmation(false);
     }
   }, [dossier?.status]);
 
-  const isLockedForEditing = dossierStatus === 'VALIDE' || (!isJuryUser && dossierStatus === 'COMPLET');
+  const isLockedForEditing = dossierStatus !== 'OUVERT';
   const isDossierComplet = dossierStatus === 'COMPLET' || dossierStatus === 'VALIDE';
 
   const [loading, setLoading] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isImportingPastObjectives, setIsImportingPastObjectives] = useState(false);
   const [pastImportSuccessMessage, setPastImportSuccessMessage] = useState<string | null>(null);
@@ -94,8 +95,18 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   });
 
   const [feedbacks, setFeedbacks] = useState<ClientFeedback[]>(dossier?.clientFeedbacks || []);
+  const [meteoLinks, setMeteoLinks] = useState<string[]>(
+    Array.isArray(dossier?.meteoLinks) ? dossier.meteoLinks : []
+  );
 
   const isFirstRenderForAutosave = useRef(true);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveOperationVersionRef = useRef(0);
+  const activeDossierIdRef = useRef<string | null>(dossier?.id || null);
+
+  useEffect(() => {
+    if (dossier?.id) activeDossierIdRef.current = dossier.id;
+  }, [dossier?.id]);
 
   // Re-initialize reportData and feedbacks whenever selected candidate or dossier changes
   useEffect(() => {
@@ -133,9 +144,10 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     } else {
       setFeedbacks([]);
     }
+    setMeteoLinks(Array.isArray(dossier?.meteoLinks) ? dossier.meteoLinks : []);
   }, [profile.id, dossier?.id]);
 
-  // Autosave when reportData or feedbacks change
+  // Autosave when dossier content changes
   useEffect(() => {
     if (isFirstRenderForAutosave.current) {
       isFirstRenderForAutosave.current = false;
@@ -143,12 +155,18 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }
     if (isLockedForEditing) return;
 
-    const timer = setTimeout(() => {
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
       handleSave(false, true); // Silent save
     }, 2000);
 
-    return () => clearTimeout(timer);
-  }, [reportData, feedbacks, isLockedForEditing]);
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [reportData, feedbacks, meteoLinks, isLockedForEditing]);
 
   // Prevent default window drag-and-drop behavior to avoid standard browser navigation / file download
   useEffect(() => {
@@ -196,6 +214,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   };
 
   const handleImportPastYearObjectives = async () => {
+    if (isLockedForEditing) return;
     setIsImportingPastObjectives(true);
     setPastImportSuccessMessage(null);
     setPastImportErrorMessage(null);
@@ -298,6 +317,14 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
   };
 
   const handleSave = async (submit: boolean = false, isSilent: boolean = false) => {
+    if (!isSilent && autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    const operationVersion = isSilent
+      ? saveOperationVersionRef.current
+      : ++saveOperationVersionRef.current;
+
     if (isLockedForEditing && !isSilent) {
       alert('Ce dossier est validé et ne peut plus être modifié.');
       return;
@@ -313,7 +340,12 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
       if (submit) {
         // Generate PDF report automatically on submission
         const activeYear = dossier?.campaignYear || (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, '')) || 2025 : 2025);
-        const pdfDataUri = generateDossierPDF(profile, dossier, reportData, feedbacks);
+        const pdfDataUri = generateDossierPDF(
+          profile,
+          dossier ? { ...dossier, meteoLinks } : dossier,
+          reportData,
+          feedbacks
+        );
         const pdfFileName = `Bilan_Annuel_${activeYear}_${(profile.displayName || profile.email || 'Candidat').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
         const newPdfDoc: DossierDocument = {
           name: pdfFileName,
@@ -326,9 +358,10 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         updatedDocs = [...filteredDocs, newPdfDoc];
       }
 
-      const status: DossierStatus = submit ? 'COMPLET' : dossierStatus;
-      const targetDossierId = dossier?.id || LocalDatabaseService.getDossiersByCandidate(profile.id, profile.idProfil)[0]?.id || `${profile.id}_2025`;
-      const existingDossier = dossier || LocalDatabaseService.getDossierById(targetDossierId) || LocalDatabaseService.getDossiersByCandidate(profile.id, profile.idProfil)[0];
+      const activeYear = dossier?.campaignYear || new Date().getFullYear();
+      const targetDossierId = dossier?.id || `${profile.idProfil || profile.id}_${activeYear}`;
+      activeDossierIdRef.current = targetDossierId;
+      const existingDossier = LocalDatabaseService.getDossierById(targetDossierId) || dossier;
 
       if (!existingDossier) {
         const q = query(
@@ -344,17 +377,20 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           assignedConsultantIds = Array.from(new Set([...assignedConsultantIds, ...profileAssigned]));
         }
 
+        if (operationVersion !== saveOperationVersionRef.current) return;
+
         const newDossier: Dossier = {
           id: targetDossierId,
           candidateId: profile.id,
           idProfil: profile.idProfil || (profile.matricule ? `LL_${profile.matricule.trim()}` : `PERS_${profile.id}`),
-          campaignId: '2025',
+          campaignId: dossier?.campaignId || `campaign_${activeYear}`,
           candidateName: profile.displayName || 'Anonyme',
           candidateEmail: profile.email,
-          campaignYear: 2025,
-          status: status,
+          campaignYear: activeYear,
+          status: submit ? 'COMPLET' : 'OUVERT',
           annualReport: reportData,
           clientFeedbacks: feedbacks,
+          meteoLinks,
           documents: updatedDocs,
           assignedConsultantIds: assignedConsultantIds,
           consultantFeedbacks: {},
@@ -367,12 +403,13 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
       } else {
         const dossierUpdates: Partial<Dossier> = {
-          status: status,
           annualReport: reportData,
           clientFeedbacks: feedbacks,
+          meteoLinks,
           documents: updatedDocs,
           updatedAt: new Date().toISOString()
         };
+        if (submit) dossierUpdates.status = 'COMPLET';
 
         // 1. Sauvegarde locale instantanée
         LocalDatabaseService.updateDossier(existingDossier.id, dossierUpdates);
@@ -384,9 +421,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
       }
 
       if (!isSilent) {
-        if (submit) {
-          alert('Dossier soumis avec succès ! Un récapitulatif PDF de votre dossier a été généré et est disponible dans "Pièces jointes".');
-        } else {
+        if (!submit) {
           alert('Dossier sauvegardé avec succès !');
         }
       } else {
@@ -402,24 +437,31 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
     }
   };
 
-  const handleCancelSubmission = async () => {
-    const targetDossier = dossier || LocalDatabaseService.getDossiersByCandidate(profile.id, profile.idProfil)[0] || LocalDatabaseService.getDossierById(`${profile.id}_2025`);
-    if (dossierStatus !== 'COMPLET' && targetDossier?.status !== 'COMPLET') return;
-    
-    const confirmCancel = window.confirm(
-      "Êtes-vous sûr de vouloir annuler la soumission de votre dossier ? Vous pourrez à nouveau modifier son contenu puis le resoumettre."
-    );
-    if (!confirmCancel) return;
+  const handleCancelSubmission = () => {
+    if (loading || dossierStatus !== 'COMPLET') return;
+    setShowCancelConfirmation(true);
+  };
+
+  const confirmCancelSubmission = async () => {
+    if (loading || dossierStatus !== 'COMPLET') return;
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    ++saveOperationVersionRef.current;
+
+    const activeYear = dossier?.campaignYear || new Date().getFullYear();
+    const activeId = dossier?.id || activeDossierIdRef.current || `${profile.idProfil || profile.id}_${activeYear}`;
 
     setLoading(true);
     try {
-      const activeId = targetDossier?.id || `${profile.id}_2025`;
-      LocalDatabaseService.updateDossier(activeId, {
+      await setDoc(doc(db, 'dossiers', activeId), {
         status: 'OUVERT',
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true });
+      activeDossierIdRef.current = activeId;
       setDossierStatus('OUVERT');
-      alert("Soumission annulée avec succès ! Votre dossier est de nouveau ouvert pour modification.");
+      setShowCancelConfirmation(false);
     } catch (error) {
       console.error("Cancel submission error:", error);
       alert("Une erreur est survenue lors de l'annulation de la soumission.");
@@ -497,11 +539,6 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
           </div>
           <h1 className="text-green-600 mb-4 px-4 py-1 bg-green-50 rounded-base inline-block">Campagne 2025 Clôturée</h1>
           <h2 className="text-accent mb-8">Dossier Validé</h2>
-          <p className="text-xl text-accent/60 mb-12 font-light leading-relaxed max-w-2xl">
-            Félicitations. Les délibérations du Jury sont terminées. <br/>
-            Vous trouverez ci-dessous le récapitulatif de votre évolution pour cette année.
-          </p>
-          
           <div className="w-full bg-accent/5 p-12 rounded-xl border border-accent/10 space-y-10 group hover:bg-white transition-all shadow-inner hover:shadow-xl">
             <div className="flex flex-col items-center">
               <h4 className="text-[10px] font-black text-primary uppercase tracking-[0.4em] mb-6">Synthèse Décisionnelle</h4>
@@ -583,7 +620,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
               <TabButton active={activeTab === section.id} onClick={() => setActiveTab(section.id)} label={section.label} />
             </div>
           ))}
-          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={feedbacks.length} />
+          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={meteoLinks.length + feedbacks.length} />
           {isDossierComplet && (
             <>
               <TabButton 
@@ -647,6 +684,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             )}
             {!isLockedForEditing && (
               <button 
+                type="button"
                 onClick={() => handleSave(false, false)}
                 disabled={loading}
                 className="w-full py-4 rounded-xl text-base font-bold bg-accent/5 hover:bg-accent/10 text-accent border border-accent/10 transition-all flex items-center justify-center gap-3 shadow-md mb-3 cursor-pointer"
@@ -657,21 +695,52 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             
             {dossierStatus === 'COMPLET' ? (
               <div className="space-y-2">
-                <button 
-                  onClick={handleCancelSubmission}
-                  disabled={loading}
-                  className="w-full py-4 rounded-xl text-base font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center justify-center gap-3 shadow-xl shadow-amber-500/20 cursor-pointer active:scale-[0.98]"
-                >
-                  <Undo2 className="w-5 h-5" /> Annuler Soumission
-                </button>
-                <p className="text-[11px] text-accent/50 text-center leading-tight px-1">
-                  Permet de rouvrir votre dossier pour le corriger et le modifier à nouveau.
-                </p>
+                {showCancelConfirmation ? (
+                  <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                    <p className="text-xs font-semibold leading-relaxed text-amber-950">
+                      Confirmer l'annulation ? Le dossier redeviendra modifiable.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCancelConfirmation(false)}
+                        disabled={loading}
+                        className="rounded-lg border border-accent/15 bg-white px-3 py-2 text-xs font-bold text-accent hover:bg-accent/5 disabled:opacity-50"
+                      >
+                        Retour
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmCancelSubmission}
+                        disabled={loading}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                      >
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                        Confirmer
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCancelSubmission}
+                      disabled={loading}
+                      className="w-full py-4 rounded-xl text-base font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center justify-center gap-3 shadow-xl shadow-amber-500/20 cursor-pointer active:scale-[0.98]"
+                    >
+                      <Undo2 className="w-5 h-5" /> Annuler Soumission
+                    </button>
+                    <p className="text-[11px] text-accent/50 text-center leading-tight px-1">
+                      Permet de rouvrir votre dossier pour le corriger et le modifier à nouveau.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="relative w-full">
                 <div className="w-full">
                   <button 
+                    type="button"
                     onClick={() => {
                       if (!loading && !isLockedForEditing) {
                         handleSave(true);
@@ -694,7 +763,10 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
         </div>
       </div>
 
-      <div className="lg:col-span-3 pb-24">
+      <fieldset
+        disabled={isLockedForEditing && activeTab !== 'RETOURS_PAIRS' && activeTab !== 'AVIS_JURY'}
+        className="lg:col-span-3 pb-24 min-w-0"
+      >
         <AnimatePresence mode="wait">
           {activeTab === 'DOCUMENTS' && (
             <DocumentsTab
@@ -743,6 +815,8 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
 
           {activeTab === 'METEOS' && (
             <MeteosTab
+              meteoLinks={meteoLinks}
+              setMeteoLinks={setMeteoLinks}
               feedbacks={feedbacks}
               setFeedbacks={setFeedbacks}
               meteoSubTab={meteoSubTab}
@@ -783,7 +857,7 @@ export function CandidateView({ profile, dossier, currentUser }: CandidateViewPr
             />
           )}
         </AnimatePresence>
-      </div>
+      </fieldset>
     </div>
     </div>
   );

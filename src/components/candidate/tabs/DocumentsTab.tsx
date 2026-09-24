@@ -29,9 +29,10 @@ export function DocumentsTab({
   return (
     <motion.div key="docs" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm font-sans">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-          <h2 className="text-secondary">Pièces Jointes & Import</h2>
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="mb-8 border-b border-accent/10 pb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h2 className="text-secondary">Pièces Jointes & Import</h2>
+            <div className="flex flex-wrap items-center gap-3">
             {handleImportPastYearObjectives && (
               <button
                 type="button"
@@ -48,11 +49,9 @@ export function DocumentsTab({
                 <span>{isImportingPastObjectives ? 'Recherche Drive en cours...' : 'Importer Bilan Année Passée'}</span>
               </button>
             )}
+            </div>
           </div>
         </div>
-        <p className="text-xl text-accent/40 mb-8 pb-6 border-b border-accent/10 font-light italic">
-          Importez automatiquement vos objectifs définis l'an passé depuis le Google Drive d'entreprise pour compléter votre onglet « Objectifs Année Passée ».
-        </p>
 
         {pastImportSuccessMessage && (
           <div className="mb-8 p-4 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center gap-3 text-xs text-emerald-800">

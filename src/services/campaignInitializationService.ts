@@ -230,10 +230,19 @@ export function parseExcelDate(val: any): Date | null {
   const str = cleanString(val);
   if (!str) return null;
 
-  // Format français JJ/MM/AAAA
-  const frMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+  // Formats français JJ/MM/AAAA et JJ/MM/AA
+  const frMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2}|\d{4})(?:\D|$)/);
   if (frMatch) {
-    return new Date(parseInt(frMatch[3]), parseInt(frMatch[2]) - 1, parseInt(frMatch[1]));
+    const shortYear = parseInt(frMatch[3]);
+    const year = frMatch[3].length === 2
+      ? (shortYear >= 70 ? 1900 + shortYear : 2000 + shortYear)
+      : shortYear;
+    const month = parseInt(frMatch[2]) - 1;
+    const day = parseInt(frMatch[1]);
+    const parsed = new Date(year, month, day);
+    return parsed.getFullYear() === year && parsed.getMonth() === month && parsed.getDate() === day
+      ? parsed
+      : null;
   }
 
   // Format ISO AAAA-MM-JJ
@@ -569,9 +578,10 @@ export class CampaignInitializationService {
   /**
    * Parse le fichier "Vues_Meteos" :
    * - "Id_Profil", column B (index 1), savoir à quel consultant la météo est rattachée
+   * - Date, column F (index 5), comprise entre le 01/07/N-1 et le 30/06/N inclus
    * - "Liens_Meteo", column Q (index 16), lien vers le document de la météo
    */
-  static async parseVuesMeteosFile(file: File): Promise<MeteoLinkItem[]> {
+  static async parseVuesMeteosFile(file: File, campaignYear: number): Promise<MeteoLinkItem[]> {
     const workbook = await readImportWorkbook(file);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
@@ -580,7 +590,10 @@ export class CampaignInitializationService {
 
     let headerRowIndex = -1;
     let colProfilIndex = 1; // Col B (1) par défaut
-    let colLienIndex = 16;  // Col Q (16) par défaut
+    const colDateIndex = 5; // Col F (index 5), imposée par le format Vues_Meteos
+    const colLienIndex = 16; // Col Q (index 16), imposée par le format Vues_Meteos
+    const periodStart = new Date(campaignYear - 1, 6, 1);
+    const periodEnd = new Date(campaignYear, 5, 30, 23, 59, 59, 999);
 
     for (let i = 0; i < Math.min(10, rawMatrix.length); i++) {
       const row = (rawMatrix[i] || []).map(c => normalizeHeader(String(c)));
@@ -589,8 +602,6 @@ export class CampaignInitializationService {
         row.forEach((h, colIdx) => {
           if (h.includes('id_profil') || (h.includes('profil') && h.includes('id'))) {
             colProfilIndex = colIdx;
-          } else if (h.includes('lien') || h.includes('meteo')) {
-            colLienIndex = colIdx;
           }
         });
         break;
@@ -606,8 +617,12 @@ export class CampaignInitializationService {
 
       // Col B (ou colProfilIndex) : Id_Profil
       const idProfil = cleanString(row[colProfilIndex]).toUpperCase();
+
+      // Col F : seules les météos de la période de campagne sont retenues.
+      const meteoDate = parseExcelDate(row[colDateIndex]);
+      if (!meteoDate || meteoDate < periodStart || meteoDate > periodEnd) continue;
       
-      // Col Q (ou colLienIndex) : Prendre la valeur de la cellule comme texte brut (sans extraction de lien hypertexte sous-jacent)
+      // Col Q : conserver le texte affiché dans la cellule, sans lire la cible hypertexte sous-jacente.
       let linkValue = '';
       if (worksheet) {
         const cellAddress = XLSX.utils.encode_cell({ r: i, c: colLienIndex });
@@ -733,7 +748,7 @@ export class CampaignInitializationService {
     let totalMeteoLinksCount = 0;
     if (vuesMeteosSpreadsheet) {
       try {
-        const meteoItems = await this.parseVuesMeteosFile(vuesMeteosSpreadsheet);
+        const meteoItems = await this.parseVuesMeteosFile(vuesMeteosSpreadsheet, year);
         totalMeteoLinksCount = meteoItems.length;
         meteoItems.forEach(item => {
           if (!meteoLinksByCandidate[item.idProfil]) {

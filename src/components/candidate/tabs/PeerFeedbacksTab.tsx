@@ -21,18 +21,17 @@ export function PeerFeedbacksTab({ dossier }: PeerFeedbacksTabProps) {
       className="space-y-6"
     >
       <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm font-sans">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-secondary flex items-center gap-3">
-            <MessageSquare className="w-6 h-6 text-primary" />
-            Évaluations et Retours par les Pairs
-          </h2>
-          <span className="text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full bg-accent/5 text-accent/60 border border-accent/10">
-            {feedbacks.length} avis reçu{feedbacks.length > 1 ? 's' : ''}
-          </span>
+        <div className="mb-8 border-b border-accent/10 pb-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-secondary flex items-center gap-3">
+              <MessageSquare className="w-6 h-6 text-primary" />
+              Évaluations et Retours par les Pairs
+            </h2>
+            <span className="text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full bg-accent/5 text-accent/60 border border-accent/10">
+              {feedbacks.length} avis reçu{feedbacks.length > 1 ? 's' : ''}
+            </span>
+          </div>
         </div>
-        <p className="text-xl text-accent/40 mb-8 pb-4 border-b border-accent/10 font-light italic">
-          Retours d'expérience, justifications du TJ cible et axes de progression formulés par vos pairs et associés.
-        </p>
 
         {feedbacks.length === 0 ? (
           <div className="p-16 border border-dashed border-accent/20 rounded-2xl text-center space-y-3 bg-accent/[0.01]">

@@ -11,7 +11,7 @@ interface ReferentTabProps {
 export function ReferentTab({ reportData, setReportData }: ReferentTabProps) {
   return (
     <motion.div key="ref" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <Section title="Points Spécifiques Référents" subtitle="Réservé aux référents Logiclever ou ceux souhaitant le devenir.">
+      <Section title="Points Spécifiques Référents">
         <div className="space-y-12">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div className="space-y-4">

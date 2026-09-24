@@ -43,56 +43,56 @@ export function EngagementTab({
     }]) }));
   };
 
-  const missionFollowUps = reportData.referentMissionFollowUps ?? [{ client: '', meteosMenees: '', pointsRemontes: '' }];
+  const missionFollowUps = reportData.referentMissionFollowUps ?? [];
   const updateMissionFollowUps = (update: (entries: typeof missionFollowUps) => typeof missionFollowUps) => {
     setReportData(prev => ({
       ...prev,
-      referentMissionFollowUps: update(prev.referentMissionFollowUps ?? [{ client: '', meteosMenees: '', pointsRemontes: '' }])
+      referentMissionFollowUps: update(prev.referentMissionFollowUps ?? [])
     }));
   };
 
-  const networkEntries = reportData.referentNetworkEntries ?? [{ clientProspect: '', actions: '' }];
+  const networkEntries = reportData.referentNetworkEntries ?? [];
   const updateNetworkEntries = (update: (entries: typeof networkEntries) => typeof networkEntries) => {
     setReportData(prev => ({
       ...prev,
-      referentNetworkEntries: update(prev.referentNetworkEntries ?? [{ clientProspect: '', actions: '' }])
+      referentNetworkEntries: update(prev.referentNetworkEntries ?? [])
     }));
   };
 
-  const missionEncadrements = reportData.referentMissionEncadrements ?? [{ client: '', personneEncadree: '', commentaire: '' }];
+  const missionEncadrements = reportData.referentMissionEncadrements ?? [];
   const updateMissionEncadrements = (update: (entries: typeof missionEncadrements) => typeof missionEncadrements) => {
     setReportData(prev => ({
       ...prev,
-      referentMissionEncadrements: update(prev.referentMissionEncadrements ?? [{ client: '', personneEncadree: '', commentaire: '' }])
+      referentMissionEncadrements: update(prev.referentMissionEncadrements ?? [])
     }));
   };
 
-  const coachingEntries = reportData.referentCoachingEntries ?? [{ personneCoachee: '', commentaire: '' }];
+  const coachingEntries = reportData.referentCoachingEntries ?? [];
   const updateCoachingEntries = (update: (entries: typeof coachingEntries) => typeof coachingEntries) => {
     setReportData(prev => ({
       ...prev,
-      referentCoachingEntries: update(prev.referentCoachingEntries ?? [{ personneCoachee: '', commentaire: '' }])
+      referentCoachingEntries: update(prev.referentCoachingEntries ?? [])
     }));
   };
 
-  const accountEntries = reportData.referentAccountEntries ?? [{ compte: '', actions: '' }];
+  const accountEntries = reportData.referentAccountEntries ?? [];
   const updateAccountEntries = (update: (entries: typeof accountEntries) => typeof accountEntries) => {
     setReportData(prev => ({
       ...prev,
-      referentAccountEntries: update(prev.referentAccountEntries ?? [{ compte: '', actions: '' }])
+      referentAccountEntries: update(prev.referentAccountEntries ?? [])
     }));
   };
 
-  const offersEntries = reportData.referentOffersEntries ?? [{ offre: '', details: '' }];
+  const offersEntries = reportData.referentOffersEntries ?? [];
   const updateOffersEntries = (update: (entries: typeof offersEntries) => typeof offersEntries) => {
     setReportData(prev => ({
       ...prev,
-      referentOffersEntries: update(prev.referentOffersEntries ?? [{ offre: '', details: '' }])
+      referentOffersEntries: update(prev.referentOffersEntries ?? [])
     }));
   };
   return (
     <motion.div key={section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <Section title={engagementSections.find(item => item.id === section)!.label} subtitle="Contribution à Logiclever et posture en mission.">
+      <Section title={engagementSections.find(item => item.id === section)!.label}>
         <div className="space-y-12">
           {section === 'AUTONOMIE' && (
             <div className="space-y-4">
@@ -163,7 +163,7 @@ export function EngagementTab({
           )}
 
           {section === 'VIE_LOGICLEVER' && (
-            <div className="pt-8 border-t border-accent/10">
+            <div>
               <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-widest mb-10">Vie Logiclever</h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -177,7 +177,7 @@ export function EngagementTab({
           )}
 
           {section === 'RECRUTEMENT' && (
-            <div className="pt-8 border-t border-accent/10">
+            <div>
               <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-widest mb-10">Recrutement & Promotion</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <FormField label="Promouvoir Logiclever : Avec qui ?, Comment ?" value={reportData.recruitmentPromotion} onChange={v => setReportData(prev => ({ ...prev, recruitmentPromotion: v }))} tooltip="Points sur votre implication dans la promotion de l'image de marque." />
@@ -188,7 +188,7 @@ export function EngagementTab({
           )}
 
           {section === 'ENCADREMENT' && (
-            <div className="pt-8 border-t border-accent/10">
+            <div>
               <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-widest mb-10">Encadrement & Coaching</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <FormField label="Ai-je sollicité mon coach pour m’aider à grandir et avoir des conseils pour aider au développement de Logiclever ?" value={reportData.encadrementCoach} onChange={v => setReportData(prev => ({ ...prev, encadrementCoach: v }))} />
@@ -198,7 +198,7 @@ export function EngagementTab({
           )}
 
           {section === 'REFERENT_LOGICLEVER' && (
-            <div className="pt-8 border-t border-accent/10 space-y-12">
+            <div className="space-y-12">
               <div>
                 <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-widest mb-6">Expertise & Référents Logiclever</h4>
                 <div
@@ -208,11 +208,8 @@ export function EngagementTab({
                     reportData.isReferentOrAspiring ? "bg-accent border-accent text-white shadow-xl shadow-accent/20" : "bg-white border-accent/10 hover:border-accent/40"
                   )}
                 >
-                  <div className="space-y-2">
+                  <div>
                     <div className="text-xl font-bold">Je suis Référent ou souhaite le devenir</div>
-                    <p className={cn("text-sm", reportData.isReferentOrAspiring ? "text-white/60" : "text-accent/40")}>
-                      Cochez cette case si vous avez des missions d'encadrement, de coaching ou de développement de l'offre Logiclever.
-                    </p>
                   </div>
                   <div className={cn(
                     "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all",
@@ -229,7 +226,6 @@ export function EngagementTab({
                   <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-6">
                     <div>
                       <h4 className="text-lg font-bold text-secondary">Suivre les missions</h4>
-                      <p className="text-xs text-accent/50 mt-1">Météos clients menées et principaux points remontés</p>
                     </div>
 
                     <div className="space-y-6">
@@ -259,7 +255,6 @@ export function EngagementTab({
                                 const val = e.target.value;
                                 updateMissionFollowUps(entries => entries.map((r, i) => i === index ? { ...r, client: val } : r));
                               }}
-                              placeholder="Nom du client..."
                               className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium"
                             />
                           </div>
@@ -304,7 +299,6 @@ export function EngagementTab({
                   <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-6">
                     <div>
                       <h4 className="text-lg font-bold text-secondary">Disposer d’un réseau de donneur d’ordre</h4>
-                      <p className="text-xs text-accent/50 mt-1">Actions effectuées pour créer et entretenir les liens avec les donneurs d’ordre</p>
                     </div>
 
                     <div className="space-y-6">
@@ -334,7 +328,6 @@ export function EngagementTab({
                                 const val = e.target.value;
                                 updateNetworkEntries(entries => entries.map((r, i) => i === index ? { ...r, clientProspect: val } : r));
                               }}
-                              placeholder="Nom des clients ou prospects..."
                               className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium"
                             />
                           </div>
@@ -366,7 +359,6 @@ export function EngagementTab({
                   <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-8">
                     <div>
                       <h4 className="text-lg font-bold text-secondary">Encadrement</h4>
-                      <p className="text-xs text-accent/60 italic mt-1 font-medium">Un bon encadrant fait progresser. Avez-vous réussi à faire grandir les consultants Logiclever ?</p>
                     </div>
 
                     {/* En mission */}
@@ -400,7 +392,6 @@ export function EngagementTab({
                                     const val = e.target.value;
                                     updateMissionEncadrements(entries => entries.map((r, i) => i === index ? { ...r, client: val } : r));
                                   }}
-                                  placeholder="Nom du client..."
                                   className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium"
                                 />
                               </div>
@@ -413,7 +404,6 @@ export function EngagementTab({
                                     const val = e.target.value;
                                     updateMissionEncadrements(entries => entries.map((r, i) => i === index ? { ...r, personneEncadree: val } : r));
                                   }}
-                                  placeholder="Nom du consultant..."
                                   className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium"
                                 />
                               </div>
@@ -472,7 +462,6 @@ export function EngagementTab({
                                   const val = e.target.value;
                                   updateCoachingEntries(entries => entries.map((r, i) => i === index ? { ...r, personneCoachee: val } : r));
                                 }}
-                                placeholder="Nom du consultant coaché..."
                                 className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium"
                               />
                             </div>
@@ -514,7 +503,6 @@ export function EngagementTab({
                   <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-6">
                     <div>
                       <h4 className="text-lg font-bold text-secondary">Avoir la responsabilité d’un compte</h4>
-                      <p className="text-xs text-accent/50 mt-1">Pilotage et animation du compte client</p>
                     </div>
 
                     <div className="space-y-6">
@@ -544,7 +532,6 @@ export function EngagementTab({
                                 const val = e.target.value;
                                 updateAccountEntries(entries => entries.map((r, i) => i === index ? { ...r, compte: val } : r));
                               }}
-                              placeholder="Nom du compte client..."
                               className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium"
                             />
                           </div>
@@ -571,25 +558,12 @@ export function EngagementTab({
                       </button>
                     </div>
 
-                    <div className="pt-4 border-t border-accent/10 space-y-6">
-                      <FormField
-                        label="Ai-je réuni régulièrement, les consultants Logiclever sur le compte pour partager des opportunités et partager les infos Logiclever ?"
-                        value={reportData.referentAccountTeamMeetings || ''}
-                        onChange={v => setReportData(prev => ({ ...prev, referentAccountTeamMeetings: v }))}
-                      />
-                      <FormField
-                        label="Autres actions"
-                        value={reportData.referentOtherActions || ''}
-                        onChange={v => setReportData(prev => ({ ...prev, referentOtherActions: v }))}
-                      />
-                    </div>
                   </div>
 
                   {/* 5. Développer de nouveaux clients (nouvelles offres…) */}
                   <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-6">
                     <div>
                       <h4 className="text-lg font-bold text-secondary">Développer de nouveaux clients (nouvelles offres…)</h4>
-                      <p className="text-xs text-accent/50 mt-1">Conception et développement d'offres pour Logiclever</p>
                     </div>
 
                     <div className="space-y-6">
@@ -619,7 +593,6 @@ export function EngagementTab({
                                 const val = e.target.value;
                                 updateOffersEntries(entries => entries.map((r, i) => i === index ? { ...r, offre: val } : r));
                               }}
-                              placeholder="Nom ou thématique de l'offre..."
                               className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium"
                             />
                           </div>

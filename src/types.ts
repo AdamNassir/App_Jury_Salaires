@@ -387,7 +387,7 @@ export interface Dossier {
   // Data from Candidate
   annualReport?: AnnualReport;
   clientFeedbacks?: ClientFeedback[];
-  meteoLinks?: any;
+  meteoLinks?: string[];
   documents?: DossierDocument[];
   
   // Assignments

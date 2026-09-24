@@ -15,7 +15,6 @@ export function ExpertisesTab({ reportData, setReportData, isLockedForEditing }:
     <motion.div key="exp" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <Section
         title="Savoir-faire"
-        subtitle="Logiclever peut vous valoriser (et donc vous rétribuer) si vous avez des compétences / savoir-faire identifiables"
       >
         <SkillsDossierFields
           reportData={reportData}

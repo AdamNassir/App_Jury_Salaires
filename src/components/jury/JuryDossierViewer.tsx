@@ -37,26 +37,6 @@ export function JuryDossierViewer({
 }: JuryDossierViewerProps) {
   const [copiedMeteoIndex, setCopiedMeteoIndex] = useState<number | null>(null);
 
-  const handleOpenAndCopy = async (link: string, idx: number, e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    const plainText = extractPlainTextUrl(link);
-    const validUrl = getValidUrl(plainText);
-    await copyPlainTextToClipboard(plainText || validUrl);
-    setCopiedMeteoIndex(idx);
-    setTimeout(() => {
-      setCopiedMeteoIndex(prev => (prev === idx ? null : prev));
-    }, 3000);
-
-    try {
-      window.open(validUrl, '_blank', 'noopener,noreferrer');
-    } catch {
-      // Ignoré si bloqué par l'iframe
-    }
-  };
-
   const handleCopyOnly = async (link: string, idx: number, e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -385,7 +365,6 @@ export function JuryDossierViewer({
                               rel="noopener noreferrer"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleCopyOnly(plainTextUrl, idx);
                               }}
                               className="text-[11px] text-primary hover:text-secondary hover:underline font-mono truncate select-all inline-flex items-center gap-1 cursor-pointer transition-colors text-left"
                               title="Ouvrir le lien dans un nouvel onglet"
@@ -426,17 +405,12 @@ export function JuryDossierViewer({
                           rel="noopener noreferrer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCopyOnly(plainTextUrl, idx);
                           }}
-                          className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all shadow-xs cursor-pointer ${
-                            copiedMeteoIndex === idx
-                              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                              : 'bg-primary text-white hover:brightness-110'
-                          }`}
+                          className="px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all shadow-xs cursor-pointer bg-primary text-white hover:brightness-110"
                           title="Ouvrir le lien dans un nouvel onglet"
                         >
-                          <span>{copiedMeteoIndex === idx ? 'Copié' : 'Ouvrir'}</span>
-                          {copiedMeteoIndex === idx ? <Check className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                          <span>Ouvrir</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       </div>
                     </div>

@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Gavel, TrendingUp, AlertCircle, Info, Clock, CheckCircle2 } from 'lucide-react';
+import { Gavel, Clock, CheckCircle2 } from 'lucide-react';
 import { Dossier, JuryMemberReview } from '../../../types';
-import { cn, formatCurrency } from '../../../lib/utils';
+import { cn } from '../../../lib/utils';
 
 interface JuryFeedbacksTabProps {
   dossier?: Dossier;
@@ -10,7 +10,14 @@ interface JuryFeedbacksTabProps {
 
 export function JuryFeedbacksTab({ dossier }: JuryFeedbacksTabProps) {
   const reviewsMap = dossier?.juryMemberReviews || {};
-  const juryReviews: JuryMemberReview[] = Object.values(reviewsMap);
+  const juryReviews: JuryMemberReview[] = Array.from(
+    new Map(
+      Object.values(reviewsMap).map(review => [
+        review.juryUid || review.juryEmail || review.juryName,
+        review
+      ])
+    ).values()
+  );
   const juryDecision = dossier?.juryDecision;
   const isFinalDecision = dossier?.status === 'VALIDE';
 
@@ -26,10 +33,10 @@ export function JuryFeedbacksTab({ dossier }: JuryFeedbacksTabProps) {
       className="space-y-6"
     >
       <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm font-sans">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between gap-4 mb-8 border-b border-accent/10 pb-6">
           <h2 className="text-secondary flex items-center gap-3">
             <Gavel className="w-6 h-6 text-primary" />
-            Délibérations et Avis du Jury
+            Délibération et Avis du Jury
           </h2>
           <span className={cn(
             "text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full border flex items-center gap-1.5",
@@ -45,36 +52,15 @@ export function JuryFeedbacksTab({ dossier }: JuryFeedbacksTabProps) {
             ) : (
               <>
                 <Clock className="w-3.5 h-3.5" />
-                Délibérations en cours
+                Délibération en cours
               </>
             )}
           </span>
         </div>
 
-        {/* Bannière explicative sur le caractère consultatif / préparatoire avant validation finale */}
-        <div className="p-5 rounded-xl bg-secondary/[0.04] border border-secondary/15 flex items-start gap-4 mb-8">
-          <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-          <div className="text-xs text-accent/70 leading-relaxed font-light">
-            {isFinalDecision ? (
-              <span>Les délibérations de la commission sont terminées et entérinées. Retrouvez ci-dessous la synthèse des appréciations formulées par le jury.</span>
-            ) : (
-              <span>Votre dossier est classifié comme <strong>Dossier Complet</strong>. Les membres du jury étudient vos réalisations et consignent ici leurs appréciations et orientations préparatoires. Ces avis sont consultatifs et évoluent jusqu'à la tenue de la commission plénière et la validation finale du dossier.</span>
-            )}
-          </div>
-        </div>
-
         {/* Si une décision globale ou pré-verdict existe déjà */}
         {hasGlobalNotes && (
           <div className="mb-8 p-6 rounded-2xl bg-accent/[0.02] border border-accent/10 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase text-accent/40 tracking-widest">Synthèse Collégiale du Jury</span>
-              {juryDecision.verdict && (
-                <span className="text-xs font-black uppercase px-2.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                  Orientation : {juryDecision.verdict}
-                </span>
-              )}
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {juryDecision.whyThisSalary && (
                 <div className="p-5 rounded-xl bg-white border border-accent/10 space-y-2">
@@ -112,9 +98,6 @@ export function JuryFeedbacksTab({ dossier }: JuryFeedbacksTabProps) {
           </div>
         ) : (
           <div className="space-y-6">
-            <h3 className="text-sm font-bold text-accent uppercase tracking-wider">
-              Avis et Notes des Membres du Jury ({juryReviews.length})
-            </h3>
             <div className="grid grid-cols-1 gap-6">
               {juryReviews.map((review, idx) => (
                 <div 

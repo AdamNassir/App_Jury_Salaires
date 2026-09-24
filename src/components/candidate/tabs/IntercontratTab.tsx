@@ -11,7 +11,7 @@ interface IntercontratTabProps {
 export function IntercontratTab({ reportData, setReportData }: IntercontratTabProps) {
   return (
     <motion.div key="intercontrat" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <Section title="Gestion de l'Intercontrat" subtitle="Renseignez vos périodes d'intercontrat et les réalisations ou contributions associées.">
+      <Section title="Gestion de l'Intercontrat">
         <div className="space-y-10">
           <div className="flex items-center gap-4 bg-accent/5 p-6 rounded-xl border border-accent/10">
             <input 

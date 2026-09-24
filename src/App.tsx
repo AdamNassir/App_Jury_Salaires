@@ -511,11 +511,9 @@ export default function App() {
           const activeCampaignYear = availableYears.includes(currentSelectedYear) ? currentSelectedYear : availableYears[0];
 
           // Dossier correspondant exactement à la campagne / année choisie
-          const activeCandidateDossier = candidateDossiers.find(d => 
-            getDossierYear(d) === activeCampaignYear || 
-            d.campaignId === `campaign_${activeCampaignYear}` ||
-            d.campaignId === selectedCampaignId
-          ) || candidateDossiers[0];
+          const activeCandidateDossier = candidateDossiers.find(
+            d => getDossierYear(d) === activeCampaignYear
+          );
 
           return (
             <>

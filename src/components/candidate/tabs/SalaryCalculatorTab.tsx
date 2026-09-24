@@ -111,7 +111,6 @@ export function SalaryCalculatorTab({ profile, dossier, reportData }: SalaryCalc
           </div>
           <div>
             <h2 className="text-2xl font-bold text-accent tracking-tighter">Calculette du salaire</h2>
-            <p className="text-accent/60 font-light text-sm">Simulatrice de rémunération globale (Formules Logiclever).</p>
           </div>
         </div>
 
