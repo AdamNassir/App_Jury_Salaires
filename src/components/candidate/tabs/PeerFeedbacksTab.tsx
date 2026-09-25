@@ -10,7 +10,14 @@ interface PeerFeedbacksTabProps {
 
 export function PeerFeedbacksTab({ dossier }: PeerFeedbacksTabProps) {
   const feedbacksMap = dossier?.consultantFeedbacks || {};
-  const feedbacks: ConsultantFeedback[] = Object.values(feedbacksMap);
+  // Filtrer les brouillons initiaux vides créés automatiquement lors de l'import (qui n'ont pas encore été renseignés par l'évaluateur)
+  const feedbacks: ConsultantFeedback[] = Object.values(feedbacksMap).filter(fb => {
+    const hasContent = (fb.justification && fb.justification.trim().length > 0) || 
+                       (fb.improvementAxes && fb.improvementAxes.trim().length > 0) || 
+                       fb.validated || 
+                       fb.status === 'VALIDE';
+    return hasContent;
+  });
 
   return (
     <motion.div 
@@ -115,7 +122,7 @@ export function PeerFeedbacksTab({ dossier }: PeerFeedbacksTabProps) {
                           <ShieldCheck className="w-4 h-4 text-secondary" />
                           <span className="text-xs text-accent/50 uppercase font-black tracking-wider">Indice de Confiance :</span>
                           <span className="text-sm font-black text-secondary">
-                            {fb.confidenceIndex} / 10
+                            {fb.confidenceIndex > 5 ? Math.round(fb.confidenceIndex / 2) : fb.confidenceIndex} / 5
                           </span>
                         </div>
                       )}

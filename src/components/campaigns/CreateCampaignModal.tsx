@@ -22,7 +22,6 @@ import {
   CampaignInitializationService, 
   CampaignInitPreview 
 } from '../../services/campaignInitializationService';
-import { v4 as uuidv4 } from 'uuid';
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -40,13 +39,11 @@ export function CreateCampaignModal({
   const currentYear = new Date().getFullYear();
   const [newYear, setNewYear] = useState<number>(currentYear + 1);
   const [newTitle, setNewTitle] = useState<string>(`Campagne Annuelle ${currentYear + 1}`);
-  const [newDescription, setNewDescription] = useState<string>('');
 
   // Fichiers d'entrée obligatoires
   const [rapportRhFile, setRapportRhFile] = useState<File | null>(null);
   const [primesFile, setPrimesFile] = useState<File | null>(null);
   const [vuesMeteosFile, setVuesMeteosFile] = useState<File | null>(null);
-  const [otherFiles, setOtherFiles] = useState<CampaignFile[]>([]);
 
   // Étape d'aperçu et d'analyse
   const [currentStep, setCurrentStep] = useState<'FILES' | 'PREVIEW'>('FILES');
@@ -77,32 +74,6 @@ export function CreateCampaignModal({
       setPreview(null);
     }
     e.target.value = '';
-  };
-
-  const handleOtherFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    Array.from(files).forEach((file: File) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const fileObj: CampaignFile = {
-          id: uuidv4(),
-          name: file.name,
-          category: 'AUTRE',
-          url: reader.result as string,
-          size: file.size,
-          uploadedAt: new Date().toISOString()
-        };
-        setOtherFiles(prev => [...prev, fileObj]);
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = '';
-  };
-
-  const removeOtherFile = (id: string) => {
-    setOtherFiles(prev => prev.filter(f => f.id !== id));
   };
 
   // Passer à l'analyse et générer l'aperçu avant écriture
@@ -183,7 +154,7 @@ export function CreateCampaignModal({
         preview,
         {
           title: newTitle.trim(),
-          description: newDescription.trim() || `Campagne de jury des salaires pour l'année ${newYear}.`,
+          description: `Campagne de jury des salaires pour l'année ${newYear}.`,
           rhDocuments: rhCampaignFiles,
           pairsDocuments: pairsCampaignFiles,
           otherDocuments: otherCampaignFiles,
@@ -284,18 +255,6 @@ export function CreateCampaignModal({
                       className="w-full px-4 py-2.5 rounded-xl border border-accent/20 focus:border-primary focus:ring-1 focus:ring-primary outline-none font-medium text-sm"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-secondary mb-2">
-                    Description ou consignes (Optionnel)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-accent/20 focus:border-primary focus:ring-1 focus:ring-primary outline-none font-medium text-sm resize-none"
-                  />
                 </div>
 
                 <div className="border-t border-accent/10 pt-4">
@@ -436,38 +395,6 @@ export function CreateCampaignModal({
                         onChange={(e) => handleSingleFileUpload(e, setVuesMeteosFile)}
                       />
                     </label>
-                  )}
-                </div>
-
-                {/* Documents complémentaires */}
-                <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-secondary">Documents complémentaires (Optionnel)</span>
-                    <label className="text-xs font-bold text-primary cursor-pointer hover:underline">
-                      + Ajouter des fichiers
-                      <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={handleOtherFileUpload}
-                      />
-                    </label>
-                  </div>
-                  {otherFiles.length > 0 && (
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                      {otherFiles.map((f) => (
-                        <div key={f.id} className="flex items-center justify-between p-2 bg-white rounded border border-accent/10 text-xs">
-                          <span className="truncate max-w-[80%]">{f.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeOtherFile(f.id)}
-                            className="text-accent/40 hover:text-rose-500"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
                   )}
                 </div>
 

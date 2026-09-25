@@ -4,7 +4,6 @@ import {
   Calendar, 
   Clock, 
   Lock, 
-  FileText,
   Trash2
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -12,16 +11,11 @@ import { cn } from '../../lib/utils';
 interface CampaignCardProps {
   key?: React.Key;
   campaign: Campaign;
-  onViewDocs: (campaign: Campaign) => void;
   onRequestClose: (campaign: Campaign) => void;
   onRequestDelete: (campaign: Campaign) => void;
 }
 
-export function CampaignCard({ campaign, onViewDocs, onRequestClose, onRequestDelete }: CampaignCardProps) {
-  const totalDocs = (campaign.rhDocuments?.length || 0) + 
-                    (campaign.pairsDocuments?.length || 0) + 
-                    (campaign.otherDocuments?.length || 0);
-
+export function CampaignCard({ campaign, onRequestClose, onRequestDelete }: CampaignCardProps) {
   return (
     <div className="p-8 hover:bg-accent/[0.02] transition-colors flex flex-wrap lg:flex-nowrap items-center justify-between gap-6">
       <div className="space-y-3 max-w-xl">
@@ -36,10 +30,6 @@ export function CampaignCard({ campaign, onViewDocs, onRequestClose, onRequestDe
             {campaign.status}
           </span>
         </div>
-
-        <p className="text-accent/60 text-sm font-light leading-relaxed">
-          {campaign.description}
-        </p>
 
         <div className="flex flex-wrap items-center gap-6 text-xs text-accent/50 font-medium">
           <span className="flex items-center gap-1.5">
@@ -58,14 +48,6 @@ export function CampaignCard({ campaign, onViewDocs, onRequestClose, onRequestDe
 
       {/* Right Action Block */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-        <button
-          onClick={() => onViewDocs(campaign)}
-          className="px-5 py-3 rounded-xl bg-accent/5 hover:bg-accent/10 border border-accent/10 text-accent font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <FileText className="w-4 h-4 text-primary" />
-          Documents d'initialisation ({totalDocs})
-        </button>
-
         {campaign.status === 'OUVERTE' ? (
           <button
             onClick={() => onRequestClose(campaign)}

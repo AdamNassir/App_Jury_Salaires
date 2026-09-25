@@ -11,6 +11,16 @@ class LocalDatabaseServiceImpl {
     }).catch(error => console.warn('Could not sync dossiers to server:', error));
   }
 
+  syncDossierDeletionToServer(ids: string[], campaignId?: string) {
+    if (typeof window === 'undefined') return;
+    if ((!ids || ids.length === 0) && !campaignId) return;
+    fetch('/api/sync/dossiers/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, campaignId }),
+    }).catch(error => console.warn('Could not sync dossier deletion to server:', error));
+  }
+
   private save(name: CollectionName, id: string, data: object, merge = false) {
     commitMutations([{ collection: name, id, kind: 'set', data: { ...data, updatedAt: new Date().toISOString() }, merge }]);
   }
@@ -60,6 +70,9 @@ class LocalDatabaseServiceImpl {
       for (const p of participantsToDelete) {
         mutations.push({ collection: 'campaign_participants', id: p.id, kind: 'delete' });
       }
+      if (dossiersToDelete.length > 0) {
+        this.syncDossierDeletionToServer(dossiersToDelete.map(d => d.id), id);
+      }
     }
     commitMutations(mutations);
   }
@@ -86,14 +99,30 @@ class LocalDatabaseServiceImpl {
       if (!response.ok) return;
       const payload = await response.json();
       const remoteDossiers = Array.isArray(payload?.dossiers) ? payload.dossiers as Dossier[] : [];
+
+      // Check current users in localStore: if users exist, do not resurrect dossiers for deleted users
+      const users = readCollection<Personne>('users');
+      const validUserIds = new Set(users.flatMap(u => [(u as any).id, u.idProfil, u.matricule].filter(Boolean)));
+
       const localById = new Map(this.getDossiers().map(dossier => [dossier.id, dossier]));
+      const orphanedRemoteIds: string[] = [];
+
       const newer = remoteDossiers.filter(remote => {
+        if (users.length > 0 && remote.candidateId && !validUserIds.has(remote.candidateId) && !validUserIds.has(remote.idProfil)) {
+          orphanedRemoteIds.push(remote.id);
+          return false;
+        }
         const local = localById.get(remote.id);
         if (!local) return true;
         const remoteTime = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
         const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
         return remoteTime > localTime;
       });
+
+      if (orphanedRemoteIds.length > 0) {
+        this.syncDossierDeletionToServer(orphanedRemoteIds);
+      }
+
       if (newer.length > 0) this.bulkSaveDossiers(newer);
     } catch (error) {
       console.warn('Could not refresh dossiers from server:', error);
@@ -101,6 +130,7 @@ class LocalDatabaseServiceImpl {
   }
   deleteDossier(id: string) {
     commitMutations([{ collection: 'dossiers', id, kind: 'delete' }]);
+    this.syncDossierDeletionToServer([id]);
   }
   deleteDossiersByCampaign(campaignId: string, year?: number) {
     const dossiers = this.getDossiers();
@@ -111,6 +141,7 @@ class LocalDatabaseServiceImpl {
     });
     if (toDelete.length > 0) {
       commitMutations(toDelete.map(d => ({ collection: 'dossiers', id: d.id, kind: 'delete' })));
+      this.syncDossierDeletionToServer(toDelete.map(d => d.id), campaignId);
     }
     return toDelete.length;
   }

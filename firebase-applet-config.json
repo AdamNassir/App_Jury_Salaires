@@ -3,6 +3,7 @@
   "appId": "1:307568547339:web:4fcfe32db3a7d3afd9590e",
   "apiKey": "AIzaSyDsjs2BGthBheIDZDBoJZmg-PAE32NqjRU",
   "authDomain": "gen-lang-client-0998118766.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-appjurysalaires-7c45a4bb-415a-4e6b-a985-aa74a085032e",
   "storageBucket": "gen-lang-client-0998118766.firebasestorage.app",
   "messagingSenderId": "307568547339",
   "measurementId": "",

@@ -180,9 +180,18 @@ export function UserManagement({ currentUser }: UserManagementProps) {
       // 1. Delete user doc
       await deleteDoc(doc(db, 'users', user.id));
 
-      // 2. If candidate, delete their dossier
-      const dossierId = `${user.id}_2025`;
-      await deleteDoc(doc(db, 'dossiers', dossierId));
+      // 2. Delete all candidate dossiers associated with this user
+      const candidateDossiers = LocalDatabaseService.getDossiers().filter(
+        d => d.candidateId === user.id || d.idProfil === user.id || (user.idProfil && (d.candidateId === user.idProfil || d.idProfil === user.idProfil))
+      );
+      for (const d of candidateDossiers) {
+        try {
+          await deleteDoc(doc(db, 'dossiers', d.id));
+        } catch (e) {
+          console.warn(`Could not delete dossier doc ${d.id}:`, e);
+        }
+        LocalDatabaseService.deleteDossier(d.id);
+      }
 
       // 3. Remove this candidate from assignedCandidateIds in any users
       if (user.roles.includes('CANDIDATE')) {
@@ -264,6 +273,7 @@ export function UserManagement({ currentUser }: UserManagementProps) {
             } catch (e) {
               console.warn(`Could not delete dossier ${dossier.id}:`, e);
             }
+            LocalDatabaseService.deleteDossier(dossier.id);
           }
         }
       }

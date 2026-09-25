@@ -90,9 +90,26 @@ export function EngagementTab({
       referentOffersEntries: update(prev.referentOffersEntries ?? [])
     }));
   };
+
+  const getSectionSubtitle = () => {
+    switch (section) {
+      case 'COMMERCIAL':
+        return "Logiclever se définit comme une société de conseil. Nous serons reconduits si nous comprenons où est la valeur pour le client et ce qu’il faut faire pour apporter davantage de valeur.";
+      case 'RECRUTEMENT':
+        return "Recruter n’est pas une fin en soi. On souhaite uniquement convaincre des personnes compétentes avec un bon savoir-être.";
+      case 'ENCADREMENT':
+        return "Logiclever se développe uniquement par bouche à oreille. La qualité des prestations délivrées par les consultants (et donc la qualité de l’encadrement pour faire grandir les consultants) est nécessaire.";
+      default:
+        return undefined;
+    }
+  };
+
   return (
     <motion.div key={section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-      <Section title={engagementSections.find(item => item.id === section)!.label}>
+      <Section 
+        title={engagementSections.find(item => item.id === section)!.label}
+        subtitle={getSectionSubtitle()}
+      >
         <div className="space-y-12">
           {section === 'AUTONOMIE' && (
             <div className="space-y-4">
@@ -170,7 +187,12 @@ export function EngagementTab({
                 <FormField label="Capitalisation de connaissance et Amélioration continue (Drive)" value={reportData.lifeKnowledgeSharing} onChange={v => setReportData(prev => ({ ...prev, lifeKnowledgeSharing: v }))} />
                 <FormField label="Partage d’information (SLACK)" value={reportData.lifeSlack} onChange={v => setReportData(prev => ({ ...prev, lifeSlack: v }))} />
                 <FormField label="Créer du lien entre consultants / Esprit d’équipe (Pot, journée Logiclever, parrainage…)" value={reportData.lifeTeamSpirit} onChange={v => setReportData(prev => ({ ...prev, lifeTeamSpirit: v }))} />
-                <FormField label="Est-ce que je maîtrise le business model de Logiclever (Taux de facturation, marge sur mission…)" value={reportData.lifeBusinessModel} onChange={v => setReportData(prev => ({ ...prev, lifeBusinessModel: v }))} />
+                <FormField 
+                  label="Est-ce que je maîtrise le business model de Logiclever (Taux de facturation, marge sur mission…)" 
+                  labelHref="https://docs.google.com/presentation/d/1xSJVxDGK5nmIUUa37jsfGXfXSaYETjqgsHD7o7e2S84/edit?slide=id.p3#slide=id.p3"
+                  value={reportData.lifeBusinessModel} 
+                  onChange={v => setReportData(prev => ({ ...prev, lifeBusinessModel: v }))} 
+                />
                 <FormField label="Autres" value={reportData.lifeLogiclever} onChange={v => setReportData(prev => ({ ...prev, lifeLogiclever: v }))} />
               </div>
             </div>
@@ -200,7 +222,6 @@ export function EngagementTab({
           {section === 'REFERENT_LOGICLEVER' && (
             <div className="space-y-12">
               <div>
-                <h4 className="text-[10px] font-black text-accent/30 uppercase tracking-widest mb-6">Expertise & Référents Logiclever</h4>
                 <div
                   onClick={() => setReportData(prev => ({ ...prev, isReferentOrAspiring: !prev.isReferentOrAspiring }))}
                   className={cn(

@@ -12,9 +12,8 @@ import { calculateYears, calculateSalaryFormule, getPrimeAnciennete, resolveTarg
 import { generateDossierPDF } from '../utils/pdfGenerator';
 import { requestGoogleDriveAccess } from '../lib/firebase';
 import { DriveObjectivesService } from '../services/driveObjectivesService';
-import { TabButton, DataBox } from './candidate/CandidateUI';
+import { TabButton } from './candidate/CandidateUI';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
-import { SyntheseTab } from './candidate/tabs/SyntheseTab';
 import { ObjectivesTab } from './candidate/tabs/ObjectivesTab';
 import { ExpertisesTab } from './candidate/tabs/ExpertisesTab';
 import { EngagementTab, engagementSections, EngagementSection, isEngagementSection } from './candidate/tabs/EngagementTab';
@@ -69,8 +68,9 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
   const [pastImportSuccessMessage, setPastImportSuccessMessage] = useState<string | null>(null);
   const [pastImportErrorMessage, setPastImportErrorMessage] = useState<string | null>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
-  const [activeTab, setActiveTab] = useState<'SYNTHESE' | 'OBJECTIFS_PASSES' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
-    hasUploadedDocsInitial ? 'SYNTHESE' : 'DOCUMENTS'
+  const isDeliberatedOrValide = dossier?.status === 'VALIDE' || Boolean(dossier?.juryDecision?.amount);
+  const [activeTab, setActiveTab] = useState<'OBJECTIFS_PASSES' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
+    isDeliberatedOrValide ? 'AVIS_JURY' : 'DOCUMENTS'
   );
   const [meteoSubTab, setMeteoSubTab] = useState<'LIST' | 'CHART'>('LIST');
   const [selectedMeteoIndex, setSelectedMeteoIndex] = useState<number | null>(null);
@@ -288,10 +288,8 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
 
   const calculateCompleteness = () => {
     // heuristics for completeness
-    const totalFields = 24; // Excludes the six removed Savoir-faire fields
+    const totalFields = 22; // Excludes the six removed Savoir-faire fields and synthesis fields
     let filledCount = 0;
-    if (reportData.synthesis) filledCount++;
-    if (reportData.yearSummary) filledCount++;
     if (reportData.previousObjectives.length > 0) filledCount++;
     if (reportData.missionClients?.some(row => row.client.trim() && row.actions.trim() && row.grade && row.comment.trim())) filledCount++;
     if (reportData.careerGoals) filledCount++;
@@ -476,61 +474,6 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
     });
   };
 
-  if (dossierStatus === 'VALIDE') {
-    return (
-      <div className="space-y-8">
-        <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm relative overflow-hidden mb-12">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full -mr-24 -mt-24 blur-2xl pointer-events-none" />
-          <div className="flex items-center gap-6 mb-8">
-            <div className="w-14 h-14 bg-accent/5 rounded-2xl flex items-center justify-center text-accent/20 border border-accent/10">
-              <Calculator className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="text-secondary font-bold text-2xl tracking-tighter">Mes Données de Référence</h3>
-              <p className="text-[10px] text-accent/40 uppercase tracking-[0.2em] font-black mt-1">Vérification de votre situation avant délibération</p>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-8">
-            <DataBox label="Matricule" value={profile.matricule} />
-            <DataBox label="Date Entrée" value={profile.entryDate ? new Date(profile.entryDate).toLocaleDateString() : 'N/A'} />
-            <DataBox label="Expérience" value={`${profile.experienceYears} ans`} />
-            <DataBox label="TJ Vendu" value={`${profile.currentTJM}€`} />
-            <DataBox label="Salaire Actuel" value={formatCurrency(profile.currentSalary || 0)} />
-            <DataBox label="Grade Actuel" value={profile.currentGrade} />
-          </div>
-          
-        </div>
-
-        <div className="bg-white p-16 rounded-xl border border-green-200 shadow-2xl flex flex-col items-center text-center max-w-4xl mx-auto relative overflow-hidden">
-          <div className="absolute top-0 inset-x-0 h-2 bg-green-500" />
-          <div className="w-24 h-24 bg-green-50 rounded-base flex items-center justify-center mb-10 shadow-inner">
-            <CheckCircle2 className="w-12 h-12 text-green-600" />
-          </div>
-          <h2 className="text-accent mb-8">Dossier Validé</h2>
-          <div className="w-full bg-accent/5 p-12 rounded-xl border border-accent/10 space-y-10 group hover:bg-white transition-all shadow-inner hover:shadow-xl">
-            <div className="flex flex-col items-center pb-4">
-              <div className="text-8xl font-black text-primary tracking-tighter mb-4 tabular-nums group-hover:scale-105 transition-transform">
-                +{dossier.juryDecision?.amount}€
-              </div>
-              <div className="text-lg font-black uppercase text-accent/40 tracking-[0.3em]">
-                Augmentation Annuelle {dossier.juryDecision?.percentage ? `(${dossier.juryDecision.percentage}%)` : ''}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Détails complémentaires des délibérations et des retours pairs pour le candidat après validation */}
-        <div className="space-y-8 max-w-5xl mx-auto">
-          <JuryFeedbacksTab dossier={dossier} />
-          {Object.keys(dossier.consultantFeedbacks || {}).length > 0 && (
-            <PeerFeedbacksTab dossier={dossier} />
-          )}
-        </div>
-      </div>
-    );
-  }
-
   const refDate = reportData.wishedSalaryDate || dossier?.annualReport?.wishedSalaryDate;
   const yearsLL = calculateYears(profile.entryDate, refDate);
   const prime = getPrimeAnciennete(yearsLL);
@@ -561,6 +504,26 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
 
   return (
     <div className="space-y-8">
+      {dossierStatus === 'VALIDE' && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-700 shrink-0">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="text-sm font-black text-secondary uppercase tracking-wider">Dossier Validé par la Commission</div>
+              <p className="text-xs text-accent/60 mt-0.5">Votre dossier a été délibéré. Vous pouvez consulter l'ensemble de vos rubriques et retrouver la décision complète dans l'onglet « Avis du Jury ».</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('AVIS_JURY')}
+            className="shrink-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            Consulter l'Avis du Jury
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
       <div className="lg:col-span-1">
         <div className="bg-white p-8 rounded-xl border border-accent/10 sticky top-48 space-y-3 shadow-lg">
@@ -571,7 +534,6 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             count={dossier?.documents?.length || 0} 
             badge={!hasUploadedDocs ? "Recommandé" : undefined}
           />
-          <TabButton active={activeTab === 'SYNTHESE'} onClick={() => setActiveTab('SYNTHESE')} label="Introduction & Synthèse" />
           <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => setActiveTab('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
           <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Savoir-faire" />
           {engagementSections.map(section => (
@@ -580,7 +542,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             </div>
           ))}
           <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={meteoLinks.length + feedbacks.length} />
-          {isDossierComplet && (
+          {(isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0) && (
             <>
               <TabButton 
                 active={activeTab === 'RETOURS_PAIRS'} 
@@ -652,7 +614,12 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
               </button>
             )}
             
-            {dossierStatus === 'COMPLET' ? (
+            {dossierStatus === 'VALIDE' ? (
+              <div className="w-full py-3.5 px-4 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-center text-xs flex items-center justify-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                Dossier Délibéré & Validé
+              </div>
+            ) : dossierStatus === 'COMPLET' ? (
               <div className="space-y-2">
                 {showCancelConfirmation ? (
                   <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
@@ -740,13 +707,6 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             />
           )}
 
-          {activeTab === 'SYNTHESE' && (
-            <SyntheseTab
-              reportData={reportData}
-              setReportData={setReportData}
-            />
-          )}
-
           {activeTab === 'OBJECTIFS_PASSES' && (
             <ObjectivesTab
               reportData={reportData}
@@ -785,11 +745,11 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             />
           )}
 
-          {activeTab === 'RETOURS_PAIRS' && isDossierComplet && (
+          {activeTab === 'RETOURS_PAIRS' && (
             <PeerFeedbacksTab dossier={dossier} />
           )}
 
-          {activeTab === 'AVIS_JURY' && isDossierComplet && (
+          {activeTab === 'AVIS_JURY' && (
             <JuryFeedbacksTab dossier={dossier} />
           )}
 

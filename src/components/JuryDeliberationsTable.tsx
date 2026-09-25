@@ -225,6 +225,7 @@ export function JuryDeliberationsTable({ dossiers, candidates, profile }: JuryDe
       const existingDecision = dossier.juryDecision || {} as Partial<JuryDecision>;
       const updatedDecision: JuryDecision = {
         ...existingDecision,
+        verdict: existingDecision.verdict || 'FAVORABLE',
         amount: existingDecision.amount || 0,
         percentage: existingDecision.percentage || 0,
         advice: existingDecision.advice || '',

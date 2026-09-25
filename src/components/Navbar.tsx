@@ -17,8 +17,7 @@ export function Navbar({ profile, onLogout, onHome }: NavbarProps) {
             <Building2 className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-secondary leading-none mb-1">Jury des Salaires</h1>
-            <p className="text-[10px] uppercase tracking-widest text-accent/40 font-black">Campagne Annuelle 2025</p>
+            <h1 className="text-secondary leading-none">Jury des Salaires</h1>
           </div>
         </div>
 

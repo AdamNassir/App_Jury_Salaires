@@ -88,6 +88,7 @@ export interface PrimeAssignmentRow {
   debutPrime?: string;
   finPrime?: string;
   project?: string;
+  client?: string;
   resolvedEvaluatorIdProfil?: string;
   resolvedCandidateIdProfil?: string;
   isActive: boolean;
@@ -126,6 +127,7 @@ export interface CampaignInitPreview {
   meteoLinksCount: number;
   meteoLinksByCandidate: Record<string, string[]>;
   assignmentsByCandidate: Record<string, string[]>; // candidateIdProfil -> evaluatorIdProfils[]
+  assignmentsDetailsByCandidate?: Record<string, Record<string, { project?: string; client?: string }>>; // candidateIdProfil -> { [evaluatorIdProfil]: { project, client } }
   warnings: string[];
   blockingErrors: string[];
   canProceed: boolean;
@@ -391,8 +393,19 @@ export class CampaignInitializationService {
       const debutRaw = rowArr[colDebutIndex];
       // Fin_Prime
       const finRaw = rowArr[colFinIndex];
-      // Projet
+      // Projet (Col G)
       const project = cleanString(rowArr[colProjectIndex]);
+
+      // Extraction du Client à partir de la valeur de la colonne G :
+      // Découper le texte selon " - " (avec espaces) et prendre la dernière valeur
+      let client: string | undefined = undefined;
+      if (project) {
+        const parts = project.split(' - ');
+        const lastPart = parts[parts.length - 1]?.trim();
+        if (lastPart) {
+          client = lastPart;
+        }
+      }
 
       const finDate = parseExcelDate(finRaw);
       let isActive = true;
@@ -423,6 +436,7 @@ export class CampaignInitializationService {
         debutPrime: debutRaw ? String(debutRaw) : undefined,
         finPrime: finRaw ? String(finRaw) : undefined,
         project: project || undefined,
+        client: client || undefined,
         isActive,
         explanation
       });
@@ -941,19 +955,12 @@ export class CampaignInitializationService {
       const found = lookupMatricule(rawMatricule);
       if (found) return found;
 
-      const mat = normalizeMatricule(rawMatricule);
-      const fallbackIdProfil = `PROF_${mat}`;
-      matriculeToIdProfil.set(mat, fallbackIdProfil);
-      detailsByMatricule.set(mat, {
-        idProfil: fallbackIdProfil,
-        nom: 'Collaborateur',
-        prenom: mat,
-        email: undefined
-      });
-      return fallbackIdProfil;
+      // Aucun Id_Profil ou profil n'est associé à ce matricule dans Rapport_RH_Query_Salaries ou les données existantes.
+      return null;
     };
 
     const assignmentsByCandidate: Record<string, string[]> = {};
+    const assignmentsDetailsByCandidate: Record<string, Record<string, { project?: string; client?: string }>> = {};
     const assignmentsByEvaluator: Record<string, string[]> = {};
     let activePrimesCount = 0;
     let expiredPrimesCount = 0;
@@ -968,6 +975,15 @@ export class CampaignInitializationService {
       if (candIdProfil) pr.resolvedCandidateIdProfil = candIdProfil;
       if (evalIdProfil) pr.resolvedEvaluatorIdProfil = evalIdProfil;
 
+      // Si le matricule de l'évaluateur n'a pas de profil/nom trouvé dans le Rapport RH, on l'ignore lors du chargement des utilisateurs
+      if (!evalIdProfil) {
+        const warnMsg = `Matricule évaluateur « ${pr.evaluatorMatricule} » trouvé dans le fichier Primes (ligne ${pr.rawRowIndex}) mais absent du Rapport RH : évaluateur ignoré lors du chargement des utilisateurs.`;
+        if (!warnings.includes(warnMsg)) {
+          warnings.push(warnMsg);
+        }
+        return;
+      }
+
       if (!pr.isActive) {
         expiredPrimesCount++;
         return;
@@ -981,6 +997,24 @@ export class CampaignInitializationService {
         }
         if (!assignmentsByCandidate[candIdProfil].includes(evalIdProfil)) {
           assignmentsByCandidate[candIdProfil].push(evalIdProfil);
+        }
+
+        if (!assignmentsDetailsByCandidate[candIdProfil]) {
+          assignmentsDetailsByCandidate[candIdProfil] = {};
+        }
+        if (!assignmentsDetailsByCandidate[candIdProfil][evalIdProfil]) {
+          assignmentsDetailsByCandidate[candIdProfil][evalIdProfil] = {
+            project: pr.project,
+            client: pr.client
+          };
+        } else {
+          // If not set yet, set project and client
+          if (!assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].project && pr.project) {
+            assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].project = pr.project;
+          }
+          if (!assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].client && pr.client) {
+            assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].client = pr.client;
+          }
         }
 
         if (!assignmentsByEvaluator[evalIdProfil]) {
@@ -1047,6 +1081,15 @@ export class CampaignInitializationService {
         }
       }
 
+      // Si aucun nom n'est associé à cet évaluateur (absent du Rapport RH et non réconcilié), l'ignorer lors du chargement des utilisateurs
+      if (!nom || !nom.trim() || nom === 'Collaborateur') {
+        const warnMsg = `Évaluateur IdProfil « ${evalIdProfil} » (Matricule: ${matricule || 'inconnu'}) sans nom associé dans le Rapport RH : ignoré lors du chargement des utilisateurs.`;
+        if (!warnings.includes(warnMsg)) {
+          warnings.push(warnMsg);
+        }
+        return;
+      }
+
       const displayName = `${prenom} ${nom}`.trim() || evalIdProfil;
       const isExistingPersonne = personnesById.has(evalIdProfil);
       const isExistingUser = existingUsers.some((u: any) => u.idProfil === evalIdProfil || (email && u.email?.toLowerCase() === email.toLowerCase()));
@@ -1092,6 +1135,7 @@ export class CampaignInitializationService {
       meteoLinksCount: totalMeteoLinksCount,
       meteoLinksByCandidate,
       assignmentsByCandidate,
+      assignmentsDetailsByCandidate,
       warnings,
       blockingErrors,
       canProceed: blockingErrors.length === 0 && candidatesToProcess.length > 0
@@ -1145,6 +1189,9 @@ export class CampaignInitializationService {
     let updated = 0;
 
     const evaluatorIdSet = new Set(preview.evaluatorsToProcess.map(e => e.idProfil));
+    const evaluatorsByIdProfil = new Map<string, EvaluatorInitData>();
+    preview.evaluatorsToProcess.forEach(ev => evaluatorsByIdProfil.set(ev.idProfil, ev));
+
     const totalSteps = preview.candidatesToProcess.length + preview.evaluatorsToProcess.filter(e => !e.isCandidate).length;
     let currentStepNum = 0;
     const usersToRegister: Partial<UserProfile>[] = [];
@@ -1214,11 +1261,67 @@ export class CampaignInitializationService {
       // C. Créer / sécuriser le Dossier d'évaluation pour cette campagne avec assignations issues des primes
       const dossierRef = doc(db, 'dossiers', dossierId);
       const assignedEvaluators = preview.assignmentsByCandidate[cand.idProfil] || [];
+      const candAssignmentDetails = preview.assignmentsDetailsByCandidate?.[cand.idProfil] || {};
 
       const existingDossier = LocalDatabaseService.getDossierById(dossierId);
       // Liens météo issus de Vues_Meteos (valeur réelle dans la cellule, sans fabrication de faux feedbacks)
       const meteoLinks = cand.meteoLinks || [];
       const mergedMeteoLinks = Array.from(new Set([...(existingDossier?.meteoLinks || []), ...meteoLinks]));
+
+      // Préparer les feedbacks évaluateurs en pré-remplissant Projet/Mission et Client Concerné issus du fichier Primes
+      const mergedConsultantFeedbacks: Record<string, ConsultantFeedback> = {
+        ...(existingDossier?.consultantFeedbacks || {})
+      };
+
+      assignedEvaluators.forEach(evalIdProfil => {
+        const details = candAssignmentDetails[evalIdProfil];
+        const evalInfo = evaluatorsByIdProfil.get(evalIdProfil);
+        const evalDisplayName = evalInfo?.displayName || evalIdProfil;
+
+        // Chercher si un feedback existe déjà pour cet évaluateur
+        const existingKey = Object.keys(mergedConsultantFeedbacks).find(k => {
+          const f = mergedConsultantFeedbacks[k];
+          return f.evaluatorIdProfil === evalIdProfil || f.consultantId === evalIdProfil || f.evaluatorUid === evalIdProfil;
+        });
+
+        if (existingKey) {
+          // Si le feedback existant n'a pas encore de client ou projet spécifié, injecter les valeurs du fichier Primes
+          const curr = mergedConsultantFeedbacks[existingKey];
+          if ((!curr.project && details?.project) || (!curr.client && details?.client)) {
+            mergedConsultantFeedbacks[existingKey] = {
+              ...curr,
+              project: curr.project || details?.project || '',
+              client: curr.client || details?.client || '',
+              updatedAt: new Date().toISOString()
+            };
+          }
+        } else if (details?.project || details?.client) {
+          // Créer un brouillon pré-rempli pour cet évaluateur
+          const draftKey = `eval_${evalIdProfil}_init`;
+          mergedConsultantFeedbacks[draftKey] = {
+            id: draftKey,
+            consultantId: evalIdProfil,
+            consultantName: evalDisplayName,
+            evaluatorUid: evalIdProfil,
+            evaluatorIdProfil: evalIdProfil,
+            campaignId: campaignId,
+            client: details?.client || '',
+            project: details?.project || '',
+            relationType: 'Collègue_Mission',
+            type: 'Collègue_Mission',
+            targetTJMin: 0,
+            targetTJMax: 0,
+            missionPercentage: 98,
+            investmentPercentage: 60,
+            confidenceIndex: 4,
+            justification: '',
+            improvementAxes: '',
+            status: 'BROUILLON',
+            validated: false,
+            updatedAt: new Date().toISOString()
+          };
+        }
+      });
 
       const dossierObj: Dossier = {
         id: dossierId,
@@ -1240,7 +1343,7 @@ export class CampaignInitializationService {
         meteoLinks: mergedMeteoLinks,
         clientFeedbacks: existingDossier?.clientFeedbacks || [],
         documents: existingDossier?.documents || [],
-        consultantFeedbacks: existingDossier?.consultantFeedbacks || {},
+        consultantFeedbacks: mergedConsultantFeedbacks,
         createdAt: existingDossier?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         ...(existingDossier ? {
@@ -1249,7 +1352,7 @@ export class CampaignInitializationService {
           meteoLinks: mergedMeteoLinks,
           clientFeedbacks: existingDossier.clientFeedbacks || [],
           documents: existingDossier.documents || [],
-          consultantFeedbacks: existingDossier.consultantFeedbacks || {},
+          consultantFeedbacks: mergedConsultantFeedbacks,
           createdAt: existingDossier.createdAt,
         } : {}),
       };

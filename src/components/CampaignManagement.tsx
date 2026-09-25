@@ -8,7 +8,6 @@ import {
   Plus, 
   CheckCircle2, 
   Lock, 
-  FileText, 
   AlertTriangle, 
   Info,
   Download
@@ -21,7 +20,6 @@ import { CampaignCard } from './campaigns/CampaignCard';
 import { CreateCampaignModal } from './campaigns/CreateCampaignModal';
 import { CloseCampaignModal } from './campaigns/CloseCampaignModal';
 import { DeleteCampaignModal } from './campaigns/DeleteCampaignModal';
-import { CampaignDocsModal } from './campaigns/CampaignDocsModal';
 import { CatchupCampaignModal } from './campaigns/CatchupCampaignModal';
 import { History } from 'lucide-react';
 
@@ -44,7 +42,6 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
   const [isClosing, setIsClosing] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectedCampaignForDocs, setSelectedCampaignForDocs] = useState<Campaign | null>(null);
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     setNotification({ type, message });
@@ -135,9 +132,6 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
             <span className="text-xs font-black uppercase tracking-[0.2em] text-primary">Espace Administrateur</span>
           </div>
           <h2 className="text-secondary text-3xl font-extrabold tracking-tight">Gestion des Campagnes de Jury</h2>
-          <p className="text-accent/60 text-base font-light mt-1 max-w-2xl">
-            Initialisez de nouvelles campagnes annuelles, déposez les documents RH et les configurations des Pairs, et pilotez la clôture des exercices.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -184,7 +178,7 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl border border-accent/10 shadow-sm flex items-center justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-accent/40 mb-1">Campagnes Actives</div>
@@ -206,18 +200,6 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
           </div>
           <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center">
             <Lock className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-accent/10 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-wider text-accent/40 mb-1">Documents d'Initialisation</div>
-            <div className="text-3xl font-black text-primary">
-              {campaigns.reduce((acc, c) => acc + (c.rhDocuments?.length || 0) + (c.pairsDocuments?.length || 0) + (c.otherDocuments?.length || 0), 0)}
-            </div>
-          </div>
-          <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
-            <FileText className="w-6 h-6" />
           </div>
         </div>
       </div>
@@ -264,7 +246,6 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
               <CampaignCard
                 key={camp.id}
                 campaign={camp}
-                onViewDocs={(c) => setSelectedCampaignForDocs(c)}
                 onRequestClose={(c) => setCampaignToClose(c)}
                 onRequestDelete={(c) => setCampaignToDelete(c)}
               />
@@ -315,15 +296,6 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
             onClose={() => setCampaignToDelete(null)}
             onConfirmDelete={handleConfirmDeleteCampaign}
             isDeleting={isDeleting}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {selectedCampaignForDocs && (
-          <CampaignDocsModal
-            campaign={selectedCampaignForDocs}
-            onClose={() => setSelectedCampaignForDocs(null)}
           />
         )}
       </AnimatePresence>

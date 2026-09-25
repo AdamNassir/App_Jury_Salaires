@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, Maximize2, X, ChevronRight } from 'lucide-react';
+import { AlertCircle, Maximize2, X, ChevronRight, ExternalLink } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Satisfaction } from '../../types';
 
@@ -13,13 +13,30 @@ export function DataBox({ label, value }: { label: string; value?: string | numb
   );
 }
 
-export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+export function Section({ 
+  title, 
+  subtitle,
+  children, 
+  action 
+}: { 
+  title: string; 
+  subtitle?: React.ReactNode;
+  children: React.ReactNode; 
+  action?: React.ReactNode;
+}) {
   return (
     <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm relative overflow-hidden">
       <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl" />
       <div className="relative mb-8 border-b border-accent/10 pb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <h2 className="text-secondary">{title}</h2>
+          <div>
+            <h2 className="text-secondary">{title}</h2>
+            {subtitle && (
+              <p className="text-xs sm:text-sm text-accent/60 font-medium mt-1.5 leading-relaxed max-w-3xl">
+                {subtitle}
+              </p>
+            )}
+          </div>
           {action && <div className="shrink-0">{action}</div>}
         </div>
       </div>
@@ -118,9 +135,10 @@ export function FormField({
   disabled,
   tooltip,
   required,
-  maxLength = 2000
+  maxLength = 2000,
+  labelHref
 }: {
-  label: string;
+  label: React.ReactNode;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
@@ -128,6 +146,7 @@ export function FormField({
   tooltip?: string;
   required?: boolean;
   maxLength?: number;
+  labelHref?: string;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -143,9 +162,23 @@ export function FormField({
     <div className="w-full relative group">
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="flex items-center gap-2">
-          <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
-            {label} {required && <span className="text-red-500 font-bold ml-1">*</span>}
-          </label>
+          {labelHref ? (
+            <a
+              href={labelHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[10px] font-black text-accent/50 hover:text-primary uppercase tracking-[0.2em] transition-colors group/link hover:underline"
+              title="Ouvrir le document associé dans un nouvel onglet"
+            >
+              <span>{label}</span>
+              <ExternalLink className="w-3 h-3 text-primary/70 group-hover/link:text-primary transition-transform group-hover/link:translate-x-0.5 shrink-0" />
+              {required && <span className="text-red-500 font-bold ml-1">*</span>}
+            </a>
+          ) : (
+            <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
+              {label} {required && <span className="text-red-500 font-bold ml-1">*</span>}
+            </label>
+          )}
           {tooltip && (
             <div className="relative">
               <button

@@ -621,7 +621,7 @@ export function JuryDossierViewer({
                         <div className="flex items-center gap-4">
                           <div className="text-center bg-accent/5 px-6 py-3 rounded-xl border border-accent/10">
                             <div className="text-[9px] font-black uppercase text-accent/30 mb-1">Confiance</div>
-                            <div className="text-2xl font-bold text-secondary leading-none">{f.confidenceIndex}<span className="text-xs opacity-30">/10</span></div>
+                            <div className="text-2xl font-bold text-secondary leading-none">{(f.confidenceIndex || 0) > 5 ? Math.round((f.confidenceIndex || 0) / 2) : f.confidenceIndex}<span className="text-xs opacity-30">/5</span></div>
                           </div>
                           {f.justification && (
                             <button

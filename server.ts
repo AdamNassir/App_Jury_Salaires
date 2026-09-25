@@ -188,6 +188,48 @@ async function startServer() {
     }
   });
 
+  app.post("/api/sync/dossiers/delete", (req, res) => {
+    try {
+      const idsToDelete: string[] = Array.isArray(req.body?.ids)
+        ? req.body.ids
+        : req.body?.id
+          ? [req.body.id]
+          : [];
+      const campaignIdToDelete = req.body?.campaignId;
+
+      let currentDossiers = readJsonArray("dossiers.json");
+      const initialCount = currentDossiers.length;
+
+      currentDossiers = currentDossiers.filter((item: any) => {
+        if (idsToDelete.includes(item.id)) return false;
+        if (campaignIdToDelete && (item.campaignId === campaignIdToDelete || item.campaignId === `campaign_${campaignIdToDelete}`)) return false;
+        return true;
+      });
+
+      saveJsonFiles("dossiers.json", currentDossiers);
+      console.log(`Deleted ${initialCount - currentDossiers.length} dossiers on server. Remaining: ${currentDossiers.length}`);
+      res.json({ success: true, deleted: initialCount - currentDossiers.length, remaining: currentDossiers.length });
+    } catch (error: any) {
+      console.error("Error deleting from dossiers.json:", error);
+      res.status(500).json({ error: error.message || "Failed to delete from dossiers.json" });
+    }
+  });
+
+  app.post("/api/sync/dossiers/replace", (req, res) => {
+    try {
+      const incoming = Array.isArray(req.body)
+        ? req.body
+        : Array.isArray(req.body?.dossiers)
+          ? req.body.dossiers
+          : [];
+      saveJsonFiles("dossiers.json", incoming);
+      res.json({ success: true, count: incoming.length });
+    } catch (error: any) {
+      console.error("Error replacing dossiers.json:", error);
+      res.status(500).json({ error: error.message || "Failed to replace dossiers.json" });
+    }
+  });
+
   // API Route: Parse Bilan/Dossier Document (PDF or DOCX) with Gemini
   app.post("/api/parse-document", async (req, res) => {
     try {

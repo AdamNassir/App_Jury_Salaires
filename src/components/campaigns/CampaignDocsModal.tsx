@@ -29,7 +29,7 @@ export function CampaignDocsModal({ campaign, onClose }: CampaignDocsModalProps)
         <div className="flex items-center justify-between pb-4 border-b border-accent/10 mb-6">
           <div>
             <h3 className="text-xl font-extrabold text-secondary">
-              Documents d'initialisation - {campaign.title}
+              Documents de la campagne - {campaign.title}
             </h3>
             <p className="text-xs text-accent/50 font-bold uppercase tracking-wider">
               Exercice {campaign.year}
