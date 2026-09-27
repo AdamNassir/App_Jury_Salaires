@@ -67,10 +67,7 @@ export function SatisfactionTab({
       exit={{ opacity: 0, y: -10 }}
       className="space-y-6"
     >
-      <Section
-        title="Satisfaction"
-        subtitle="Évaluez votre niveau de satisfaction sur vos responsabilités et vos conditions de travail au cours de l'année."
-      >
+      <Section title="Satisfaction">
         <div className="overflow-x-auto rounded-2xl border border-accent/10 shadow-sm bg-white">
           <table className="w-full text-left border-collapse min-w-[580px]">
             <thead>

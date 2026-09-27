@@ -53,6 +53,13 @@ export function DocumentsTab({
           </div>
         </div>
 
+        <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-xl flex items-center gap-3 text-red-600 font-bold text-xs sm:text-sm shadow-sm">
+          <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+          <span>
+            Cliquez sur le bouton « Importer Bilan Année Passée » ci-dessus pour récupérer automatiquement vos objectifs N-1 depuis le Google Drive de l'entreprise.
+          </span>
+        </div>
+
         {pastImportSuccessMessage && (
           <div className="mb-8 p-4 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center gap-3 text-xs text-emerald-800">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />

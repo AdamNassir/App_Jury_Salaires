@@ -1,9 +1,11 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, Plus, Trash2, ExternalLink, AlertCircle } from 'lucide-react';
 import { Section, FormField } from '../CandidateUI';
 import { AnnualReport } from '../../../types';
 import { cn } from '../../../lib/utils';
+import { GradeCriteriaTable } from '../GradeCriteriaTable';
+import { AutonomieGuidelineTable } from '../AutonomieGuidelineTable';
 
 export const engagementSections = [
   { id: 'AUTONOMIE', label: 'Autonomie en mission' },
@@ -104,15 +106,25 @@ export function EngagementTab({
     }
   };
 
+  const showGradeCriteriaTable = [
+    'AUTONOMIE',
+    'COMMERCIAL',
+    'VIE_LOGICLEVER',
+    'RECRUTEMENT',
+    'ENCADREMENT'
+  ].includes(section);
+
   return (
     <motion.div key={section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+      {showGradeCriteriaTable && <GradeCriteriaTable />}
       <Section 
         title={engagementSections.find(item => item.id === section)!.label}
         subtitle={getSectionSubtitle()}
       >
         <div className="space-y-12">
           {section === 'AUTONOMIE' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              <AutonomieGuidelineTable />
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[700px] text-sm border-collapse">
                   <thead>
@@ -221,6 +233,56 @@ export function EngagementTab({
 
           {section === 'REFERENT_LOGICLEVER' && (
             <div className="space-y-12">
+              <div className="p-6 bg-accent/[0.02] border border-accent/10 rounded-xl space-y-4">
+                <h3 className="text-base font-bold text-secondary">
+                  Tâches réalisées par les référents Logiclever ou ceux voulant le devenir :
+                </h3>
+
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2.5 text-xs text-amber-950 font-medium">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong className="font-bold text-amber-700">ATTENTION :</strong> Pour passer référent Logiclever, il faut avoir fait des choses tangibles sur un ou plusieurs de ces points (
+                    <a
+                      href="https://docs.google.com/presentation/d/1RRSv-9qBXuKXCpMabm0wavZx9wHZ4rW9fn2oUnAdIqM/edit?slide=id.g8d0a82e1e4_0_94#slide=id.g8d0a82e1e4_0_94"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary font-bold underline inline-flex items-center gap-0.5 hover:text-primary-dark"
+                    >
+                      voir le guide de l’expert
+                      <ExternalLink className="w-3 h-3 inline" />
+                    </a>
+                    )
+                  </span>
+                </div>
+
+                <ul className="space-y-2 text-xs text-accent/80 font-medium">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Un maximum de 4 consultants à coacher par an (soit 8 entretiens formels sur la base de ce template)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Être actif pour le développement de Logiclever (offre commerciale, faire venir du monde…)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Participer au recrutement (4 entretiens minimum par an)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Faire le suivi client (météo)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Participer aux points de coordination</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Prendre un rôle d’expert référent sur une Squad d’amélioration continue</span>
+                  </li>
+                </ul>
+              </div>
+
               <div>
                 <div
                   onClick={() => setReportData(prev => ({ ...prev, isReferentOrAspiring: !prev.isReferentOrAspiring }))}
@@ -380,6 +442,9 @@ export function EngagementTab({
                   <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-8">
                     <div>
                       <h4 className="text-lg font-bold text-secondary">Encadrement</h4>
+                      <p className="text-xs text-accent/70 font-medium mt-1">
+                        Un bon encadrant fait progresser. Avez-vous réussi à faire grandir les consultants Logiclever ?
+                      </p>
                     </div>
 
                     {/* En mission */}
@@ -647,6 +712,26 @@ export function EngagementTab({
 
           {section === 'AMELIORATION' && (
             <div className="space-y-8">
+              <div className="p-6 bg-accent/[0.02] border border-accent/10 rounded-xl space-y-3">
+                <p className="text-sm font-semibold text-accent/90 leading-relaxed">
+                  Logiclever a mis en place un back-log d’EPIC. Il est important que chaque consultant soit partie prenante d’au moins une Squad pour :
+                </p>
+                <ul className="space-y-2 text-xs text-accent/80 font-medium">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Participer à l’amélioration de Logiclever sur un sujet qui l’intéresse</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Travailler/pratiquer la méthode SAFE utilisée pour notre amélioration continue</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold">•</span>
+                    <span>Développer son leadership (ex : être responsable de Squad si l’on veut passer Expert)</span>
+                  </li>
+                </ul>
+              </div>
+
               {squadEntries.map((entry, index) => (
                 <div key={index} className="p-8 bg-primary/5 rounded-xl border border-primary/10 space-y-6">
                   <label className="block text-sm font-bold text-accent">

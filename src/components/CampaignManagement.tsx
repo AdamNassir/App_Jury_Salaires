@@ -9,8 +9,7 @@ import {
   CheckCircle2, 
   Lock, 
   AlertTriangle, 
-  Info,
-  Download
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -135,30 +134,6 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => {
-              LocalDatabaseService.downloadDossiersJson();
-              showToast('success', "Le fichier dossiers.json a été téléchargé avec succès !");
-            }}
-            className="px-4 py-3.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer active:scale-95"
-            title="Télécharger l'intégralité des dossiers au format JSON"
-          >
-            <Download className="w-4 h-4 text-purple-600" />
-            Exporter dossiers.json
-          </button>
-
-          <button
-            onClick={() => {
-              LocalDatabaseService.downloadCampaignsJson();
-              showToast('success', "Le fichier campaigns.json a été téléchargé avec succès !");
-            }}
-            className="px-4 py-3.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer active:scale-95"
-            title="Télécharger les campagnes au format JSON"
-          >
-            <Download className="w-4 h-4 text-blue-600" />
-            Exporter campaigns.json
-          </button>
-
           <button
             onClick={() => setIsCatchupModalOpen(true)}
             className="px-5 py-4 rounded-xl bg-white border border-accent/20 text-accent font-bold text-sm hover:bg-accent/5 hover:border-accent/30 transition-all flex items-center gap-2.5 shadow-sm cursor-pointer active:scale-95"

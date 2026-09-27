@@ -14,6 +14,7 @@ import { requestGoogleDriveAccess } from '../lib/firebase';
 import { DriveObjectivesService } from '../services/driveObjectivesService';
 import { TabButton } from './candidate/CandidateUI';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
+import { SyntheseTab } from './candidate/tabs/SyntheseTab';
 import { ObjectivesTab } from './candidate/tabs/ObjectivesTab';
 import { SatisfactionTab } from './candidate/tabs/SatisfactionTab';
 import { ExpertisesTab } from './candidate/tabs/ExpertisesTab';
@@ -70,7 +71,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
   const [pastImportErrorMessage, setPastImportErrorMessage] = useState<string | null>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
   const isDeliberatedOrValide = dossier?.status === 'VALIDE' || Boolean(dossier?.juryDecision?.amount);
-  const [activeTab, setActiveTab] = useState<'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
+  const [activeTab, setActiveTab] = useState<'DOCUMENTS' | 'SYNTHESE' | 'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
     isDeliberatedOrValide ? 'AVIS_JURY' : 'DOCUMENTS'
   );
   const [meteoSubTab, setMeteoSubTab] = useState<'LIST' | 'CHART'>('LIST');
@@ -535,6 +536,11 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             count={dossier?.documents?.length || 0} 
             badge={!hasUploadedDocs ? "Recommandé" : undefined}
           />
+          <TabButton 
+            active={activeTab === 'SYNTHESE'} 
+            onClick={() => setActiveTab('SYNTHESE')} 
+            label="Synthèse" 
+          />
           <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => setActiveTab('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
           <TabButton active={activeTab === 'SATISFACTION'} onClick={() => setActiveTab('SATISFACTION')} label="Satisfaction" />
           <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Savoir-faire" />
@@ -561,23 +567,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             </>
           )}
           <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => setActiveTab('PRETENTIONS')} label="Objectifs" />
-          <TabButton active={activeTab === 'CALCULATRICE'} onClick={() => setActiveTab('CALCULATRICE')} label="Calculette du salaire" />
-
-          <div className="pt-8 mt-8 border-t border-accent/10">
-            <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-6 px-4">Completion Dossier</div>
-            <div className="px-4">
-              <div className="flex justify-between items-end mb-3">
-                <span className="text-3xl font-bold text-accent tracking-tighter">{calculateCompleteness()}%</span>
-              </div>
-              <div className="h-2 bg-accent/5 rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${calculateCompleteness()}%` }}
-                  className="h-full bg-primary shadow-[0_0_10px_rgba(255,93,37,0.3)]"
-                />
-              </div>
-            </div>
-          </div>
+          <TabButton active={activeTab === 'CALCULATRICE'} onClick={() => setActiveTab('CALCULATRICE')} label="Prétentions de carrière et salariales" />
 
           <div className="pt-10 space-y-4 px-2">
             {!isLockedForEditing && (
@@ -706,6 +696,13 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
               isImportingPastObjectives={isImportingPastObjectives}
               pastImportSuccessMessage={pastImportSuccessMessage}
               pastImportErrorMessage={pastImportErrorMessage}
+            />
+          )}
+
+          {activeTab === 'SYNTHESE' && (
+            <SyntheseTab
+              reportData={reportData}
+              setReportData={setReportData}
             />
           )}
 

@@ -146,12 +146,42 @@ export function PretentionsTab({
             </div>
           </div>
 
+          {/* Objectifs court-terme (mise en oeuvre) */}
+          <div className="pt-8 border-t border-accent/10">
+            <div className="p-6 bg-accent/[0.02] border border-accent/10 rounded-xl space-y-4">
+              <h4 className="text-base font-bold text-secondary">
+                Objectifs court-terme (mise en oeuvre)
+              </h4>
+              <p className="text-xs text-accent/80 leading-relaxed font-medium">
+                Un objectif définit un résultat à atteindre dans un contexte donné. Il est important de toujours vérifier si l’objectif est SMART :
+              </p>
+              <ul className="space-y-1.5 text-xs text-accent/80 font-medium pl-5 list-disc">
+                <li><strong>Spécifique :</strong> décrit précisément la situation à atteindre et les résultats à atteindre.</li>
+                <li><strong>Mesurable :</strong> par des indicateurs simples et suffisants.</li>
+                <li><strong>Ambitieux :</strong> implique un effort, un engagement.</li>
+                <li><strong>Réaliste :</strong> prend en compte les moyens, les compétences disponibles et le contexte.</li>
+                <li><strong>Temporel :</strong> défini dans le temps avec une durée, une date d’échéance, des étapes...etc.</li>
+              </ul>
+              <p className="text-xs text-accent/80 leading-relaxed font-medium">
+                Les objectifs ne doivent pas être trop nombreux. La fixation d’objectifs porte sur les priorités de travail du collaborateur, les sujets sur lesquels il devra faire porter son effort.
+              </p>
+              <p className="text-xs text-accent/80 leading-relaxed font-medium">
+                Les objectifs court-terme doivent répondre aux objectifs moyen-terme en étant la mise en œuvre d’une étape intermédiaire permettant d’atteindre l’objectif moyen-terme.
+              </p>
+              <p className="text-xs text-accent/80 leading-relaxed font-medium">
+                Les objectifs (court-terme ou moyen-terme) peuvent être liés à la vie Logiclever (participation à une Squad…) mais il est important de se donner des objectifs de carrière.
+              </p>
+              <p className="text-xs text-accent/80 leading-relaxed font-medium">
+                N’hésitez pas à consulter les évaluations de vos collègues pour trouver des exemples d’objectif et à solliciter votre coach.
+              </p>
+            </div>
+          </div>
+
           {/* Les objectifs pour l’année prochaine */}
           <div className="pt-8 border-t border-accent/10">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-xl font-bold text-secondary tracking-tight">Les objectifs pour l’année prochaine</h3>
-                <p className="text-xs text-accent/50 mt-1 font-medium">Définissez vos objectifs opérationnels pour l'année à venir selon la méthode SMART.</p>
               </div>
               <button
                 type="button"

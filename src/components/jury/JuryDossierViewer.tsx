@@ -7,6 +7,7 @@ import { JuryDecisionForm } from './JuryDecisionForm';
 import { SalaryCalculatorTab } from '../candidate/tabs/SalaryCalculatorTab';
 import { EngagementTab, engagementSections } from '../candidate/tabs/EngagementTab';
 import { SyntheseTab } from '../candidate/tabs/SyntheseTab';
+import { SatisfactionTab } from '../candidate/tabs/SatisfactionTab';
 import { PretentionsTab } from '../candidate/tabs/PretentionsTab';
 import { extractPlainTextUrl, getValidUrl, copyPlainTextToClipboard } from '../../utils/urlUtils';
 
@@ -54,8 +55,9 @@ export function JuryDossierViewer({
   const isReadOnly = !isAssigned;
   const dossierTabs: Array<[string, string]> = [
     ...(extraTab ? [[extraTab.id, extraTab.label] as [string, string]] : []),
-    ['SYNTHESE', 'Introduction & Synthèse'],
+    ['SYNTHESE', 'Synthèse'],
     ['OBJECTIFS_PASSES', 'Objectifs Année Passée'],
+    ['SATISFACTION', 'Satisfaction'],
     ['EXPERTISES', 'Savoir-faire'],
     ['AUTONOMIE', 'Autonomie en mission'],
     ['COMMERCIAL', 'Vente/commercial'],
@@ -67,7 +69,7 @@ export function JuryDossierViewer({
     ['METEOS', 'Météos Client'],
     ['RETOURS_PAIRS', 'Retours Pairs'],
     ['PRETENTIONS', 'Objectifs'],
-    ['CALCULATRICE', 'Calculette du salaire'],
+    ['CALCULATRICE', 'Prétentions de carrière et salariales'],
     ...(!hideDecisionTab ? [['DECISION', 'Décision'] as [string, string]] : [])
   ];
   const activeEngagementSection = engagementSections.find(section =>
@@ -102,7 +104,7 @@ export function JuryDossierViewer({
       )}
 
       {activeEngagementSection && dossier.annualReport && (
-        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label={`${activeEngagementSection.label} en lecture seule`}>
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_button]:pointer-events-none" aria-label={`${activeEngagementSection.label} en lecture seule`}>
           <EngagementTab
             section={activeEngagementSection.id}
             reportData={dossier.annualReport}
@@ -112,7 +114,7 @@ export function JuryDossierViewer({
       )}
 
       {expandedTabs['SYNTHESE'] && dossier.annualReport && (
-        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label="Introduction et synthèse en lecture seule">
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_button]:pointer-events-none" aria-label="Introduction et synthèse en lecture seule">
           <SyntheseTab
             reportData={dossier.annualReport}
             setReportData={() => undefined}
@@ -120,8 +122,18 @@ export function JuryDossierViewer({
         </fieldset>
       )}
 
+      {expandedTabs['SATISFACTION'] && dossier.annualReport && (
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_button]:pointer-events-none" aria-label="Satisfaction en lecture seule">
+          <SatisfactionTab
+            reportData={dossier.annualReport}
+            setReportData={() => undefined}
+            isLockedForEditing={true}
+          />
+        </fieldset>
+      )}
+
       {expandedTabs['PRETENTIONS'] && dossier.annualReport && (
-        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label="Objectifs en lecture seule">
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_button]:pointer-events-none" aria-label="Objectifs en lecture seule">
           <PretentionsTab
             profile={candidate || undefined}
             reportData={dossier.annualReport}
@@ -738,7 +750,7 @@ export function JuryDossierViewer({
       </AccordionSection>
 
       {expandedTabs['CALCULATRICE'] && candidate && dossier.annualReport && (
-        <fieldset disabled className="min-w-0 border-0 p-0 m-0 pointer-events-none" aria-label="Calculette du salaire en lecture seule">
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_button]:pointer-events-none" aria-label="Calculette du salaire en lecture seule">
           <SalaryCalculatorTab
             key={dossier.id}
             profile={candidate}

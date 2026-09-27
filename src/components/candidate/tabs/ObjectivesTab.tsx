@@ -87,7 +87,7 @@ export function ObjectivesTab({
               <div className="mt-6 flex items-center gap-4">
                 <label className="text-[10px] font-black text-accent/30 uppercase tracking-widest">Atteint :</label>
                 <div className="flex gap-2">
-                  {(['OUI', 'NON', 'PARTIEL'] as const).map(status => (
+                  {(['OUI', 'NON'] as const).map(status => (
                     <button
                       key={status}
                       type="button"

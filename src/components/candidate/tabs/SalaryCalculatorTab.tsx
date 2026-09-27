@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Calculator } from 'lucide-react';
+import { Calculator, ExternalLink, Info } from 'lucide-react';
 import { NumberInput } from '../CandidateUI';
 import { UserProfile, Dossier, AnnualReport, Grade } from '../../../types';
 import { formatCurrency } from '../../../lib/utils';
@@ -98,13 +98,8 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <div className="bg-white p-8 rounded-xl border border-accent/10 shadow-lg">
-        <div className="flex items-center gap-4 border-b border-accent/10 pb-6 mb-8">
-          <div className="p-4 bg-primary/10 rounded-2xl">
-            <Calculator className="w-8 h-8 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-accent tracking-tighter">Calculette du salaire</h2>
-          </div>
+        <div className="border-b border-accent/10 pb-6 mb-8">
+          <h2 className="text-secondary">Prétentions de carrière et salariales</h2>
         </div>
 
         {/* Grille de référence */}
@@ -184,23 +179,66 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div className="space-y-6">
-            <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Valeurs de base (Modifiables)</div>
-            
             <NumberInput label="TJ Vendu (€)" value={tjVendu} onChange={v => {
               const value = Math.max(0, v);
               setTjVendu(value);
               setReportData?.(prev => ({ ...prev, currentTJM: value }));
             }} min={0} />
-            <NumberInput label="TJ Cible (€)" value={tjCible} onChange={v => {
-              const value = Math.max(0, v);
-              setTjCible(value);
-              setReportData?.(prev => ({ ...prev, targetTJM: value }));
-            }} min={0} />
-            <NumberInput label="Salaire Actuel (€)" value={currentSalary} onChange={v => {
-              const value = Math.max(0, v);
+
+            <div className="w-full">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
+                  <span>Je pense que LL peut me facturer (</span>
+                  <a
+                    href="https://docs.google.com/spreadsheets/d/1LatJvU7ZI5m6-is2oyVihfBSDqzJsdbvxL3pCMQhpJQ/edit?gid=872847313#gid=872847313"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary font-bold underline inline-flex items-center gap-0.5 hover:text-primary-dark"
+                  >
+                    TJ cible
+                    <ExternalLink className="w-2.5 h-2.5 inline" />
+                  </a>
+                  <span>) :</span>
+                </label>
+              </div>
+              <input
+                type="number"
+                min={0}
+                value={tjCible || ''}
+                onChange={e => {
+                  const val = e.target.value === '' ? 0 : Math.max(0, Math.floor(Number(e.target.value)));
+                  setTjCible(val);
+                  setReportData?.(prev => ({ ...prev, targetTJM: val }));
+                }}
+                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                placeholder="0"
+              />
+            </div>
+
+            <NumberInput label="Rémunération actuelle Fixe :" value={currentSalary} onChange={v => {
+              const value = Math.max(0, Math.floor(v));
               setCurrentSalary(value);
               setReportData?.(prev => ({ ...prev, currentSalary: value }));
             }} min={0} />
+
+            <div className="w-full">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
+                  Rémunération souhaitée Fixe :
+                </label>
+              </div>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={reportData.wishedSalary || ''}
+                onChange={e => {
+                  const val = e.target.value === '' ? 0 : Math.max(0, Math.floor(Number(e.target.value)));
+                  setReportData?.(prev => ({ ...prev, wishedSalary: val }));
+                }}
+                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+              />
+            </div>
             
             <div className="w-full" title="Le taux applicable pour les projections Vendu actuelles.">
               <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Grade Actuel</label>
@@ -230,7 +268,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
             </div>
 
             <div className="w-full" title="Le taux applicable dans la formule dépend de ce grade cible pour la promotion.">
-              <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Grade Cible / Attendu</label>
+              <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Évolution de poste souhaitée (Grade)</label>
               <select
                 value={grade}
                 onChange={e => {
@@ -245,29 +283,9 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                 ))}
               </select>
             </div>
-            
-            <NumberInput 
-              label="% Investissement (0-100)" 
-              value={investPerc} 
-              onChange={v => setInvestPerc(Math.min(100, Math.max(0, v)))} 
-              min={0} 
-              max={100} 
-              step={1} 
-              tooltip="Taux entre 0% et 100%"
-            />
-            
-            <NumberInput 
-              label="% Mission (95-100)" 
-              value={missionPerc} 
-              onChange={v => setMissionPerc(Math.min(100, Math.max(95, v)))} 
-              min={95} 
-              max={100} 
-              step={1} 
-              tooltip="Taux de mission (recommandé entre 95% et 100%, cible 98%)"
-            />
           </div>
           
-          <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 h-fit space-y-8">
+          <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 h-fit space-y-6">
             <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Projections Salariales</div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -295,6 +313,63 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                 {formatCurrency(resFormule)}
               </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-accent/10">
+              <NumberInput 
+                label="% Investissement (0-100)" 
+                value={investPerc} 
+                onChange={v => setInvestPerc(Math.min(100, Math.max(0, v)))} 
+                min={0} 
+                max={100} 
+                step={1} 
+              />
+              
+              <NumberInput 
+                label="% Mission (95-100)" 
+                value={missionPerc} 
+                onChange={v => setMissionPerc(Math.min(100, Math.max(95, v)))} 
+                min={95} 
+                max={100} 
+                step={1} 
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Commentaire libre */}
+        <div className="pt-8 border-t border-accent/10 mt-10 space-y-4">
+          <div>
+            <h3 className="text-lg font-bold text-secondary">Commentaire libre</h3>
+            <p className="text-xs text-accent/70 font-medium mt-1">
+              Vous pouvez ajouter ici un commentaire à l’attention du Jury des Salaires, si vous le jugez nécessaire.
+            </p>
+          </div>
+          <textarea
+            value={reportData.salaryExpectations || ''}
+            onChange={e => setReportData?.(prev => ({ ...prev, salaryExpectations: e.target.value }))}
+            placeholder="Écrivez votre commentaire libre ici..."
+            className="w-full p-4 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-medium min-h-[120px] resize-y"
+          />
+        </div>
+
+        {/* Rappel des règles principales liées à l’augmentation de salaire */}
+        <div className="pt-8 border-t border-accent/10 mt-10">
+          <div className="p-6 bg-accent/[0.02] border border-accent/10 rounded-xl space-y-4">
+            <h4 className="text-sm font-bold text-secondary uppercase tracking-wider flex items-center gap-2">
+              <Info className="w-4 h-4 text-primary shrink-0" />
+              <span>Rappel des règles principales liées à l’augmentation de salaire :</span>
+            </h4>
+            <ul className="space-y-2.5 text-xs text-accent/80 font-medium leading-relaxed pl-5 list-disc">
+              <li>
+                L’augmentation se base principalement sur le TJ cible, le TJ vendu, l’investissement pour Logiclever et la satisfaction client.
+              </li>
+              <li>
+                Le fait d’être encadré ou non n’influe pas sur l’augmentation (le TJ attendu tient compte d’un éventuel encadrement, si cet encadrement n’a pas ou n’a plus lieu, le montant correspondant part en bénéfices et donc sur le PEE mais pas en salaire).
+              </li>
+              <li>
+                L'investissement est évalué en fonction du nombre de jours LL imputés dans l’année. Il est attendu que quelqu’un qui est en intercontrat, s’investisse à hauteur du nombre de jours d’intercontrat.
+              </li>
+            </ul>
           </div>
         </div>
       </div>
