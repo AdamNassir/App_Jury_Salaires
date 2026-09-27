@@ -112,16 +112,25 @@ export default function App() {
 
       setSignInError(null);
       try {
+        const normalizedEmail = firebaseUser.email?.toLowerCase();
+        const isJulien = normalizedEmail === 'julien.bourlon@logiclever.com';
         const isMaster =
-          firebaseUser.email?.toLowerCase() === 'guillaumebestece@gmail.com' ||
-          firebaseUser.email?.toLowerCase() === 'guillaume.best@logiclever.com' ||
-          firebaseUser.email?.toLowerCase() === 'adam.nassir@logiclever.com';
+          normalizedEmail === 'guillaumebestece@gmail.com' ||
+          normalizedEmail === 'guillaume.best@logiclever.com' ||
+          normalizedEmail === 'adam.nassir@logiclever.com' ||
+          isJulien;
 
         // Résolution immédiate via le répertoire d'utilisateurs local / JSON
         const directoryUser = UserDirectoryService.getUserByEmail(firebaseUser.email);
 
         const resolvedRoles: UserRole[] = isMaster
-          ? ['CANDIDATE', 'JURY', 'ADMIN']
+          ? [...new Set<UserRole>([
+              ...(directoryUser?.roles || []),
+              'CANDIDATE',
+              'JURY',
+              'ADMIN',
+              ...(isJulien ? ['EVALUATOR' as UserRole] : [])
+            ])]
           : (directoryUser?.roles && directoryUser.roles.length > 0 ? directoryUser.roles : ['CANDIDATE']);
 
         const instantProfile: UserProfile = {

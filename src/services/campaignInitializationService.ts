@@ -2,7 +2,7 @@ import { defaultReportData } from '../data/defaultAnnualReport';
 import * as XLSX from 'xlsx';
 import { collection, getDocs, doc, writeBatch, query, where } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
-import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole, ClientFeedback } from '../types';
+import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole, ClientFeedback, ConsultantFeedback } from '../types';
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
 import { extractPlainTextUrl } from '../utils/urlUtils';
@@ -840,6 +840,28 @@ export class CampaignInitializationService {
         detailsByMatricule.set(padStr, details);
       }
     };
+
+    // Existing application accounts are part of the identity directory too. This lets
+    // Primes rows resolve to a pre-created account even before it exists in personnes.
+    existingUsers.forEach((user: any) => {
+      const idProfil = cleanString(user.idProfil || user.id).toUpperCase();
+      if (!idProfil) return;
+
+      const displayNameParts = cleanString(user.displayName).split(/\s+/).filter(Boolean);
+      const prenom = cleanString(user.prenom) || displayNameParts[0] || '';
+      const nom = cleanString(user.nom) || displayNameParts.slice(1).join(' ') || displayNameParts[0] || idProfil;
+      const details = {
+        idProfil,
+        nom,
+        prenom,
+        grade: user.currentGrade as Grade | undefined,
+        email: cleanString(user.email)
+      };
+
+      if (user.matricule) registerMatriculeMapping(user.matricule, idProfil, details);
+      matriculeToIdProfil.set(idProfil, idProfil);
+      detailsByMatricule.set(idProfil, details);
+    });
 
     parsedCandidates.forEach(cand => {
       if (cand.idProfil) {

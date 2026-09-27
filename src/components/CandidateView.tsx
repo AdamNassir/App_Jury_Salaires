@@ -15,6 +15,7 @@ import { DriveObjectivesService } from '../services/driveObjectivesService';
 import { TabButton } from './candidate/CandidateUI';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
 import { ObjectivesTab } from './candidate/tabs/ObjectivesTab';
+import { SatisfactionTab } from './candidate/tabs/SatisfactionTab';
 import { ExpertisesTab } from './candidate/tabs/ExpertisesTab';
 import { EngagementTab, engagementSections, EngagementSection, isEngagementSection } from './candidate/tabs/EngagementTab';
 import { MeteosTab } from './candidate/tabs/MeteosTab';
@@ -69,7 +70,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
   const [pastImportErrorMessage, setPastImportErrorMessage] = useState<string | null>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
   const isDeliberatedOrValide = dossier?.status === 'VALIDE' || Boolean(dossier?.juryDecision?.amount);
-  const [activeTab, setActiveTab] = useState<'OBJECTIFS_PASSES' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
+  const [activeTab, setActiveTab] = useState<'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'DOCUMENTS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
     isDeliberatedOrValide ? 'AVIS_JURY' : 'DOCUMENTS'
   );
   const [meteoSubTab, setMeteoSubTab] = useState<'LIST' | 'CHART'>('LIST');
@@ -535,6 +536,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             badge={!hasUploadedDocs ? "Recommandé" : undefined}
           />
           <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => setActiveTab('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
+          <TabButton active={activeTab === 'SATISFACTION'} onClick={() => setActiveTab('SATISFACTION')} label="Satisfaction" />
           <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Savoir-faire" />
           {engagementSections.map(section => (
             <div key={section.id}>
@@ -713,6 +715,14 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
               setReportData={setReportData}
               handleImportPastYearObjectives={handleImportPastYearObjectives}
               isImportingPastObjectives={isImportingPastObjectives}
+            />
+          )}
+
+          {activeTab === 'SATISFACTION' && (
+            <SatisfactionTab
+              reportData={reportData}
+              setReportData={setReportData}
+              isLockedForEditing={isLockedForEditing}
             />
           )}
 

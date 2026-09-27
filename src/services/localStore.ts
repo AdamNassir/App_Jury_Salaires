@@ -7,6 +7,8 @@ export type RecordData = Record<string, any>;
 type Database = Record<CollectionName, RecordData[]>;
 export type Mutation = { collection: CollectionName; id: string; kind: 'set' | 'update' | 'delete'; data?: RecordData; merge?: boolean };
 export const DATABASE_KEY = 'app_local_database_v2';
+const BUILTIN_USERS_VERSION_KEY = 'app_local_builtin_users_version';
+const BUILTIN_USERS_VERSION = '1';
 const legacyKeys: Record<CollectionName, string> = {
   campaigns: 'app_local_campaigns_v1', dossiers: 'app_local_dossiers_v1',
   users: 'app_users_directory_custom_v1', personnes: 'app_local_personnes_v1',
@@ -24,11 +26,25 @@ function storage(): Storage {
 }
 
 function readDatabase(): Database {
-  const saved = storage().getItem(DATABASE_KEY);
+  const localStorage = storage();
+  const saved = localStorage.getItem(DATABASE_KEY);
   if (saved !== null) {
     const parsed = JSON.parse(saved);
     if (!parsed || !Object.keys(legacyKeys).every(key => Array.isArray(parsed[key]))) {
       throw new Error('La base locale est invalide. Restaurez une sauvegarde avant de continuer.');
+    }
+
+    if (localStorage.getItem(BUILTIN_USERS_VERSION_KEY) !== BUILTIN_USERS_VERSION) {
+      const julien = (users as RecordData[]).find(user => user.idProfil === 'COMP1');
+      const existingIndex = parsed.users.findIndex((user: RecordData) =>
+        user.idProfil === 'COMP1' ||
+        user.email?.trim().toLowerCase() === 'julien.bourlon@logiclever.com'
+      );
+      if (julien && existingIndex < 0) {
+        parsed.users.push(clone(julien));
+        localStorage.setItem(DATABASE_KEY, JSON.stringify(parsed));
+      }
+      localStorage.setItem(BUILTIN_USERS_VERSION_KEY, BUILTIN_USERS_VERSION);
     }
     return parsed;
   }
@@ -57,7 +73,8 @@ function readDatabase(): Database {
     rhDocuments: c.rhDocuments || [], pairsDocuments: c.pairsDocuments || [], otherDocuments: c.otherDocuments || [],
   }));
   // Seeds and legacy keys are imported only once. Deletions stay deleted on reload.
-  storage().setItem(DATABASE_KEY, JSON.stringify(initial));
+  localStorage.setItem(DATABASE_KEY, JSON.stringify(initial));
+  localStorage.setItem(BUILTIN_USERS_VERSION_KEY, BUILTIN_USERS_VERSION);
   return initial;
 }
 

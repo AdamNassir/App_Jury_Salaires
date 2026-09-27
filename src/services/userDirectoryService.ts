@@ -4,10 +4,12 @@ import { readCollection, commitMutations, subscribeLocal } from './localStore';
 class UserDirectoryServiceImpl {
   public normalizeUser(data: any): UserProfile {
     const email = (data.email || '').trim().toLowerCase();
+    const isJulien = email === 'julien.bourlon@logiclever.com';
     const isMaster =
       email === 'guillaumebestece@gmail.com' ||
       email === 'guillaume.best@logiclever.com' ||
-      email === 'adam.nassir@logiclever.com';
+      email === 'adam.nassir@logiclever.com' ||
+      isJulien;
 
     let roles: UserRole[] = Array.isArray(data.roles) ? [...data.roles] : [];
     if (roles.length === 0 && data.role) roles = [data.role];
@@ -15,6 +17,7 @@ class UserDirectoryServiceImpl {
       if (!roles.includes('ADMIN')) roles.push('ADMIN');
       if (!roles.includes('JURY')) roles.push('JURY');
       if (!roles.includes('CANDIDATE')) roles.push('CANDIDATE');
+      if (isJulien && !roles.includes('EVALUATOR')) roles.push('EVALUATOR');
     }
     if (roles.length === 0) {
       roles = ['CANDIDATE'];

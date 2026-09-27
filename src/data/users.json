@@ -58,5 +58,28 @@
     "experienceYears": 10,
     "assignedCandidateIds": [],
     "updatedAt": "2026-09-16T00:00:00.000Z"
+  },
+  {
+    "id": "COMP1",
+    "idProfil": "COMP1",
+    "matricule": "JBO",
+    "nom": "Bourlon",
+    "prenom": "Julien",
+    "displayName": "Julien Bourlon",
+    "email": "julien.bourlon@logiclever.com",
+    "roles": [
+      "CANDIDATE",
+      "JURY",
+      "ADMIN",
+      "EVALUATOR"
+    ],
+    "team": "Direction",
+    "currentGrade": "Senior",
+    "currentSalary": 0,
+    "currentTJM": 0,
+    "entryDate": "",
+    "experienceYears": 0,
+    "assignedCandidateIds": [],
+    "updatedAt": "2026-09-25T00:00:00.000Z"
   }
 ]

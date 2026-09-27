@@ -48,10 +48,67 @@ beforeEach(() => {
 });
 
 test('fresh local directory retains both template administrators and Guillaume Gmail', () => {
-  for (const email of ['adam.nassir@logiclever.com', 'guillaume.best@logiclever.com', 'guillaumebestece@gmail.com']) {
+  for (const email of ['adam.nassir@logiclever.com', 'guillaume.best@logiclever.com', 'guillaumebestece@gmail.com', 'julien.bourlon@logiclever.com']) {
     const user = UserDirectoryService.getUserByEmail(email);
     assert.ok(user, `Missing template account: ${email}`);
     assert.ok(user.roles.includes('ADMIN'), `Missing administrator role: ${email}`);
+  }
+  const julien = UserDirectoryService.getUserByEmail('julien.bourlon@logiclever.com')!;
+  assert.equal(julien.idProfil, 'COMP1');
+  assert.equal(julien.matricule, 'JBO');
+  assert.deepEqual([...julien.roles].sort(), ['ADMIN', 'CANDIDATE', 'EVALUATOR', 'JURY']);
+
+  const restoredJulien = UserDirectoryService.normalizeUser({ email: 'julien.bourlon@logiclever.com' });
+  assert.deepEqual([...restoredJulien.roles].sort(), ['ADMIN', 'CANDIDATE', 'EVALUATOR', 'JURY']);
+});
+
+test('existing browser databases add Julien without replacing current users', () => {
+  readCollection('users');
+  const database = JSON.parse(storage.getItem(DATABASE_KEY)!);
+  database.users = database.users.filter((user: any) => user.idProfil !== 'COMP1');
+  database.users.push({ id: 'custom-user', email: 'custom@example.test', roles: ['CANDIDATE'] });
+  storage.setItem(DATABASE_KEY, JSON.stringify(database));
+  storage.removeItem('app_local_builtin_users_version');
+
+  const visibleUsers = UserDirectoryService.getAllUsers();
+  assert.equal(visibleUsers.find(user => user.email === 'julien.bourlon@logiclever.com')?.idProfil, 'COMP1');
+  assert.ok(visibleUsers.some(user => user.email === 'custom@example.test'));
+  assert.equal(visibleUsers.filter(user => user.idProfil === 'COMP1').length, 1);
+});
+
+test('campaign preview resolves Primes assignments to a pre-created app user', async () => {
+  const originalRapportParser = CampaignInitializationService.parseRapportRhSalariesFile;
+  const originalPrimesParser = CampaignInitializationService.parsePrimesFile;
+  const originalMeteoParser = CampaignInitializationService.parseVuesMeteosFile;
+
+  CampaignInitializationService.parseRapportRhSalariesFile = async () => [
+    {
+      idProfil: 'CAND1', matricule: 'CAND', nom: 'Candidate', prenom: 'Test', displayName: 'Test Candidate',
+      email: 'candidate@example.test', grade: 'Senior', currentSalary: 50000, currentTJM: 650,
+      isExistingPersonne: false, isExistingParticipant: false, isExistingUser: false, action: 'CREATE',
+      warnings: [], isEligibleCandidate: true
+    }
+  ];
+  CampaignInitializationService.parsePrimesFile = async () => [
+    { rawRowIndex: 2, evaluatorMatricule: 'JBO', candidateMatricule: 'CAND', typePrime: '', isActive: true, explanation: 'Prime active' }
+  ];
+  CampaignInitializationService.parseVuesMeteosFile = async () => [];
+
+  try {
+    const dummyFile = {} as File;
+    const result = await CampaignInitializationService.prepareCampaignPreview(2031, {
+      rapportRhFile: dummyFile,
+      primesFile: dummyFile,
+      vuesMeteosFile: dummyFile
+    });
+
+    assert.deepEqual(result.assignmentsByCandidate.CAND1, ['COMP1']);
+    assert.equal(result.evaluatorsToProcess.find(e => e.idProfil === 'COMP1')?.displayName, 'Julien Bourlon');
+    assert.equal(result.evaluatorsToProcess.find(e => e.idProfil === 'COMP1')?.isExistingUser, true);
+  } finally {
+    CampaignInitializationService.parseRapportRhSalariesFile = originalRapportParser;
+    CampaignInitializationService.parsePrimesFile = originalPrimesParser;
+    CampaignInitializationService.parseVuesMeteosFile = originalMeteoParser;
   }
 });
 

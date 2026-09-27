@@ -42,7 +42,8 @@ export function JuryDeliberationsTable({ dossiers, candidates, profile }: JuryDe
 
   const isAdmin = profile.roles?.includes('ADMIN') || 
     profile.email?.toLowerCase() === 'adam.nassir@logiclever.com' ||
-    profile.email?.toLowerCase() === 'guillaume.best@logiclever.com';
+    profile.email?.toLowerCase() === 'guillaume.best@logiclever.com' ||
+    profile.email?.toLowerCase() === 'julien.bourlon@logiclever.com';
 
   // Identifier si un dossier est véritablement assigné au jury courant
   const isAssignedToCurrentUser = (dossier: Dossier): boolean => {
