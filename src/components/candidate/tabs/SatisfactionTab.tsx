@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Section } from '../CandidateUI';
+import { Section, FormField } from '../CandidateUI';
 import { AnnualReport, Satisfaction } from '../../../types';
 import { cn } from '../../../lib/utils';
 import { Check } from 'lucide-react';
@@ -166,6 +166,31 @@ export function SatisfactionTab({
               })}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-accent/10">
+          <FormField
+            label="Commentaire (obligatoire si mécontent)"
+            value={currentSatisfaction.comment || ''}
+            maxLength={2000}
+            disabled={isLockedForEditing}
+            onChange={val => {
+              if (isLockedForEditing) return;
+              setReportData(prev => ({
+                ...prev,
+                satisfaction: {
+                  ...(prev.satisfaction || {
+                    tasks: 'C',
+                    wellBeingMission: 'C',
+                    wellBeingClient: 'C',
+                    wellBeingLogiclever: 'C'
+                  }),
+                  comment: val
+                }
+              }));
+            }}
+            placeholder="Partagez vos impressions, points d'attention ou améliorations..."
+          />
         </div>
       </Section>
     </motion.div>

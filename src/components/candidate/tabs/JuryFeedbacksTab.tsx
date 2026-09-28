@@ -4,6 +4,7 @@ import { Gavel, Clock, CheckCircle2, MessageSquareHeart, Save, Loader2, Sparkles
 import { Dossier, JuryMemberReview } from '../../../types';
 import { cn, formatCurrency } from '../../../lib/utils';
 import { LocalDatabaseService } from '../../../services/localDatabaseService';
+import { FormField } from '../CandidateUI';
 
 interface JuryFeedbacksTabProps {
   dossier?: Dossier;
@@ -90,23 +91,17 @@ export function JuryFeedbacksTab({ dossier, onUpdateConsultantFeeling }: JuryFee
 
           {/* Espace Ressenti Consultant */}
           <div className="mt-6 pt-2 space-y-3">
-            <div className="flex items-center justify-between">
-              <label htmlFor="consultantFeelingInput" className="text-xs font-black uppercase tracking-wider text-secondary flex items-center gap-2">
-                <MessageSquareHeart className="w-4 h-4 text-primary" />
-                Votre Ressenti Consultant
-              </label>
-            </div>
-
-            <div className="relative">
-              <textarea
-                id="consultantFeelingInput"
-                value={consultantFeeling}
-                onChange={(e) => setConsultantFeeling(e.target.value)}
-                placeholder=""
-                rows={3}
-                className="w-full p-4 rounded-xl border border-accent/15 focus:border-secondary focus:ring-2 focus:ring-secondary/15 outline-none text-sm text-accent placeholder:text-accent/30 transition-all bg-accent/[0.01] resize-none"
-              />
-            </div>
+            <FormField
+              label={
+                <span className="flex items-center gap-2">
+                  <MessageSquareHeart className="w-4 h-4 text-primary" />
+                  <span>Votre Ressenti Consultant</span>
+                </span>
+              }
+              value={consultantFeeling}
+              onChange={val => setConsultantFeeling(val)}
+              placeholder="Partagez vos impressions sur les retours du jury, vos questions ou clarifications..."
+            />
 
             <div className="flex items-center justify-between pt-1">
               <div className="text-xs">

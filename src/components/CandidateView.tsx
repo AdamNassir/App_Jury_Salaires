@@ -4,7 +4,7 @@ import { doc, setDoc, collection, getDocs, query, where, getDoc } from '../lib/l
 import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, AnnualReport, ClientFeedback, Grade, PreviousObjective, NextObjective, Satisfaction, DossierStatus, DossierDocument } from '../types';
 import { LocalDatabaseService } from '../services/localDatabaseService';
-import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, ChevronRight, ChevronDown, Eye, Calculator, LogIn, TrendingUp, Maximize2, X, Download, Undo2 } from 'lucide-react';
+import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, ChevronRight, ChevronDown, Eye, Calculator, LogIn, TrendingUp, Maximize2, X, Download, Undo2, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,6 +13,7 @@ import { generateDossierPDF } from '../utils/pdfGenerator';
 import { requestGoogleDriveAccess, setGoogleDriveAccessToken } from '../lib/firebase';
 import { DriveObjectivesService } from '../services/driveObjectivesService';
 import { TabButton } from './candidate/CandidateUI';
+import { BilanIntroTab } from './candidate/tabs/BilanIntroTab';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
 import { SyntheseTab } from './candidate/tabs/SyntheseTab';
 import { ObjectivesTab } from './candidate/tabs/ObjectivesTab';
@@ -71,9 +72,36 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
   const [pastImportErrorMessage, setPastImportErrorMessage] = useState<string | null>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
   const isDeliberatedOrValide = dossier?.status === 'VALIDE' || Boolean(dossier?.juryDecision?.amount);
-  const [activeTab, setActiveTab] = useState<'DOCUMENTS' | 'SYNTHESE' | 'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY'>(
+
+  type CandidateTabType = 'DOCUMENTS' | 'BILAN_INTRO' | 'SYNTHESE' | 'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY';
+
+  const [activeTab, setActiveTab] = useState<CandidateTabType>(
     isDeliberatedOrValide ? 'AVIS_JURY' : 'DOCUMENTS'
   );
+
+  const visibleTabs: CandidateTabType[] = [
+    'DOCUMENTS',
+    'BILAN_INTRO',
+    'SYNTHESE',
+    'OBJECTIFS_PASSES',
+    'SATISFACTION',
+    'EXPERTISES',
+    ...engagementSections.map(s => s.id),
+    'METEOS',
+    ...((isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0)
+      ? (['RETOURS_PAIRS', 'AVIS_JURY'] as CandidateTabType[])
+      : []),
+    'PRETENTIONS',
+    'CALCULATRICE'
+  ];
+
+  const handleTabChange = (tab: CandidateTabType) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const currentTabIndex = visibleTabs.indexOf(activeTab);
+  const nextTab = currentTabIndex >= 0 && currentTabIndex < visibleTabs.length - 1 ? visibleTabs[currentTabIndex + 1] : null;
   const [meteoSubTab, setMeteoSubTab] = useState<'LIST' | 'CHART'>('LIST');
   const [selectedMeteoIndex, setSelectedMeteoIndex] = useState<number | null>(null);
   
@@ -550,48 +578,55 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
       )}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
       <div className="lg:col-span-1">
-        <div className="bg-white p-8 rounded-xl border border-accent/10 sticky top-48 space-y-3 shadow-lg">
-          <TabButton 
-            active={activeTab === 'DOCUMENTS'} 
-            onClick={() => setActiveTab('DOCUMENTS')} 
-            label="Pièces Jointes & Import" 
-            count={dossier?.documents?.length || 0} 
-            badge={!hasUploadedDocs ? "Recommandé" : undefined}
-          />
-          <TabButton 
-            active={activeTab === 'SYNTHESE'} 
-            onClick={() => setActiveTab('SYNTHESE')} 
-            label="Synthèse" 
-          />
-          <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => setActiveTab('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
-          <TabButton active={activeTab === 'SATISFACTION'} onClick={() => setActiveTab('SATISFACTION')} label="Satisfaction" />
-          <TabButton active={activeTab === 'EXPERTISES'} onClick={() => setActiveTab('EXPERTISES')} label="Savoir-faire" />
-          {engagementSections.map(section => (
-            <div key={section.id}>
-              <TabButton active={activeTab === section.id} onClick={() => setActiveTab(section.id)} label={section.label} />
-            </div>
-          ))}
-          <TabButton active={activeTab === 'METEOS'} onClick={() => setActiveTab('METEOS')} label="Météos Client" count={meteoLinks.length + feedbacks.length} />
-          {(isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0) && (
-            <>
-              <TabButton 
-                active={activeTab === 'RETOURS_PAIRS'} 
-                onClick={() => setActiveTab('RETOURS_PAIRS')} 
-                label="Retours Pairs" 
-                count={Object.keys(dossier?.consultantFeedbacks || {}).length} 
-              />
-              <TabButton 
-                active={activeTab === 'AVIS_JURY'} 
-                onClick={() => setActiveTab('AVIS_JURY')} 
-                label="Avis du Jury" 
-                count={Object.keys(dossier?.juryMemberReviews || {}).length} 
-              />
-            </>
-          )}
-          <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => setActiveTab('PRETENTIONS')} label="Objectifs" />
-          <TabButton active={activeTab === 'CALCULATRICE'} onClick={() => setActiveTab('CALCULATRICE')} label="Prétentions de carrière et salariales" />
+        <div className="bg-white p-6 rounded-xl border border-accent/10 sticky top-28 shadow-lg max-h-[calc(100vh-8rem)] flex flex-col">
+          <div className="space-y-3 overflow-y-auto pr-2 flex-1">
+            <TabButton 
+              active={activeTab === 'DOCUMENTS'} 
+              onClick={() => handleTabChange('DOCUMENTS')} 
+              label="Pièces Jointes & Import" 
+              count={dossier?.documents?.length || 0} 
+              badge={!hasUploadedDocs ? "Recommandé" : undefined}
+            />
+            <TabButton 
+              active={activeTab === 'BILAN_INTRO'} 
+              onClick={() => handleTabChange('BILAN_INTRO')} 
+              label="Objectifs Bilan Annuel" 
+            />
+            <TabButton 
+              active={activeTab === 'SYNTHESE'} 
+              onClick={() => handleTabChange('SYNTHESE')} 
+              label="Synthèse" 
+            />
+            <TabButton active={activeTab === 'OBJECTIFS_PASSES'} onClick={() => handleTabChange('OBJECTIFS_PASSES')} label="Objectifs Année Passée" />
+            <TabButton active={activeTab === 'SATISFACTION'} onClick={() => handleTabChange('SATISFACTION')} label="Satisfaction" />
+            <TabButton active={activeTab === 'EXPERTISES'} onClick={() => handleTabChange('EXPERTISES')} label="Savoir-faire" />
+            {engagementSections.map(section => (
+              <div key={section.id}>
+                <TabButton active={activeTab === section.id} onClick={() => handleTabChange(section.id)} label={section.label} />
+              </div>
+            ))}
+            <TabButton active={activeTab === 'METEOS'} onClick={() => handleTabChange('METEOS')} label="Météos Client" count={meteoLinks.length + feedbacks.length} />
+            {(isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0) && (
+              <>
+                <TabButton 
+                  active={activeTab === 'RETOURS_PAIRS'} 
+                  onClick={() => handleTabChange('RETOURS_PAIRS')} 
+                  label="Retours Pairs" 
+                  count={Object.keys(dossier?.consultantFeedbacks || {}).length} 
+                />
+                <TabButton 
+                  active={activeTab === 'AVIS_JURY'} 
+                  onClick={() => handleTabChange('AVIS_JURY')} 
+                  label="Avis du Jury" 
+                  count={Object.keys(dossier?.juryMemberReviews || {}).length} 
+                />
+              </>
+            )}
+            <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => handleTabChange('PRETENTIONS')} label="Objectifs" />
+            <TabButton active={activeTab === 'CALCULATRICE'} onClick={() => handleTabChange('CALCULATRICE')} label="Prétentions de carrière et salariales" />
+          </div>
 
-          <div className="pt-10 space-y-4 px-2">
+          <div className="pt-6 space-y-4 px-2 border-t border-accent/10 mt-4 shrink-0">
             {!isLockedForEditing && (
               <div className="text-center py-3.5 px-4 bg-accent/5 rounded-xl border border-accent/10 text-[10px] font-black uppercase tracking-[0.15em] text-accent/50 flex items-center justify-center gap-2">
                 {saveStatus === 'saving' && (
@@ -721,6 +756,10 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             />
           )}
 
+          {activeTab === 'BILAN_INTRO' && (
+            <BilanIntroTab />
+          )}
+
           {activeTab === 'SYNTHESE' && (
             <SyntheseTab
               reportData={reportData}
@@ -758,6 +797,9 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
               section={activeTab}
               reportData={reportData}
               setReportData={setReportData}
+              profile={profile}
+              dossier={dossier}
+              campaignYear={2026}
             />
           )}
 
@@ -806,6 +848,19 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
             />
           )}
         </AnimatePresence>
+
+        {nextTab && (
+          <div className="mt-12 pt-6 border-t border-accent/10 flex justify-end">
+            <button
+              type="button"
+              onClick={() => handleTabChange(nextTab)}
+              className="px-6 py-3.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+            >
+              <span>Suivant</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </fieldset>
     </div>
     </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Plus, Trash2, Target } from 'lucide-react';
-import { Section } from '../CandidateUI';
+import { Section, FormField } from '../CandidateUI';
 import { AnnualReport, NextObjective, UserProfile, Grade } from '../../../types';
 
 interface PretentionsTabProps {
@@ -129,17 +129,17 @@ export function PretentionsTab({
                     <button
                       type="button"
                       onClick={() => removeMidTermGoal(index)}
-                      className="text-red-500 hover:text-red-700 flex items-center gap-1 text-xs font-bold cursor-pointer"
+                      title="Supprimer cet objectif"
+                      className="text-red-500 hover:text-red-700 p-1 transition-colors cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <textarea
+                  <FormField
+                    label={`Objectif moyen-terme #${index + 1}`}
                     value={goal}
-                    onChange={e => updateMidTermGoal(index, e.target.value)}
-                    rows={3}
+                    onChange={val => updateMidTermGoal(index, val)}
                     placeholder={`Décrivez votre objectif moyen-terme #${index + 1}...`}
-                    className="w-full p-4 bg-white rounded-lg border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-normal resize-none"
                   />
                 </div>
               ))}
@@ -213,70 +213,34 @@ export function PretentionsTab({
                     )}
                   </div>
 
-                  <div className="space-y-5">
-                    {/* Objectifs */}
-                    <div>
-                      <label className="block text-[11px] font-black text-secondary uppercase tracking-wider mb-1">
-                        Objectifs
-                      </label>
-                      <p className="text-xs text-accent/50 italic mb-2">
-                        Doivent être Spécifiques (S de SMART)
-                      </p>
-                      <textarea
-                        value={obj.objective}
-                        onChange={e => updateObjective(idx, { objective: e.target.value })}
-                        rows={2}
-                        className="w-full p-4 bg-white rounded-lg border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-normal resize-none"
-                      />
-                    </div>
+                  <div className="space-y-6">
+                    <FormField
+                      label="Objectif Spécifique (S de SMART)"
+                      value={obj.objective}
+                      onChange={v => updateObjective(idx, { objective: v })}
+                      placeholder="Décrivez précisément la situation et les résultats à atteindre..."
+                    />
 
-                    {/* Bénéfice(s) */}
-                    <div>
-                      <label className="block text-[11px] font-black text-secondary uppercase tracking-wider mb-1">
-                        Bénéfice(s)
-                      </label>
-                      <p className="text-xs text-accent/50 italic mb-2">
-                        Afin de
-                      </p>
-                      <textarea
-                        value={obj.benefit}
-                        onChange={e => updateObjective(idx, { benefit: e.target.value })}
-                        rows={2}
-                        className="w-full p-4 bg-white rounded-lg border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-normal resize-none"
-                      />
-                    </div>
+                    <FormField
+                      label="Bénéfice(s) (Afin de...)"
+                      value={obj.benefit}
+                      onChange={v => updateObjective(idx, { benefit: v })}
+                      placeholder="Pourquoi cet objectif est utile pour vous et Logiclever..."
+                    />
 
-                    {/* Moyens à mettre en oeuvre */}
-                    <div>
-                      <label className="block text-[11px] font-black text-secondary uppercase tracking-wider mb-1">
-                        Moyens à mettre en oeuvre
-                      </label>
-                      <p className="text-xs text-accent/50 italic mb-2">
-                        Doivent être Ambitieux et Réalistes (A et R de SMART)
-                      </p>
-                      <textarea
-                        value={obj.means}
-                        onChange={e => updateObjective(idx, { means: e.target.value })}
-                        rows={2}
-                        className="w-full p-4 bg-white rounded-lg border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-normal resize-none"
-                      />
-                    </div>
+                    <FormField
+                      label="Moyens à mettre en œuvre (Ambitieux et Réalistes - A et R de SMART)"
+                      value={obj.means}
+                      onChange={v => updateObjective(idx, { means: v })}
+                      placeholder="Actions concrètes, formations, accompagnement..."
+                    />
 
-                    {/* Mesures */}
-                    <div>
-                      <label className="block text-[11px] font-black text-secondary uppercase tracking-wider mb-1">
-                        Mesures
-                      </label>
-                      <p className="text-xs text-accent/50 italic mb-2">
-                        Doivent décrire le M et le T de SMART
-                      </p>
-                      <textarea
-                        value={obj.measures}
-                        onChange={e => updateObjective(idx, { measures: e.target.value })}
-                        rows={2}
-                        className="w-full p-4 bg-white rounded-lg border border-accent/10 focus:border-secondary focus:ring-0 text-sm font-normal resize-none"
-                      />
-                    </div>
+                    <FormField
+                      label="Mesures & Échéance (Mesurable et Temporel - M et T de SMART)"
+                      value={obj.measures}
+                      onChange={v => updateObjective(idx, { measures: v })}
+                      placeholder="Indicateurs de succès, dates clés..."
+                    />
                   </div>
                 </div>
               ))}

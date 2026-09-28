@@ -285,6 +285,15 @@ export interface AnnualReport {
   referentOtherActions?: string;
   referentOffersEntries?: { offre: string; details: string }[];
   
+  // Nouveaux champs commentaires pour les tableaux automatiques Référent
+  referentMeteosComment?: string;
+  referentActionsComment?: string;
+  referentMissionsComment?: string;
+  referentCoachingComment?: string;
+  referentEncadrementComment?: string;
+  referentParrainComment?: string;
+  referentAccountsComment?: string;
+  
   // Objectives & Career
   careerGoals: string; // Vision moyen-terme (Vision / Carrière)
   careerGoal1?: string;
