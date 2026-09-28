@@ -28,7 +28,7 @@ export function ObjectivesTab({
   return (
     <motion.div key="obj-p" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <Section
-        title="Objectifs de l'année précédente"
+        title="Objectifs Année Passée"
         action={
           handleImportPastYearObjectives ? (
             <button

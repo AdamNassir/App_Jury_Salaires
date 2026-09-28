@@ -10,7 +10,7 @@ import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateYears, calculateSalaryFormule, getPrimeAnciennete, resolveTargetGrade } from '../lib/salaryUtils';
 import { generateDossierPDF } from '../utils/pdfGenerator';
-import { requestGoogleDriveAccess } from '../lib/firebase';
+import { requestGoogleDriveAccess, setGoogleDriveAccessToken } from '../lib/firebase';
 import { DriveObjectivesService } from '../services/driveObjectivesService';
 import { TabButton } from './candidate/CandidateUI';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
@@ -215,7 +215,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
 
     try {
       // 1. Obtenir l'accès Google Drive avec les scopes de lecture
-      const accessToken = await requestGoogleDriveAccess();
+      let accessToken = await requestGoogleDriveAccess();
       if (!accessToken) {
         throw new Error("L'autorisation d'accès à Google Drive n'a pas pu être obtenue.");
       }
@@ -229,8 +229,30 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
         throw new Error("Aucun matricule ou identifiant collaborateur n'est renseigné sur votre profil.");
       }
 
-      // 3. Rechercher le bilan N-1 et extraire les objectifs futurs définis l'an passé
-      const result = await DriveObjectivesService.importPastYearObjectives(accessToken, campaignYear, matricule);
+      // 3. Rechercher le bilan N-1 et extraire les objectifs futurs définis l'an passé (avec retry si token expiré)
+      let result;
+      try {
+        result = await DriveObjectivesService.importPastYearObjectives(accessToken, campaignYear, matricule);
+      } catch (err: any) {
+        const isAuthError = err?.message && (
+          err.message.includes('authentication') ||
+          err.message.includes('401') ||
+          err.message.includes('OAuth 2') ||
+          err.message.includes('credential')
+        );
+        if (isAuthError) {
+          // Token expiré en session : forcer la demande d'un nouveau token frais
+          setGoogleDriveAccessToken(null);
+          accessToken = await requestGoogleDriveAccess(true);
+          if (accessToken) {
+            result = await DriveObjectivesService.importPastYearObjectives(accessToken, campaignYear, matricule);
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
 
       if (!result.success || result.objectives.length === 0) {
         throw new Error(result.error || "Aucun objectif n'a pu être extrait du bilan de l'année passée.");

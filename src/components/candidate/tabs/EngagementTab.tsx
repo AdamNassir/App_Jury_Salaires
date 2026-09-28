@@ -150,7 +150,13 @@ export function EngagementTab({
                             <input aria-label={`Client ${index + 1}`} value={row.client} onChange={e => updateRow('client', e.target.value)} placeholder={`Client ${index + 1}`} className="w-full min-w-28 p-3 rounded-lg border border-accent/10" />
                           </td>
                           <td className="p-3">
-                            <textarea aria-label={`Actions du client ${index + 1}`} value={row.actions} onChange={e => updateRow('actions', e.target.value)} className="w-full min-w-56 min-h-32 p-3 rounded-lg border border-accent/10" />
+                            <textarea
+                              aria-label={`Actions du client ${index + 1}`}
+                              value={row.actions}
+                              onChange={e => updateRow('actions', e.target.value)}
+                              placeholder={`Exemple : PO du GPS_SI pour le périmètre DT de la direction technique\nSuivi du Run`}
+                              className="w-full min-w-56 min-h-32 p-3 rounded-lg border border-accent/10"
+                            />
                           </td>
                           <td className="p-3">
                             <select aria-label={`Grade du client ${index + 1}`} value={row.grade} onChange={e => updateRow('grade', e.target.value)} className="w-full min-w-[150px] bg-white text-accent pl-3 pr-8 py-3 rounded-lg border border-accent/10">

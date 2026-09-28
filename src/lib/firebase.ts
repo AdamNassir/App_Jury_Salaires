@@ -150,9 +150,13 @@ export const requestGoogleSheetsAccess =
     }
   };
 
-export const requestGoogleDriveAccess = async (): Promise<string | null> => {
-  const existing = getGoogleDriveAccessToken();
-  if (existing) return existing;
+export const requestGoogleDriveAccess = async (forceRefresh: boolean = false): Promise<string | null> => {
+  if (!forceRefresh) {
+    const existing = getGoogleDriveAccessToken();
+    if (existing) return existing;
+  } else {
+    setGoogleDriveAccessToken(null);
+  }
 
   try {
     const result = await signInWithPopup(auth, driveProvider);

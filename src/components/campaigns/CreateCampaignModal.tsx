@@ -20,7 +20,8 @@ import {
 import { CampaignFile } from '../../types';
 import { 
   CampaignInitializationService, 
-  CampaignInitPreview 
+  CampaignInitPreview,
+  convertSpreadsheetSheetToCsv
 } from '../../services/campaignInitializationService';
 
 interface CreateCampaignModalProps {
@@ -64,13 +65,26 @@ export function CreateCampaignModal({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleSingleFileUpload = (
+  const handleSingleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    setter: (f: File | null) => void
+    setter: (f: File | null) => void,
+    sheetTargetName: 'Query_Salaries' | 'Primes' | 'Vue_Meteo'
   ) => {
     const file = e.target.files?.[0];
     if (file) {
-      setter(file);
+      const isSpreadsheet = !file.name.toLowerCase().endsWith('.csv') && !file.type.toLowerCase().includes('csv');
+      if (isSpreadsheet) {
+        try {
+          const csvFile = await convertSpreadsheetSheetToCsv(file, sheetTargetName, sheetTargetName);
+          setter(csvFile);
+          onShowToast('info', `Feuille "${sheetTargetName}" du tableur ${file.name} convertie en CSV avec succès.`);
+        } catch (err: any) {
+          onShowToast('error', `Erreur lors de la lecture du tableur : ${err.message || 'feuille introuvable'}`);
+          setter(file);
+        }
+      } else {
+        setter(file);
+      }
       setPreview(null);
     }
     e.target.value = '';
@@ -306,7 +320,7 @@ export function CreateCampaignModal({
                         required
                         accept=".xlsx,.xls,.csv"
                         className="hidden"
-                        onChange={(e) => handleSingleFileUpload(e, setRapportRhFile)}
+                        onChange={(e) => handleSingleFileUpload(e, setRapportRhFile, 'Query_Salaries')}
                       />
                     </label>
                   )}
@@ -349,7 +363,7 @@ export function CreateCampaignModal({
                         required
                         accept=".xlsx,.xls,.csv"
                         className="hidden"
-                        onChange={(e) => handleSingleFileUpload(e, setPrimesFile)}
+                        onChange={(e) => handleSingleFileUpload(e, setPrimesFile, 'Primes')}
                       />
                     </label>
                   )}
@@ -392,7 +406,7 @@ export function CreateCampaignModal({
                         required
                         accept=".xlsx,.xls,.csv"
                         className="hidden"
-                        onChange={(e) => handleSingleFileUpload(e, setVuesMeteosFile)}
+                        onChange={(e) => handleSingleFileUpload(e, setVuesMeteosFile, 'Vue_Meteo')}
                       />
                     </label>
                   )}

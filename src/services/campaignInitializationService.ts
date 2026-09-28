@@ -51,6 +51,74 @@ export async function readImportWorkbook(file: File): Promise<XLSX.WorkBook> {
   });
 }
 
+/**
+ * Si le fichier fourni est un tableur (spreadsheet: xlsx, xls, etc.) et non un CSV,
+ * recherche la feuille cible spécifiée (ex: "Query_Salaries", "Primes", "Vue_Meteo")
+ * et l'exporte sous forme d'un objet File CSV standard.
+ * Si le fichier est déjà un CSV, il est renvoyé tel quel.
+ */
+export async function convertSpreadsheetSheetToCsv(
+  file: File,
+  targetSheetName: string,
+  outputFileNameBase: string
+): Promise<File> {
+  const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type.toLowerCase().includes('csv');
+  if (isCsv) {
+    return file;
+  }
+
+  // Lecture du classeur
+  const workbook = await readImportWorkbook(file);
+  const normalizedTarget = normalizeHeader(targetSheetName);
+
+  // Recherche de la feuille cible : correspondance exacte ou normalisée
+  let matchedSheetName = workbook.SheetNames.find(s => normalizeHeader(s) === normalizedTarget);
+
+  if (!matchedSheetName) {
+    matchedSheetName = workbook.SheetNames.find(s => {
+      const norm = normalizeHeader(s);
+      return norm.includes(normalizedTarget) || normalizedTarget.includes(norm);
+    });
+  }
+
+  // Cas particuliers courants pour les noms de feuilles
+  if (!matchedSheetName) {
+    if (normalizedTarget.includes('query') || normalizedTarget.includes('salarie')) {
+      matchedSheetName = workbook.SheetNames.find(s => {
+        const norm = normalizeHeader(s);
+        return norm.includes('query') || norm.includes('salarie') || norm.includes('rh');
+      });
+    } else if (normalizedTarget.includes('prime')) {
+      matchedSheetName = workbook.SheetNames.find(s => {
+        const norm = normalizeHeader(s);
+        return norm.includes('prime') || norm.includes('affectation');
+      });
+    } else if (normalizedTarget.includes('meteo')) {
+      matchedSheetName = workbook.SheetNames.find(s => {
+        const norm = normalizeHeader(s);
+        return norm.includes('meteo');
+      });
+    }
+  }
+
+  // Si aucune feuille correspondante n'est trouvée, prendre la première feuille par défaut
+  const finalSheetName = matchedSheetName || workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[finalSheetName];
+
+  if (!worksheet) {
+    throw new Error(`La feuille "${targetSheetName}" est introuvable dans le classeur ${file.name}.`);
+  }
+
+  // Conversion de la feuille en texte CSV avec séparateur virgule
+  const csvContent = XLSX.utils.sheet_to_csv(worksheet, { FS: ',', RS: '\n' });
+  const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  
+  return new File([csvBlob], `${outputFileNameBase}.csv`, {
+    type: 'text/csv',
+    lastModified: Date.now()
+  });
+}
+
 export interface CandidateInitData {
   idProfil: string;
   matricule?: string;
@@ -309,7 +377,8 @@ export async function parseFileToSheets(file: File): Promise<SheetParsingResult[
 
 export class CampaignInitializationService {
   /**
-   * Parse la feuille "Primes" d'un fichier Excel
+   * Parse la feuille "Primes" d'un fichier Excel ou CSV
+   * Si le fichier est un tableur, recherche la feuille "Primes"
    * Colonnes exactes par position :
    * - Col A (0) : Matricule_Percoit_Prime (l'évaluateur qui perçoit la prime)
    * - Col B (1) : Matricule_Consultant_Place (le candidat évalué / dossier)
@@ -319,7 +388,9 @@ export class CampaignInitializationService {
    * - Col G (6) : Projet (mission concernée)
    */
   static async parsePrimesFile(file: File, campaignYear: number): Promise<PrimeAssignmentRow[]> {
-    const workbook = await readImportWorkbook(file);
+    // Si c'est un tableur (non-csv), convertir la feuille "Primes" en CSV virtuel d'abord
+    const activeFile = await convertSpreadsheetSheetToCsv(file, 'Primes', 'Primes');
+    const workbook = await readImportWorkbook(activeFile);
 
     let targetSheetName = workbook.SheetNames.find(s => {
       const norm = normalizeHeader(s);
@@ -447,6 +518,7 @@ export class CampaignInitializationService {
 
   /**
    * Parse le fichier "Rapport_RH_Query_Salaries" :
+   * Si le fichier est un tableur, recherche la feuille "Query_Salaries"
    * - "Id_Profil", column C (index 2), unique identifier for users
    * - "Consultant", column I (index 8), contains name and surname (split par espace, 2ème et 3ème éléments)
    * - "Matricule", column L (index 11)
@@ -460,7 +532,9 @@ export class CampaignInitializationService {
    * -> Expérience Totale = Experience_Arrivee_Valorisee_LL + Anciennete_LL
    */
   static async parseRapportRhSalariesFile(file: File): Promise<CandidateInitData[]> {
-    const workbook = await readImportWorkbook(file);
+    // Si c'est un tableur (non-csv), convertir la feuille "Query_Salaries" en CSV virtuel d'abord
+    const activeFile = await convertSpreadsheetSheetToCsv(file, 'Query_Salaries', 'Query_Salaries');
+    const workbook = await readImportWorkbook(activeFile);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
@@ -591,12 +665,15 @@ export class CampaignInitializationService {
 
   /**
    * Parse le fichier "Vues_Meteos" :
+   * Si le fichier est un tableur, recherche la feuille "Vue_Meteo"
    * - "Id_Profil", column B (index 1), savoir à quel consultant la météo est rattachée
    * - Date, column F (index 5), comprise entre le 01/07/N-1 et le 30/06/N inclus
    * - "Liens_Meteo", column Q (index 16), lien vers le document de la météo
    */
   static async parseVuesMeteosFile(file: File, campaignYear: number): Promise<MeteoLinkItem[]> {
-    const workbook = await readImportWorkbook(file);
+    // Si c'est un tableur (non-csv), convertir la feuille "Vue_Meteo" en CSV virtuel d'abord
+    const activeFile = await convertSpreadsheetSheetToCsv(file, 'Vue_Meteo', 'Vue_Meteo');
+    const workbook = await readImportWorkbook(activeFile);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
