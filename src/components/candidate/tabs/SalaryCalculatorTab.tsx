@@ -19,7 +19,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
   const effectiveWished = resolveTargetGrade(effectiveCurrent, reportData.wishedGrade);
 
   const [tjVendu, setTjVendu] = useState<number>(reportData.currentTJM || profile.currentTJM || 0);
-  const [tjCible, setTjCible] = useState<number>(reportData.targetTJM || profile.currentTJM || 0);
+  const [tjCible, setTjCible] = useState<number>(reportData.targetTJM || 0);
   
   const [currentGrade, setCurrentGrade] = useState<Grade | 'Junior'>(effectiveCurrent);
   const [grade, setGrade] = useState<Grade | 'Junior'>(effectiveWished);
@@ -40,13 +40,13 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
     setCurrentGrade(cur);
     setGrade(wish);
     setTjVendu(reportData.currentTJM || profile.currentTJM || 0);
-    setTjCible(reportData.targetTJM || profile.currentTJM || 0);
+    setTjCible(reportData.targetTJM || 0);
     setCurrentSalary(reportData.currentSalary || profile.currentSalary || 0);
   }, [profile.id, profile.currentGrade, profile.currentTJM, profile.currentSalary, reportData.currentGrade, reportData.wishedGrade, reportData.targetTJM]);
 
   useEffect(() => {
     setTjVendu(reportData.currentTJM || profile.currentTJM || 0);
-    setTjCible(reportData.targetTJM || profile.currentTJM || 0);
+    setTjCible(reportData.targetTJM || 0);
     setCurrentSalary(reportData.currentSalary || profile.currentSalary || 0);
   }, [profile.id, profile.currentTJM, profile.currentSalary, reportData.currentTJM, reportData.targetTJM]);
 
@@ -177,23 +177,60 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-          <div className="space-y-6">
-            <NumberInput label="TJ Vendu (€)" value={tjVendu} onChange={v => {
-              const value = Math.max(0, v);
-              setTjVendu(value);
-              setReportData?.(prev => ({ ...prev, currentTJM: value }));
-            }} min={0} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="w-full">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">TJ vendu au 01/07</label>
+              </div>
+              <input
+                type="number"
+                value={tjVendu || ''}
+                readOnly
+                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+              />
+            </div>
 
             <div className="w-full">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">Rémunération au 30/06</label>
+              </div>
+              <input
+                type="number"
+                value={currentSalary || ''}
+                readOnly
+                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+              />
+            </div>
+
+            <div className="w-full" title="Le taux applicable pour les projections Vendu actuelles.">
+              <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Grade au 30/06</label>
+              <select
+                value={currentGrade}
+                disabled
+                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+              >
+                <option value="Junior">Junior</option>
+                <option value="Confirmé">Confirmé</option>
+                <option value="Senior">Senior</option>
+                <option value="Expert">Expert</option>
+              </select>
+            </div>
+        </div>
+
+        <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 space-y-6 mt-10">
+            <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Projections Salariales</div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="w-full">
               <div className="flex items-center justify-between mb-4 px-2">
                 <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
                   <span>Je pense que LL peut me facturer (</span>
                   <a
+                    id="link_tj_cible_calc"
                     href="https://docs.google.com/spreadsheets/d/1LatJvU7ZI5m6-is2oyVihfBSDqzJsdbvxL3pCMQhpJQ/edit?gid=872847313#gid=872847313"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary font-bold underline inline-flex items-center gap-0.5 hover:text-primary-dark"
+                    className="text-primary font-bold underline inline-flex items-center gap-0.5 hover:text-primary-dark px-1 py-0.5 rounded transition-all"
                   >
                     TJ cible
                     <ExternalLink className="w-2.5 h-2.5 inline" />
@@ -210,92 +247,50 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                   setTjCible(val);
                   setReportData?.(prev => ({ ...prev, targetTJM: val }));
                 }}
-                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
-                placeholder="0"
+                className="w-full p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
               />
-            </div>
-
-            <NumberInput label="Rémunération actuelle Fixe :" value={currentSalary} onChange={v => {
-              const value = Math.max(0, Math.floor(v));
-              setCurrentSalary(value);
-              setReportData?.(prev => ({ ...prev, currentSalary: value }));
-            }} min={0} />
-
-            <div className="w-full">
-              <div className="flex items-center justify-between mb-4 px-2">
-                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
-                  Rémunération souhaitée Fixe :
-                </label>
               </div>
-              <input
-                type="number"
+
+              <div className="w-full" title="Le taux applicable dans la formule dépend de ce grade cible pour la promotion.">
+                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Évolution de poste souhaitée (Grade)</label>
+                <select
+                  value={grade}
+                  onChange={e => {
+                    const value = e.target.value as Grade | 'Junior';
+                    setGrade(value);
+                    setReportData?.(prev => ({ ...prev, wishedGrade: value }));
+                  }}
+                  className="w-full p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                >
+                  {availableTargetGrades.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+
+              <NumberInput
+                label="% Investissement (0-100)"
+                value={investPerc}
+                onChange={v => setInvestPerc(Math.min(100, Math.max(0, v)))}
                 min={0}
+                max={100}
                 step={1}
-                value={reportData.wishedSalary || ''}
-                onChange={e => {
-                  const val = e.target.value === '' ? 0 : Math.max(0, Math.floor(Number(e.target.value)));
-                  setReportData?.(prev => ({ ...prev, wishedSalary: val }));
-                }}
-                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+              />
+
+              <NumberInput
+                label="% Mission (95-100)"
+                value={missionPerc}
+                onChange={v => setMissionPerc(Math.min(100, Math.max(95, v)))}
+                min={95}
+                max={100}
+                step={1}
               />
             </div>
             
-            <div className="w-full" title="Le taux applicable pour les projections Vendu actuelles.">
-              <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Grade Actuel</label>
-              <select
-                value={currentGrade}
-                onChange={e => {
-                  const newCurrent = e.target.value as Grade | 'Junior';
-                  setCurrentGrade(newCurrent);
-                  if ((gradeHierarchy[grade] ?? 0) < (gradeHierarchy[newCurrent] ?? 0)) {
-                    setGrade(newCurrent);
-                  }
-                  setReportData?.(prev => ({
-                    ...prev,
-                    currentGrade: newCurrent,
-                    wishedGrade: (gradeHierarchy[prev.wishedGrade] ?? 0) < (gradeHierarchy[newCurrent] ?? 0)
-                      ? newCurrent
-                      : prev.wishedGrade
-                  }));
-                }}
-                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
-              >
-                <option value="Junior">Junior</option>
-                <option value="Confirmé">Confirmé</option>
-                <option value="Senior">Senior</option>
-                <option value="Expert">Expert</option>
-              </select>
-            </div>
-
-            <div className="w-full" title="Le taux applicable dans la formule dépend de ce grade cible pour la promotion.">
-              <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Évolution de poste souhaitée (Grade)</label>
-              <select
-                value={grade}
-                onChange={e => {
-                  const value = e.target.value as Grade | 'Junior';
-                  setGrade(value);
-                  setReportData?.(prev => ({ ...prev, wishedGrade: value }));
-                }}
-                className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
-              >
-                {availableTargetGrades.map(g => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 h-fit space-y-6">
-            <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Projections Salariales</div>
-            
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5" title="Calcul Automatique : ((Taux Grade Actuel × 193 × TJ Vendu) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Salaire Vendu</div>
                 <div className="text-lg font-bold text-accent">{formatCurrency(salaireVendu)}</div>
-              </div>
-              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5" title="Calcul Automatique : ((Taux Grade Actuel × 193 × (TJ Vendu + 30)) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
-                <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Salaire Vendu (100%)</div>
-                <div className="text-lg font-bold text-green-600">{formatCurrency(salaireVendu100)}</div>
               </div>
               <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5" title="Calcul Automatique : ((Taux Grade Cible × 193 × TJ Cible) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Salaire TJ Cible</div>
@@ -313,27 +308,25 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                 {formatCurrency(resFormule)}
               </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-accent/10">
-              <NumberInput 
-                label="% Investissement (0-100)" 
-                value={investPerc} 
-                onChange={v => setInvestPerc(Math.min(100, Math.max(0, v)))} 
-                min={0} 
-                max={100} 
-                step={1} 
-              />
-              
-              <NumberInput 
-                label="% Mission (95-100)" 
-                value={missionPerc} 
-                onChange={v => setMissionPerc(Math.min(100, Math.max(95, v)))} 
-                min={95} 
-                max={100} 
-                step={1} 
-              />
-            </div>
           </div>
+
+        <div className="w-full mt-10">
+          <div className="flex items-center justify-between mb-4 px-2">
+            <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
+              Rémunération souhaitée Fixe :
+            </label>
+          </div>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={reportData.wishedSalary || ''}
+            onChange={e => {
+              const val = e.target.value === '' ? 0 : Math.max(0, Math.floor(Number(e.target.value)));
+              setReportData?.(prev => ({ ...prev, wishedSalary: val }));
+            }}
+            className="w-full p-6 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+          />
         </div>
 
         {/* Commentaire libre */}

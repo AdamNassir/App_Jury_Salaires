@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { FileUp, Eye, Trash2, CheckCircle2, Loader2, CloudDownload, AlertCircle } from 'lucide-react';
+import { FileUp, Eye, Trash2, CheckCircle2, Loader2, CloudDownload, AlertCircle, Upload } from 'lucide-react';
 import { doc, setDoc } from '../../../lib/localDatabase';
 import { db } from '../../../lib/localDatabase';
 import { Dossier, DossierDocument, UserProfile } from '../../../types';
+import { cn } from '../../../lib/utils';
 
 interface DocumentsTabProps {
   profile: UserProfile;
@@ -12,6 +13,8 @@ interface DocumentsTabProps {
   handleViewDocument: (dDoc: DossierDocument) => void;
   handleImportPastYearObjectives?: () => Promise<void>;
   isImportingPastObjectives?: boolean;
+  handleManualDepositBilanN1?: (file: File) => Promise<void>;
+  isManualDepositingBilan?: boolean;
   pastImportSuccessMessage?: string | null;
   pastImportErrorMessage?: string | null;
 }
@@ -23,40 +26,129 @@ export function DocumentsTab({
   handleViewDocument,
   handleImportPastYearObjectives,
   isImportingPastObjectives,
+  handleManualDepositBilanN1,
+  isManualDepositingBilan,
   pastImportSuccessMessage,
   pastImportErrorMessage
 }: DocumentsTabProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
   return (
     <motion.div key="docs" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <div className="bg-white p-12 rounded-xl border border-accent/10 shadow-sm font-sans">
         <div className="mb-8 border-b border-accent/10 pb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h2 className="text-secondary">Pièces Jointes & Import</h2>
-            <div className="flex flex-wrap items-center gap-3">
-            {handleImportPastYearObjectives && (
-              <button
-                type="button"
-                onClick={handleImportPastYearObjectives}
-                disabled={isImportingPastObjectives || isLockedForEditing}
-                className="flex items-center gap-2.5 bg-primary text-white px-6 py-3.5 rounded-base text-sm font-bold hover:brightness-110 transition-all shadow-md cursor-pointer disabled:opacity-50"
-                title="Recherche automatiquement dans le Drive d'entreprise le bilan de l'année passée pour pré-remplir les objectifs"
-              >
-                {isImportingPastObjectives ? (
-                  <Loader2 className="w-5 h-5 animate-spin shrink-0" />
-                ) : (
-                  <CloudDownload className="w-5 h-5 shrink-0" />
-                )}
-                <span>{isImportingPastObjectives ? 'Recherche Drive en cours...' : 'Importer Bilan Année Passée'}</span>
-              </button>
-            )}
+            <div>
+              <h2 className="text-secondary text-2xl font-bold">Pièces Jointes & Import</h2>
+              <p className="text-xs text-accent/60 mt-1">
+                Gérez vos documents justificatifs et importez votre Bilan Annuel N-1 pour remplir vos objectifs.
+              </p>
+            </div>
+            <div id="link_drive_evaluation_n1" className="flex flex-wrap items-center gap-3 transition-all rounded-lg p-1">
+              {handleImportPastYearObjectives && (
+                <button
+                  type="button"
+                  onClick={handleImportPastYearObjectives}
+                  disabled={isImportingPastObjectives || isManualDepositingBilan || isLockedForEditing}
+                  className="flex items-center gap-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-5 py-3 rounded-base text-sm font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  title="Recherche automatiquement dans le Drive d'entreprise le bilan de l'année passée pour pré-remplir les objectifs"
+                >
+                  {isImportingPastObjectives ? (
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  ) : (
+                    <CloudDownload className="w-4 h-4 shrink-0" />
+                  )}
+                  <span>{isImportingPastObjectives ? 'Recherche Drive...' : 'Importer depuis Drive'}</span>
+                </button>
+              )}
+              {handleManualDepositBilanN1 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isManualDepositingBilan || isImportingPastObjectives || isLockedForEditing}
+                  className="flex items-center gap-2.5 bg-primary text-white px-5 py-3 rounded-base text-sm font-bold hover:brightness-110 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                  title="Déposer manuellement le fichier Bilan Annuel N-1 (.docx, .pdf) pour extraire les objectifs"
+                >
+                  {isManualDepositingBilan ? (
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  ) : (
+                    <Upload className="w-4 h-4 shrink-0" />
+                  )}
+                  <span>{isManualDepositingBilan ? 'Extraction en cours...' : 'Déposer Bilan N-1'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-xl flex items-center gap-3 text-red-600 font-bold text-xs sm:text-sm shadow-sm">
-          <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+        {/* Zone de glisser-déposer pour le Bilan N-1 */}
+        {handleManualDepositBilanN1 && (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              if (isLockedForEditing || isManualDepositingBilan) return;
+              const file = e.dataTransfer.files?.[0];
+              if (file) {
+                handleManualDepositBilanN1(file);
+              }
+            }}
+            onClick={() => {
+              if (!isLockedForEditing && !isManualDepositingBilan) {
+                fileInputRef.current?.click();
+              }
+            }}
+            className={cn(
+              "mb-6 p-6 rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-3",
+              isDragging
+                ? "border-primary bg-primary/10 shadow-md scale-[1.01]"
+                : "border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50",
+              (isLockedForEditing || isManualDepositingBilan) && "opacity-60 cursor-not-allowed"
+            )}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".docx,.doc,.pdf,.xlsx,.json,.txt"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file && handleManualDepositBilanN1) {
+                  handleManualDepositBilanN1(file);
+                }
+                e.target.value = '';
+              }}
+            />
+            <div className="w-12 h-12 rounded-full bg-white shadow-xs flex items-center justify-center text-primary">
+              {isManualDepositingBilan ? (
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              ) : (
+                <Upload className="w-6 h-6 text-primary" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-secondary">
+                {isManualDepositingBilan
+                  ? "Analyse du document et extraction des objectifs N-1 en cours..."
+                  : "Déposer manuellement votre Bilan Annuel N-1"}
+              </p>
+              <p className="text-xs text-accent/70 max-w-lg">
+                Glissez-déposez ici votre document Word (<strong>.docx</strong>), PDF (<strong>.pdf</strong>) ou JSON pour extraire automatiquement vos <strong>« Objectifs Année Passée »</strong>.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-start gap-3 text-secondary text-xs sm:text-sm">
+          <AlertCircle className="w-5 h-5 shrink-0 text-primary mt-0.5" />
           <span>
-            Cliquez sur le bouton « Importer Bilan Année Passée » ci-dessus pour récupérer automatiquement vos objectifs N-1 depuis le Google Drive de l'entreprise.
+            Pour renseigner vos <strong>Objectifs Année Passée</strong>, vous pouvez soit utiliser le bouton <strong>« Importer depuis Drive »</strong> (recherche automatique dans Google Drive), soit <strong>glisser-déposer directement votre fichier</strong> de Bilan N-1 dans la zone ci-dessus.
           </span>
         </div>
 

@@ -15,9 +15,20 @@ import { JuryView } from './components/JuryView';
 import { Dashboard } from './components/Dashboard';
 import { UserManagement } from './components/UserManagement';
 import { CampaignManagement } from './components/CampaignManagement';
-import { LogIn, ShieldAlert, Loader2, Settings, Users, User as UserIcon, FolderKanban, ShieldCheck, Calendar } from 'lucide-react';
+import { AdminLinksTable } from './components/admin/AdminLinksTable';
+import { LogIn, ShieldAlert, Loader2, Settings, Users, User as UserIcon, FolderKanban, ShieldCheck, Calendar, Link as LinkIcon } from 'lucide-react';
 
-type ActiveViewType = 'CANDIDATE' | 'EVALUATIONS' | 'JURY' | 'CAMPAIGNS' | 'ADMIN';
+type ActiveViewType = 'CANDIDATE' | 'EVALUATIONS' | 'JURY' | 'CAMPAIGNS' | 'ADMIN' | 'LINKS';
+
+interface HistoryItem {
+  view: ActiveViewType | null;
+  tab?: string | null;
+  showRoleSelection: boolean;
+  candidateId?: string;
+  linkId?: string | null;
+  fromLinkId?: string | null;
+  scrollY?: number;
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -26,6 +37,8 @@ export default function App() {
   const [allDossiers, setAllDossiers] = useState<Dossier[]>([]);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [activeView, setActiveView] = useState<ActiveViewType | null>(null);
+  const [candidateInitialTab, setCandidateInitialTab] = useState<string | null>(null);
+  const [targetLinkId, setTargetLinkId] = useState<string | null>(null);
   const [candidateProfiles, setCandidateProfiles] = useState<UserProfile[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
@@ -35,6 +48,13 @@ export default function App() {
   const [profileRetry, setProfileRetry] = useState(0);
   const signInPending = useRef(false);
   const hasAttemptedSignIn = useRef(false);
+  const [canGoBackState, setCanGoBackState] = useState(false);
+  const previousStateRef = useRef<{
+    sourceView: ActiveViewType | null;
+    tab: string | null;
+    showRoleSelection: boolean;
+    candidateId: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -225,9 +245,51 @@ export default function App() {
     };
   }, [profile, activeView, showRoleSelection]);
 
-  const handleViewSelection = (view: ActiveViewType) => {
+  const navigateTo = (view: ActiveViewType, tab?: string | null, candidateId?: string, linkId?: string | null, _fromLinkId?: string | null) => {
+    previousStateRef.current = {
+      sourceView: activeView,
+      tab: candidateInitialTab,
+      showRoleSelection,
+      candidateId: selectedCandidateId,
+    };
+    setCanGoBackState(true);
+
     setActiveView(view);
     setShowRoleSelection(false);
+    if (tab !== undefined) {
+      setCandidateInitialTab(tab);
+    }
+    if (candidateId) {
+      setSelectedCandidateId(candidateId);
+    }
+    setTargetLinkId(linkId || null);
+
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  const handleGoBack = () => {
+    if (previousStateRef.current) {
+      const saved = previousStateRef.current;
+      previousStateRef.current = null;
+      setCanGoBackState(false);
+
+      setActiveView(saved.sourceView);
+      setShowRoleSelection(saved.showRoleSelection);
+      setCandidateInitialTab(saved.tab || null);
+      if (saved.candidateId !== undefined) {
+        setSelectedCandidateId(saved.candidateId);
+      }
+      setTargetLinkId(null);
+    } else if (!showRoleSelection) {
+      setCanGoBackState(false);
+      setShowRoleSelection(true);
+    }
+    // Always bring back to the top of the page
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  const handleViewSelection = (view: ActiveViewType) => {
+    navigateTo(view, null);
   };
 
   const handleLogout = async () => {
@@ -238,13 +300,25 @@ export default function App() {
       setProfileError(null);
       setSignInError(null);
       setSelectedCandidateId('');
+      previousStateRef.current = null;
+      setCanGoBackState(false);
     } catch (error) {
       setSignInError(describeAuthError(error));
     }
   };
 
   const goHome = () => {
-    setShowRoleSelection(true);
+    if (!showRoleSelection) {
+      previousStateRef.current = {
+        sourceView: activeView,
+        tab: candidateInitialTab,
+        showRoleSelection,
+        candidateId: selectedCandidateId,
+      };
+      setCanGoBackState(true);
+      setShowRoleSelection(true);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
   };
 
   if (loading) {
@@ -413,7 +487,10 @@ export default function App() {
                 <div className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-primary" /> Espace Administration & Paramétrage
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={cn(
+                  "grid gap-4",
+                  isAdminUser ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"
+                )}>
                   {isAdminUser && (
                     <button
                       onClick={() => handleViewSelection('CAMPAIGNS')}
@@ -440,8 +517,7 @@ export default function App() {
                       "p-6 border rounded-xl text-left transition-all group relative overflow-hidden bg-accent/5",
                       activeView === 'ADMIN' 
                         ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                        : "border-accent/10 hover:border-primary/50 cursor-pointer",
-                      !isAdminUser && "sm:col-span-2"
+                        : "border-accent/10 hover:border-primary/50 cursor-pointer"
                     )}
                   >
                     <div className="font-bold text-base text-accent mb-1 flex items-center gap-2">
@@ -450,6 +526,24 @@ export default function App() {
                     </div>
                     <div className="text-xs text-accent/60 font-light">
                       Gestion des utilisateurs, effectifs et rôles.
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleViewSelection('LINKS')}
+                    className={cn(
+                      "p-6 border rounded-xl text-left transition-all group relative overflow-hidden bg-secondary/5",
+                      activeView === 'LINKS' 
+                        ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                        : "border-accent/10 hover:border-primary/50 cursor-pointer"
+                    )}
+                  >
+                    <div className="font-bold text-base text-secondary mb-1 flex items-center gap-2">
+                      <LinkIcon className="w-5 h-5 text-primary" />
+                      Répertoire des Liens
+                    </div>
+                    <div className="text-xs text-accent/60 font-light">
+                      Gestion des hyperliens (Drives, Sheets, Modèles).
                     </div>
                   </button>
                 </div>
@@ -472,7 +566,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-accent pb-20">
-      <Navbar profile={profile} onLogout={handleLogout} onHome={goHome} />
+      <Navbar 
+        profile={profile} 
+        onLogout={handleLogout} 
+        onHome={goHome} 
+        onBack={handleGoBack}
+        canGoBack={canGoBackState || !showRoleSelection}
+      />
       
       <main className="max-w-7xl mx-auto px-4 pt-44">
         {(() => {
@@ -544,15 +644,16 @@ export default function App() {
                       {activeView === 'JURY' && 'Espace de Pilotage'}
                       {activeView === 'CAMPAIGNS' && 'Gestion des Campagnes'}
                       {activeView === 'ADMIN' && 'Administration Système'}
+                      {activeView === 'LINKS' && 'Répertoire des Liens & Hyperliens'}
                     </h2>
                   </div>
 
                   {/* Sub-navigation tabs for Admin and Jury */}
-                  {(isAdmin || profile?.roles?.includes('JURY')) && (activeView === 'CAMPAIGNS' || activeView === 'ADMIN') && (
+                  {(isAdmin || profile?.roles?.includes('JURY')) && (activeView === 'CAMPAIGNS' || activeView === 'ADMIN' || activeView === 'LINKS') && (
                     <div className="flex items-center gap-2 bg-accent/5 p-1.5 rounded-xl border border-accent/10">
                       {isAdmin && (
                         <button
-                          onClick={() => setActiveView('CAMPAIGNS')}
+                          onClick={() => navigateTo('CAMPAIGNS')}
                           className={cn(
                             "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
                             activeView === 'CAMPAIGNS' 
@@ -565,7 +666,7 @@ export default function App() {
                         </button>
                       )}
                       <button
-                        onClick={() => setActiveView('ADMIN')}
+                        onClick={() => navigateTo('ADMIN')}
                         className={cn(
                           "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
                           activeView === 'ADMIN' 
@@ -575,6 +676,18 @@ export default function App() {
                       >
                         <Settings className="w-4 h-4" />
                         Utilisateurs & Rôles
+                      </button>
+                      <button
+                        onClick={() => navigateTo('LINKS')}
+                        className={cn(
+                          "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
+                          activeView === 'LINKS' 
+                            ? "bg-primary text-white shadow-sm" 
+                            : "text-accent/60 hover:text-accent hover:bg-white"
+                        )}
+                      >
+                        <LinkIcon className="w-4 h-4" />
+                        Hyperliens & URLs
                       </button>
                     </div>
                   )}
@@ -631,13 +744,16 @@ export default function App() {
                 </div>
               )}
 
-              <AnimatePresence mode="wait">
+              <AnimatePresence>
                 {activeView === 'CANDIDATE' && (
                   <motion.div key={activeCandidateId} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                     <CandidateView 
                       profile={activeCandidateProfile} 
                       dossier={activeCandidateDossier} 
                       currentUser={profile} 
+                      initialTab={candidateInitialTab}
+                      targetLinkId={targetLinkId}
+                      onTabChange={(tab) => setCandidateInitialTab(tab)}
                     />
                   </motion.div>
                 )}
@@ -662,6 +778,16 @@ export default function App() {
                 {activeView === 'ADMIN' && (
                   <motion.div key="admin" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                     <UserManagement currentUser={profile} />
+                  </motion.div>
+                )}
+                {activeView === 'LINKS' && (
+                  <motion.div key="links" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                    <AdminLinksTable 
+                      currentUser={profile} 
+                      onNavigate={(view, tab, linkId) => {
+                        navigateTo(view, tab, undefined, linkId, linkId);
+                      }}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -1,5 +1,6 @@
 import { getGoogleAccessToken, requestGoogleSheetsAccess } from '../lib/firebase';
 import { Dossier, UserProfile, JuryDecision, UserRole, Grade } from '../types';
+import { AppLinkItem } from './appLinksService';
 import { 
   calculateYears, 
   getPrimeAnciennete, 
@@ -468,6 +469,142 @@ export async function exportDeliberationsToGoogleSheet(
 
   // Write data to range A1
   const updateRange = `${tabName}!A1`;
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(updateRange)}?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        range: updateRange,
+        majorDimension: 'ROWS',
+        values: allValues
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData?.error?.message || `Erreur d'écriture dans Google Sheets (${response.status})`;
+    throw new Error(message);
+  }
+
+  return {
+    success: true,
+    rowsExported: rows.length,
+    spreadsheetId,
+    sheetUrl,
+    timestamp: new Date().toLocaleTimeString('fr-FR')
+  };
+}
+
+export const APP_LINKS_SPREADSHEET_ID = '1edQ_U90-A8karQ1R4MkoUwhG4j-vZdYcqrLWoKZe15E';
+export const APP_LINKS_SPREADSHEET_URL = `https://docs.google.com/spreadsheets/d/${APP_LINKS_SPREADSHEET_ID}/edit?gid=0#gid=0`;
+
+/**
+ * Exporte l'intégralité de la table des hyperliens vers le classeur Google Sheets cible.
+ * Tente d'abord le Service Account serveur, puis bascule gracieusement sur OAuth client si besoin.
+ */
+export async function exportAppLinksToGoogleSheet(
+  links: AppLinkItem[],
+  customSpreadsheetId: string = APP_LINKS_SPREADSHEET_ID,
+  targetTabName: string = 'Hyperliens'
+): Promise<SheetExportResult> {
+  const spreadsheetId = customSpreadsheetId;
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?gid=0#gid=0`;
+
+  const headers = [
+    'Libelle_Lien',
+    'Url_Lien',
+    'Emplacement_Dans_App',
+    'Type_Acces',
+    'Categorie',
+    'Description'
+  ];
+
+  const rows = links.map(l => [
+    l.libelle || '',
+    l.url || '',
+    l.appLocation || '',
+    l.inAppAccessType || '',
+    l.category || '',
+    l.description || ''
+  ]);
+
+  const allValues = [headers, ...rows];
+
+  // 1. Tenter via l'API serveur (Service Account)
+  try {
+    const serverRes = await fetch('/api/sheets/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spreadsheetId,
+        folderId: null,
+        tabName: targetTabName,
+        values: allValues
+      })
+    });
+
+    if (serverRes.ok) {
+      const serverData = await serverRes.json();
+      return {
+        success: true,
+        rowsExported: serverData.rowsExported ?? rows.length,
+        spreadsheetId,
+        sheetUrl,
+        timestamp: serverData.timestamp || new Date().toLocaleTimeString('fr-FR')
+      };
+    }
+  } catch (serverErr) {
+    console.warn("Notice: Export serveur non disponible, bascule OAuth client:", serverErr);
+  }
+
+  // 2. Repli côté client avec le token OAuth Google
+  let token = await getValidToken();
+
+  // Identifier le nom du premier onglet si l'onglet cible n'existe pas
+  let effectiveTabName = targetTabName;
+  try {
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (metaRes.ok) {
+      const metaData = await metaRes.json();
+      const tabExists = metaData.sheets?.some(
+        (s: any) => s.properties?.title?.toLowerCase() === targetTabName.toLowerCase()
+      );
+      if (!tabExists && metaData.sheets && metaData.sheets.length > 0) {
+        effectiveTabName = metaData.sheets[0].properties?.title || targetTabName;
+      }
+    }
+  } catch (tabErr) {
+    console.warn("Could not probe sheet tabs:", tabErr);
+  }
+
+  // Ensure sheet tab exists
+  await ensureSheetTabExists(spreadsheetId, effectiveTabName, token);
+
+  // Clear existing values in this tab
+  try {
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(effectiveTabName)}:clear`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  } catch (clearErr) {
+    console.warn("Could not clear range before update:", clearErr);
+  }
+
+  // Write data to A1
+  const updateRange = `${effectiveTabName}!A1`;
   const response = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(updateRange)}?valueInputOption=USER_ENTERED`,
     {

@@ -1,18 +1,37 @@
 import React from 'react';
-import { LogOut, User as UserIcon, Building2 } from 'lucide-react';
+import { LogOut, User as UserIcon, Building2, ArrowLeft } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface NavbarProps {
   profile: UserProfile;
   onLogout: () => void;
   onHome: () => void;
+  onBack?: () => void;
+  canGoBack?: boolean;
 }
 
-export function Navbar({ profile, onLogout, onHome }: NavbarProps) {
+export function Navbar({ profile, onLogout, onHome, onBack, canGoBack }: NavbarProps) {
   return (
     <nav className="bg-white border-b border-accent/10 py-6 px-4 fixed top-0 w-full z-50 shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3.5">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={canGoBack === false}
+              className={`p-2.5 rounded-xl border transition-all flex items-center justify-center group ${
+                canGoBack === false
+                  ? 'border-accent/10 text-accent/20 cursor-not-allowed bg-accent/[0.02]'
+                  : 'border-accent/20 bg-accent/5 hover:bg-primary hover:text-white hover:border-primary text-secondary cursor-pointer shadow-2xs'
+              }`}
+              title="Page précédente"
+              aria-label="Retour à la page précédente"
+            >
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            </button>
+          )}
+
           <div className="w-12 h-12 bg-primary rounded-base flex items-center justify-center text-white shadow-lg">
             <Building2 className="w-7 h-7" />
           </div>

@@ -1,3 +1,5 @@
+import type { ReferentDatasets } from './services/referentDataService';
+
 export type UserRole = 'CANDIDATE' | 'JURY' | 'ADMIN' | 'EVALUATOR';
 export type DossierStatus = 'OUVERT' | 'COMPLET' | 'VALIDE';
 export type CampaignStatus = 'OUVERTE' | 'CLÔTURÉE' | 'EN_PRÉPARATION';
@@ -398,6 +400,7 @@ export interface Dossier {
   clientFeedbacks?: ClientFeedback[];
   meteoLinks?: string[];
   documents?: DossierDocument[];
+  referentData?: ReferentDatasets;
   
   // Assignments
   assignedConsultantIds: string[];

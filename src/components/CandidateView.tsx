@@ -47,10 +47,13 @@ interface CandidateViewProps {
   profile: UserProfile;
   dossier?: Dossier;
   currentUser?: UserProfile;
+  initialTab?: string | null;
+  targetLinkId?: string | null;
+  onTabChange?: (tab: string) => void;
 }
 
 
-export function CandidateView({ profile, dossier }: CandidateViewProps) {
+export function CandidateView({ profile, dossier, currentUser, initialTab, targetLinkId, onTabChange }: CandidateViewProps) {
   const [dossierStatus, setDossierStatus] = useState<DossierStatus>(() => dossier?.status || 'OUVERT');
 
   // Keep dossierStatus in sync if dossier prop changes from parent
@@ -68,6 +71,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isImportingPastObjectives, setIsImportingPastObjectives] = useState(false);
+  const [isManualDepositingBilan, setIsManualDepositingBilan] = useState(false);
   const [pastImportSuccessMessage, setPastImportSuccessMessage] = useState<string | null>(null);
   const [pastImportErrorMessage, setPastImportErrorMessage] = useState<string | null>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
@@ -75,9 +79,60 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
 
   type CandidateTabType = 'DOCUMENTS' | 'BILAN_INTRO' | 'SYNTHESE' | 'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY';
 
-  const [activeTab, setActiveTab] = useState<CandidateTabType>(
-    isDeliberatedOrValide ? 'AVIS_JURY' : 'DOCUMENTS'
-  );
+  const [activeTab, setActiveTab] = useState<CandidateTabType>(() => {
+    if (initialTab) return initialTab as CandidateTabType;
+    return isDeliberatedOrValide ? 'AVIS_JURY' : 'DOCUMENTS';
+  });
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab as CandidateTabType);
+      if (onTabChange) onTabChange(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (targetLinkId && targetLinkId.startsWith('link_ref_')) {
+      setReportData(prev => ({ ...prev, isReferentOrAspiring: true }));
+    }
+  }, [targetLinkId]);
+
+  useEffect(() => {
+    if (!targetLinkId) return;
+
+    let attempts = 0;
+    const maxAttempts = 30; // Check every 25ms up to 750ms for layout stabilization
+
+    const timer = setInterval(() => {
+      attempts++;
+      const el = document.getElementById(targetLinkId);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const navbarHeight = 180;
+        const availableHeight = Math.max(200, window.innerHeight - navbarHeight);
+        const targetScrollY = Math.max(0, window.scrollY + rect.top - navbarHeight - Math.max(0, (availableHeight - rect.height) / 2));
+
+        // Use instant scroll initially to place viewport accurately without interruption, then smooth if needed
+        window.scrollTo({ top: targetScrollY, behavior: attempts <= 3 ? 'instant' : 'smooth' });
+
+        document.querySelectorAll('.target-link-highlight').forEach(n => {
+          n.classList.remove('target-link-highlight');
+        });
+        el.classList.add('target-link-highlight');
+
+        // Stop polling once the element has stabilized well within view after initial rendering
+        if (attempts >= 8 && rect.top >= 140 && rect.bottom <= window.innerHeight + 50) {
+          clearInterval(timer);
+        }
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(timer);
+      }
+    }, 25);
+
+    return () => clearInterval(timer);
+  }, [targetLinkId, activeTab]);
 
   const visibleTabs: CandidateTabType[] = [
     'DOCUMENTS',
@@ -97,6 +152,7 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
 
   const handleTabChange = (tab: CandidateTabType) => {
     setActiveTab(tab);
+    if (onTabChange) onTabChange(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -335,6 +391,71 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
       setPastImportErrorMessage(errMsg);
     } finally {
       setIsImportingPastObjectives(false);
+    }
+  };
+
+  const handleManualDepositBilanN1 = async (file: File) => {
+    if (isLockedForEditing) return;
+    setIsManualDepositingBilan(true);
+    setPastImportSuccessMessage(null);
+    setPastImportErrorMessage(null);
+
+    try {
+      const campaignYear = dossier?.campaignYear || (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, '')) : 2026) || 2026;
+      const priorYear = campaignYear - 1;
+      const targetDossierId = dossier?.id || `${profile.id}_${campaignYear}`;
+
+      const result = await DriveObjectivesService.extractObjectivesFromUploadedFile(file);
+      if (!result.success || result.objectives.length === 0) {
+        throw new Error(result.error || "Aucun objectif n'a pu être extrait du fichier déposé.");
+      }
+
+      // 1. Mettre à jour les objectifs dans le rapport annuel
+      setReportData(prev => {
+        const updated = {
+          ...prev,
+          previousObjectives: result.objectives
+        };
+
+        setDoc(doc(db, 'dossiers', targetDossierId), {
+          annualReport: sanitizeForStorage(updated)
+        }, { merge: true }).catch(err => console.error("Auto-saved previousObjectives err:", err));
+
+        return updated;
+      });
+
+      // 2. Enregistrer le document déposé dans dossier.documents
+      const docType = file.name.endsWith('.pdf') ? 'PDF' : (file.name.endsWith('.docx') ? 'DOCX' : 'DOCUMENT');
+      const depositedDocItem: DossierDocument = {
+        type: docType,
+        name: `Bilan Annuel N-1 (${priorYear}) - ${file.name}`,
+        url: `local-file://${file.name}`,
+        uploadedAt: new Date().toISOString(),
+        fieldsPopulated: true
+      };
+
+      const existingDocs = dossier?.documents || [];
+      const alreadyExists = existingDocs.some(d => d.name === depositedDocItem.name);
+      if (!alreadyExists) {
+        await setDoc(doc(db, 'dossiers', targetDossierId), {
+          documents: [depositedDocItem, ...existingDocs]
+        }, { merge: true });
+      }
+
+      const successMsg = `🎉 Succès ! ${result.objectives.length} objectif(s) de l'année passée ont été extraits depuis "${file.name}" et enregistrés dans vos Objectifs Année Passée.`;
+      setPastImportSuccessMessage(successMsg);
+
+      const toast = document.createElement("div");
+      toast.innerText = successMsg;
+      toast.className = "fixed bottom-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-xl z-50 max-w-md text-xs font-semibold leading-relaxed animate-bounce";
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 6000);
+    } catch (err: any) {
+      console.error("Erreur extraction objectifs fichier déposé:", err);
+      const errMsg = err.message || "Erreur lors de l'extraction des objectifs du fichier déposé.";
+      setPastImportErrorMessage(errMsg);
+    } finally {
+      setIsManualDepositingBilan(false);
     }
   };
 
@@ -751,6 +872,8 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
               handleViewDocument={handleViewDocument}
               handleImportPastYearObjectives={handleImportPastYearObjectives}
               isImportingPastObjectives={isImportingPastObjectives}
+              handleManualDepositBilanN1={handleManualDepositBilanN1}
+              isManualDepositingBilan={isManualDepositingBilan}
               pastImportSuccessMessage={pastImportSuccessMessage}
               pastImportErrorMessage={pastImportErrorMessage}
             />
@@ -773,6 +896,8 @@ export function CandidateView({ profile, dossier }: CandidateViewProps) {
               setReportData={setReportData}
               handleImportPastYearObjectives={handleImportPastYearObjectives}
               isImportingPastObjectives={isImportingPastObjectives}
+              handleManualDepositBilanN1={handleManualDepositBilanN1}
+              isManualDepositingBilan={isManualDepositingBilan}
             />
           )}
 

@@ -476,4 +476,65 @@ export class DriveObjectivesService {
       };
     }
   }
+
+  /**
+   * Extrait les objectifs de l'année passée depuis un fichier déposé manuellement par le candidat (.docx, .pdf, .json)
+   */
+  static async extractObjectivesFromUploadedFile(file: File): Promise<{
+    success: boolean;
+    objectives: ExtractedObjectiveItem[];
+    error?: string;
+  }> {
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = err => reject(err);
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch('/api/candidate/extract-file-objectives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileData: base64Data,
+          mimeType: file.type || 'application/octet-stream'
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || `Erreur lors de l'analyse du document (${res.status})`);
+      }
+
+      const data = await res.json();
+      const rawObjectives: string[] = data.objectives || [];
+
+      if (rawObjectives.length === 0) {
+        return {
+          success: false,
+          objectives: [],
+          error: "Aucun objectif n'a pu être extrait du fichier déposé."
+        };
+      }
+
+      const formattedObjectives: ExtractedObjectiveItem[] = rawObjectives.map(text => ({
+        objective: text,
+        comments: '',
+        reached: 'OUI'
+      }));
+
+      return {
+        success: true,
+        objectives: formattedObjectives
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        objectives: [],
+        error: err.message || "Erreur lors de l'extraction des objectifs du fichier."
+      };
+    }
+  }
 }

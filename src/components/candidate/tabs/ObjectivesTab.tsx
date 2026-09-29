@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'motion/react';
-import { Trash2, Plus, CloudDownload, Loader2 } from 'lucide-react';
+import { Trash2, Plus, CloudDownload, Loader2, Upload } from 'lucide-react';
 import { Section, FormField } from '../CandidateUI';
 import { AnnualReport } from '../../../types';
 import { cn } from '../../../lib/utils';
@@ -10,14 +10,20 @@ interface ObjectivesTabProps {
   setReportData: React.Dispatch<React.SetStateAction<AnnualReport>>;
   handleImportPastYearObjectives?: () => Promise<void>;
   isImportingPastObjectives?: boolean;
+  handleManualDepositBilanN1?: (file: File) => Promise<void>;
+  isManualDepositingBilan?: boolean;
 }
 
 export function ObjectivesTab({
   reportData,
   setReportData,
   handleImportPastYearObjectives,
-  isImportingPastObjectives
+  isImportingPastObjectives,
+  handleManualDepositBilanN1,
+  isManualDepositingBilan
 }: ObjectivesTabProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const addObjectivePast = () => {
     setReportData(prev => ({
       ...prev,
@@ -30,21 +36,45 @@ export function ObjectivesTab({
       <Section
         title="Objectifs Année Passée"
         action={
-          handleImportPastYearObjectives ? (
-            <button
-              type="button"
-              onClick={handleImportPastYearObjectives}
-              disabled={isImportingPastObjectives}
-              className="flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isImportingPastObjectives ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <CloudDownload className="w-4 h-4" />
-              )}
-              <span>{isImportingPastObjectives ? 'Import...' : 'Importer Bilan Année Passée'}</span>
-            </button>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {handleImportPastYearObjectives && (
+              <button
+                type="button"
+                onClick={handleImportPastYearObjectives}
+                disabled={isImportingPastObjectives || isManualDepositingBilan}
+                className="flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                title="Importer automatiquement depuis Google Drive"
+              >
+                {isImportingPastObjectives ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CloudDownload className="w-4 h-4" />
+                )}
+                <span>{isImportingPastObjectives ? 'Recherche Drive...' : 'Importer Drive'}</span>
+              </button>
+            )}
+            {handleManualDepositBilanN1 && (
+              <label className="flex items-center gap-2 bg-primary text-white hover:brightness-110 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs">
+                {isManualDepositingBilan ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                <span>{isManualDepositingBilan ? 'Extraction...' : 'Déposer Bilan N-1'}</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".docx,.doc,.pdf,.xlsx,.json,.txt"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleManualDepositBilanN1(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            )}
+          </div>
         }
       >
         <div className="space-y-6">

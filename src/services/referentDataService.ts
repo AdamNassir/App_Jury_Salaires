@@ -360,7 +360,7 @@ export class ReferentDataService {
   private static cache: Record<string, ReferentDatasets> = {};
 
   /**
-   * Retourne les données en cache si disponibles
+   * Retourne les données en cache mémoire si disponibles
    */
   static getCachedData(
     candidatIdProfil?: string,
@@ -369,6 +369,324 @@ export class ReferentDataService {
   ): ReferentDatasets | null {
     const key = `${(candidatIdProfil || candidatName || '').trim().toLowerCase()}_${campaignYear}`;
     return this.cache[key] || null;
+  }
+
+  /**
+   * Récupère les données préchargées et stockées dans l'application pour une campagne
+   */
+  static getStoredCampaignCandidateData(
+    candidatIdProfil?: string,
+    campaignYear: number = 2026
+  ): ReferentDatasets | null {
+    if (!candidatIdProfil) return null;
+    const cleanId = candidatIdProfil.trim().toLowerCase();
+    const cacheKey = `${cleanId}_${campaignYear}`;
+    if (this.cache[cacheKey]) {
+      return this.cache[cacheKey];
+    }
+    try {
+      const storageKey = `campaign_referent_data_${campaignYear}`;
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, ReferentDatasets>;
+        if (parsed) {
+          Object.entries(parsed).forEach(([k, v]) => {
+            this.cache[k] = v;
+          });
+          if (parsed[cleanId]) return parsed[cleanId];
+          if (parsed[candidatIdProfil.trim()]) return parsed[candidatIdProfil.trim()];
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading stored campaign referent data:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Précharge les données Référent pour tous les candidats lors de l'initialisation de la campagne
+   * et les stocke dans l'application pour un accès immédiat.
+   */
+  static async preloadCampaignReferentData(
+    campaignYear: number = 2026,
+    candidates: Array<{ idProfil: string; displayName?: string }> = []
+  ): Promise<Record<string, ReferentDatasets>> {
+    const resultMap: Record<string, ReferentDatasets> = {};
+    if (!candidates || candidates.length === 0) {
+      return resultMap;
+    }
+
+    try {
+      // Dictionnaire partagé des pièces jointes (gid 581811371)
+      const pjMap = new Map<string, string>();
+      try {
+        const candidatePjTabs = ['Pièce_Jointe', 'Piece_Jointe', 'Pieces_Jointes', 'Pièces_Jointes'];
+        let pjTabName: string | null = null;
+        for (const candidateName of candidatePjTabs) {
+          const testRes = await fetchSheetDataWithHeaders(candidateName, 'A1:D10');
+          if (testRes.rows.length > 0 || (testRes.headers && testRes.headers.length > 0)) {
+            pjTabName = candidateName;
+            break;
+          }
+        }
+        if (!pjTabName) {
+          pjTabName = await getSheetTitleByGid(581811371);
+        }
+
+        if (pjTabName) {
+          const pjRes = await fetchSheetDataWithHeaders(pjTabName, 'A1:Z5000');
+          for (const r of pjRes.rows) {
+            const idDoc = String(r[0] || '').trim();
+            let linkDoc = String(r[2] || '').trim();
+            if (!linkDoc.startsWith('http')) {
+              for (let colIdx = 1; colIdx < r.length; colIdx++) {
+                const val = String(r[colIdx] || '').trim();
+                if (val.startsWith('http://') || val.startsWith('https://')) {
+                  linkDoc = val;
+                  break;
+                }
+              }
+            }
+            if (idDoc && linkDoc) {
+              pjMap.set(idDoc, linkDoc);
+              pjMap.set(idDoc.toLowerCase(), linkDoc);
+              pjMap.set(normalizeStr(idDoc), linkDoc);
+            }
+          }
+        }
+      } catch (pjErr) {
+        console.warn('Preload Pièce Jointe notice:', pjErr);
+      }
+
+      // Fetch all 5 sheets once
+      const [meteoRes, actionRes, missionRes, accompRes, clientRes] = await Promise.all([
+        fetchSheetDataWithHeaders('Vue_Meteo'),
+        fetchSheetDataWithHeaders('Vue_Action'),
+        fetchSheetDataWithHeaders('Vue_Mission'),
+        fetchSheetDataWithHeaders('Vue_Accompagnement'),
+        fetchSheetDataWithHeaders('Vue_Client')
+      ]);
+
+      const targetYearStr = String(campaignYear).trim();
+      const targetYearShort = targetYearStr.slice(-2);
+
+      // Parse every candidate against these loaded datasets
+      for (const cand of candidates) {
+        const targetId = (cand.idProfil || '').trim().toLowerCase();
+        if (!targetId) continue;
+        const isIdMatch = (cellVal?: string | number): boolean => {
+          if (!targetId || cellVal === undefined || cellVal === null) return false;
+          return String(cellVal).trim().toLowerCase() === targetId;
+        };
+        const userDisplayId = cand.idProfil.trim();
+
+        // 1. Meteos
+        const meteos: ReferentMeteoItem[] = meteoRes.rows
+          .map(r => ({
+            idProfilEvalue: String(r[1] || ''),
+            idProfil: String(r[4] || ''),
+            dateMeteo: String(r[5] || ''),
+            lienMeteo: String(r[16] || ''),
+            consultantEvalue: String(r[17] || ''),
+            client: String(r[18] || ''),
+            anneeJury: String(r[25] || '').trim()
+          }))
+          .filter(item => {
+            const matchesCandidat = isIdMatch(item.idProfil);
+            const matchesYearColZ = Boolean(
+              item.anneeJury &&
+              (item.anneeJury === targetYearStr ||
+               item.anneeJury.includes(targetYearStr) ||
+               item.anneeJury === targetYearShort)
+            );
+            const matchesDateMeteo = isDateInCampaignYear(item.dateMeteo, campaignYear);
+            return matchesCandidat && (matchesYearColZ || matchesDateMeteo);
+          });
+
+        // 2. Actions
+        const actions: ReferentActionItem[] = actionRes.rows
+          .map(r => {
+            const idPieceJointe = String(r[10] || '').trim();
+            const lienPieceJointe = idPieceJointe.startsWith('http')
+              ? idPieceJointe
+              : (pjMap.get(idPieceJointe) || pjMap.get(idPieceJointe.toLowerCase()) || pjMap.get(normalizeStr(idPieceJointe)) || '');
+            return {
+              descriptionAction: String(r[1] || ''),
+              dateRealisation: String(r[3] || ''),
+              idProfil: String(r[6] || ''),
+              client: String(r[11] || ''),
+              statutAction: String(r[15] || ''),
+              compteRendu: String(r[9] || ''),
+              idPieceJointe,
+              lienPieceJointe
+            };
+          })
+          .filter(item => isIdMatch(item.idProfil) && isDateInCampaignYear(item.dateRealisation, campaignYear));
+
+        // 3. Missions
+        const missions: ReferentMissionItem[] = missionRes.rows
+          .map(r => {
+            const idPieceJointe = String(r[16] || '').trim();
+            const lienPieceJointe = idPieceJointe.startsWith('http')
+              ? idPieceJointe
+              : (pjMap.get(idPieceJointe) || pjMap.get(idPieceJointe.toLowerCase()) || pjMap.get(normalizeStr(idPieceJointe)) || '');
+            return {
+              libelleMission: String(r[1] || 'Mission'),
+              idProfil: String(r[2] || ''),
+              dateCreation: String(r[14] || ''),
+              statut: String(r[21] || 'En cours'),
+              clientFinal: String(r[22] || ''),
+              idPieceJointe,
+              lienPieceJointe
+            };
+          })
+          .filter(item => isIdMatch(item.idProfil) && isDateInCampaignYear(item.dateCreation, campaignYear));
+
+        // 4. Accompagnements
+        const accompagnements: ReferentAccompagnementItem[] = accompRes.rows
+          .map(r => {
+            const typeStr = String(r[11] || '');
+            let typeAcc: 'COACHING' | 'ENCADREMENT' | 'PARRAIN' = 'COACHING';
+            if (typeStr.includes('5') || normalizeStr(typeStr).includes('encadrement')) {
+              typeAcc = 'ENCADREMENT';
+            } else if (typeStr.includes('2') || normalizeStr(typeStr).includes('parrain')) {
+              typeAcc = 'PARRAIN';
+            }
+            return {
+              type: typeAcc,
+              dateDebut: String(r[1] || '').trim(),
+              dateFin: String(r[2] || '').trim(),
+              idProfilAccompagne: String(r[3] || ''),
+              idProfilAccompagnant: String(r[4] || ''),
+              nomAccompagne: String(r[9] || '').trim(),
+              typeAccompagnement: typeStr,
+              libelleStatut: String(r[13] || ''),
+              lienFicheEncadrement: String(r[8] || '').trim()
+            };
+          })
+          .filter(item => isIdMatch(item.idProfilAccompagnant) && isDateIntervalInCampaign(item.dateDebut, item.dateFin, campaignYear));
+
+        const coaching = accompagnements.filter(item => item.type === 'COACHING');
+        const encadrement = accompagnements.filter(item => item.type === 'ENCADREMENT');
+        const parrain = accompagnements.filter(item => item.type === 'PARRAIN');
+
+        // 5. Clients
+        const clients: ReferentClientItem[] = clientRes.rows
+          .map(r => ({
+            nomClient: String(r[1] || r[0] || 'Client'),
+            idProfil: String(r[3] || ''),
+            typeClient: String(r[4] || '')
+          }))
+          .filter(item => isIdMatch(item.idProfil));
+
+        const auditLog: SheetAuditItem[] = [
+          {
+            id: 'vue_meteo',
+            tableName: 'Suivre les missions (Météos)',
+            sheetName: 'Vue_Meteo',
+            url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=0#gid=0',
+            columnTarget: 'Colonne E (IdProfil Référent)',
+            idProfilUsed: userDisplayId,
+            filterRule: `Colonne E == "${userDisplayId}" ET Année ${campaignYear}`,
+            rowsRetrievedTotal: meteoRes.totalRows,
+            rowsMatchedCandidate: meteos.length,
+            status: meteoRes.error ? 'ERROR' : (meteos.length > 0 ? 'SUCCESS' : (meteoRes.totalRows > 0 ? 'WARNING' : 'ERROR')),
+            details: meteoRes.error || `${meteos.length} météo(s) retenue(s) sur ${meteoRes.totalRows} lignes`,
+            columns: meteoRes.headers,
+            sampleFirstRow: meteoRes.sampleFirstRow
+          },
+          {
+            id: 'vue_action',
+            tableName: 'Développement Logiclever (Actions)',
+            sheetName: 'Vue_Action',
+            url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1114972765#gid=1114972765',
+            columnTarget: 'Colonne G (IdProfil)',
+            idProfilUsed: userDisplayId,
+            filterRule: `Colonne G == "${userDisplayId}" ET Date en campagne ${campaignYear}`,
+            rowsRetrievedTotal: actionRes.totalRows,
+            rowsMatchedCandidate: actions.length,
+            status: actionRes.error ? 'ERROR' : (actions.length > 0 ? 'SUCCESS' : (actionRes.totalRows > 0 ? 'WARNING' : 'ERROR')),
+            details: actionRes.error || `${actions.length} action(s) retenue(s) sur ${actionRes.totalRows} lignes`,
+            columns: actionRes.headers,
+            sampleFirstRow: actionRes.sampleFirstRow
+          },
+          {
+            id: 'vue_mission',
+            tableName: 'Recrutement (Missions créées)',
+            sheetName: 'Vue_Mission',
+            url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=28372804#gid=28372804',
+            columnTarget: 'Colonne C (ID Profil)',
+            idProfilUsed: userDisplayId,
+            filterRule: `Colonne C == "${userDisplayId}" ET Date en campagne ${campaignYear}`,
+            rowsRetrievedTotal: missionRes.totalRows,
+            rowsMatchedCandidate: missions.length,
+            status: missionRes.error ? 'ERROR' : (missions.length > 0 ? 'SUCCESS' : (missionRes.totalRows > 0 ? 'WARNING' : 'ERROR')),
+            details: missionRes.error || `${missions.length} mission(s) créée(s) sur ${missionRes.totalRows} lignes`,
+            columns: missionRes.headers,
+            sampleFirstRow: missionRes.sampleFirstRow
+          },
+          {
+            id: 'vue_accompagnement',
+            tableName: 'Accompagnement (Coaching, Encadrement, Parrainage)',
+            sheetName: 'Vue_Accompagnement',
+            url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1762118320#gid=1762118320',
+            columnTarget: 'Colonne E (Id Profil Accompagnant)',
+            idProfilUsed: userDisplayId,
+            filterRule: `Colonne E == "${userDisplayId}" ET Dates en campagne ${campaignYear}`,
+            rowsRetrievedTotal: accompRes.totalRows,
+            rowsMatchedCandidate: accompagnements.length,
+            status: accompRes.error ? 'ERROR' : (accompagnements.length > 0 ? 'SUCCESS' : (accompRes.totalRows > 0 ? 'WARNING' : 'ERROR')),
+            details: accompRes.error || `${coaching.length} coaching, ${encadrement.length} encadrement, ${parrain.length} parrainage`,
+            columns: accompRes.headers,
+            sampleFirstRow: accompRes.sampleFirstRow
+          },
+          {
+            id: 'vue_client',
+            tableName: "Responsabilité d'un compte (Clients)",
+            sheetName: 'Vue_Client',
+            url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1815147854#gid=1815147854',
+            columnTarget: 'Colonne D (Id Profil)',
+            idProfilUsed: userDisplayId,
+            filterRule: `Colonne D == "${userDisplayId}"`,
+            rowsRetrievedTotal: clientRes.totalRows,
+            rowsMatchedCandidate: clients.length,
+            status: clientRes.error ? 'ERROR' : (clients.length > 0 ? 'SUCCESS' : (clientRes.totalRows > 0 ? 'WARNING' : 'ERROR')),
+            details: clientRes.error || `${clients.length} client(s) sous responsabilité`,
+            columns: clientRes.headers,
+            sampleFirstRow: clientRes.sampleFirstRow
+          }
+        ];
+
+        const candDatasets: ReferentDatasets = {
+          meteos,
+          actions,
+          missions,
+          coaching,
+          encadrement,
+          parrain,
+          clients,
+          auditLog,
+          loading: false,
+          error: null
+        };
+
+        resultMap[targetId] = candDatasets;
+        resultMap[cand.idProfil.trim()] = candDatasets;
+        const cacheKey = `${targetId}_${campaignYear}`;
+        this.cache[cacheKey] = candDatasets;
+      }
+
+      // Persistance dans localStorage pour consultation instantanée
+      try {
+        localStorage.setItem(`campaign_referent_data_${campaignYear}`, JSON.stringify(resultMap));
+      } catch (storageErr) {
+        console.warn('Could not persist campaign referent data to localStorage:', storageErr);
+      }
+    } catch (globalErr) {
+      console.warn('Error during preloadCampaignReferentData:', globalErr);
+    }
+
+    return resultMap;
   }
 
   /**
@@ -382,8 +700,14 @@ export class ReferentDataService {
   ): Promise<ReferentDatasets> {
     const cacheKey = `${(candidatIdProfil || candidatName || '').trim().toLowerCase()}_${campaignYear}`;
 
-    if (!forceRefresh && this.cache[cacheKey]) {
-      return this.cache[cacheKey];
+    if (!forceRefresh) {
+      if (this.cache[cacheKey]) {
+        return this.cache[cacheKey];
+      }
+      const stored = this.getStoredCampaignCandidateData(candidatIdProfil, campaignYear);
+      if (stored) {
+        return stored;
+      }
     }
     const targetId = (candidatIdProfil || '').trim().toLowerCase();
     const isIdMatch = (cellVal?: string | number): boolean => {
@@ -484,7 +808,7 @@ export class ReferentDataService {
           id: 'vue_meteo',
           tableName: 'Suivre les missions (Météos)',
           sheetName: 'Vue_Meteo',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=0',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=0#gid=0',
           columnTarget: 'Colonne E (IdProfil Référent)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne E == "${userDisplayId}" ET (Col Z == "${campaignYear}" OU Date Météo (Col F) en campagne ${campaignYear-1}-${campaignYear})`,
@@ -501,7 +825,7 @@ export class ReferentDataService {
           id: 'vue_meteo',
           tableName: 'Suivre les missions (Météos)',
           sheetName: 'Vue_Meteo',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=0',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=0#gid=0',
           columnTarget: 'Colonne E (IdProfil Référent)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne E == "${userDisplayId}"`,
@@ -549,7 +873,7 @@ export class ReferentDataService {
           id: 'vue_action',
           tableName: 'Développement Logiclever (Actions)',
           sheetName: 'Vue_Action',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=1114972765',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1114972765#gid=1114972765',
           columnTarget: 'Colonne G (IdProfil)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne G == "${userDisplayId}" ET Date (Col D) entre 01/07/${campaignYear-1} et 30/06/${campaignYear}`,
@@ -566,7 +890,7 @@ export class ReferentDataService {
           id: 'vue_action',
           tableName: 'Développement Logiclever (Actions)',
           sheetName: 'Vue_Action',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=1114972765',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1114972765#gid=1114972765',
           columnTarget: 'Colonne G (IdProfil)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne G == "${userDisplayId}"`,
@@ -614,7 +938,7 @@ export class ReferentDataService {
           id: 'vue_mission',
           tableName: 'Recrutement (Missions créées)',
           sheetName: 'Vue_Mission',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=28372804',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=28372804#gid=28372804',
           columnTarget: 'Colonne C (ID Profil)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne C == "${userDisplayId}" ET Date création (Col O) entre 01/07/${campaignYear-1} et 30/06/${campaignYear}`,
@@ -631,7 +955,7 @@ export class ReferentDataService {
           id: 'vue_mission',
           tableName: 'Recrutement (Missions créées)',
           sheetName: 'Vue_Mission',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=28372804',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=28372804#gid=28372804',
           columnTarget: 'Colonne C (ID Profil)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne C == "${userDisplayId}"`,
@@ -693,7 +1017,7 @@ export class ReferentDataService {
           id: 'vue_accompagnement',
           tableName: 'Accompagnement (Coaching, Encadrement, Parrainage)',
           sheetName: 'Vue_Accompagnement',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=1762118320',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1762118320#gid=1762118320',
           columnTarget: 'Colonne E (Id Profil Accompagnant)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne E == "${userDisplayId}" ET intersection [Col B, Col C] avec 01/07/${campaignYear-1} et 30/06/${campaignYear}`,
@@ -710,7 +1034,7 @@ export class ReferentDataService {
           id: 'vue_accompagnement',
           tableName: 'Accompagnement (Coaching, Encadrement, Parrainage)',
           sheetName: 'Vue_Accompagnement',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=1762118320',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1762118320#gid=1762118320',
           columnTarget: 'Colonne E (Id Profil Accompagnant)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne E == "${userDisplayId}"`,
@@ -741,7 +1065,7 @@ export class ReferentDataService {
           id: 'vue_client',
           tableName: "Responsabilité d'un compte (Clients)",
           sheetName: 'Vue_Client',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=1815147854',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1815147854#gid=1815147854',
           columnTarget: 'Colonne D (Id Profil)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne D == "${userDisplayId}"`,
@@ -758,7 +1082,7 @@ export class ReferentDataService {
           id: 'vue_client',
           tableName: "Responsabilité d'un compte (Clients)",
           sheetName: 'Vue_Client',
-          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit#gid=1815147854',
+          url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1815147854#gid=1815147854',
           columnTarget: 'Colonne D (Id Profil)',
           idProfilUsed: userDisplayId,
           filterRule: `Colonne D == "${userDisplayId}"`,

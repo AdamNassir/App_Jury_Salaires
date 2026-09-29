@@ -21,7 +21,7 @@ export function SyntheseTab({ reportData, setReportData }: SyntheseTabProps) {
       <Section title="Synthèse">
         <div className="space-y-8">
           {/* Bloc 1 : Fichier RH (grade, salaire…) */}
-          <div className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 shadow-xs">
+          <div id="link_fichier_rh_synthese" className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 shadow-xs transition-all">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
                 <FileSpreadsheet className="w-5 h-5" />
@@ -41,7 +41,7 @@ export function SyntheseTab({ reportData, setReportData }: SyntheseTabProps) {
           </div>
 
           {/* Bloc 2 : Synthèse de l’année */}
-          <div className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 space-y-2 shadow-xs">
+          <div id="link_synthese_jours" className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 space-y-2 shadow-xs transition-all">
             <h3 className="text-base font-bold text-secondary">Synthèse de l’année (01/07 au 30/06)</h3>
             <p className="text-xs text-accent/80 font-medium">
               Lien vers le fichier donnant les jours du consultant (mission, formation, intercontrat…) (
@@ -59,7 +59,7 @@ export function SyntheseTab({ reportData, setReportData }: SyntheseTabProps) {
           </div>
 
           {/* Bloc 3 : Activités commerciales */}
-          <div className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 space-y-4 shadow-xs">
+          <div id="link_primes_synthese" className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 space-y-4 shadow-xs transition-all">
             <div className="space-y-1">
               <h3 className="text-base font-bold text-secondary">Activités commerciales</h3>
               <p className="text-xs text-accent/80 font-medium">
@@ -85,7 +85,7 @@ export function SyntheseTab({ reportData, setReportData }: SyntheseTabProps) {
           </div>
 
           {/* Bloc 4 : Formations */}
-          <div className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 space-y-4 shadow-xs">
+          <div id="link_formations_synthese" className="p-6 bg-accent/[0.02] rounded-xl border border-accent/10 space-y-4 shadow-xs transition-all">
             <div className="space-y-1">
               <h3 className="text-base font-bold text-secondary">Formations</h3>
               <p className="text-xs text-accent/80 font-medium">

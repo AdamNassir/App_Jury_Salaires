@@ -622,6 +622,254 @@ ${text}
     }
   });
 
+  // API Route: Extract Past Objectives from Manually Uploaded File (.docx, .pdf, .json, etc.)
+  app.post("/api/candidate/extract-file-objectives", async (req, res) => {
+    try {
+      const { fileName, fileData, mimeType } = req.body;
+      if (!fileName || !fileData) {
+        return res.status(400).json({ error: "fileName et fileData obligatoires." });
+      }
+
+      const base64Str = fileData.includes(",") ? fileData.split(",")[1] : fileData;
+      const buffer = Buffer.from(base64Str, "base64");
+      const lowerName = fileName.toLowerCase();
+
+      const decodeHtml = (str: string): string => {
+        return str
+          .replace(/&eacute;/gi, "é")
+          .replace(/&egrave;/gi, "è")
+          .replace(/&ecirc;/gi, "ê")
+          .replace(/&euml;/gi, "ë")
+          .replace(/&agrave;/gi, "à")
+          .replace(/&acirc;/gi, "â")
+          .replace(/&icirc;/gi, "î")
+          .replace(/&iuml;/gi, "ï")
+          .replace(/&ocirc;/gi, "ô")
+          .replace(/&ugrave;/gi, "ù")
+          .replace(/&ucirc;/gi, "û")
+          .replace(/&ccedil;/gi, "ç")
+          .replace(/&#39;/gi, "'")
+          .replace(/&rsquo;/gi, "'")
+          .replace(/&lsquo;/gi, "'")
+          .replace(/&rdquo;/gi, '"')
+          .replace(/&ldquo;/gi, '"')
+          .replace(/&nbsp;/gi, " ")
+          .replace(/&amp;/gi, "&");
+      };
+
+      const normalizeText = (str: string): string => {
+        return str
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[’'"`]/g, "'")
+          .replace(/[\s\u00A0]+/g, " ")
+          .replace(/[^a-z0-9\s]/g, "")
+          .trim();
+      };
+
+      // 1. If Word document (.docx or .doc)
+      if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
+        try {
+          const conversion = await mammoth.convertToHtml({ buffer });
+          const rawHtml = conversion.value || "";
+          const decodedHtml = decodeHtml(rawHtml);
+          const objectives: string[] = [];
+
+          const allTableMatches = decodedHtml.match(/<table[\s\S]*?<\/table>/gi) || [];
+          let activeSmartCol = -1;
+          let hasFoundSmartTable = false;
+
+          for (let t = 0; t < allTableMatches.length; t++) {
+            const tableHtml = allTableMatches[t];
+            const rowMatches = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi) || [];
+            if (rowMatches.length === 0) continue;
+
+            const grid: string[][] = [];
+            for (let r = 0; r < rowMatches.length; r++) {
+              const cellMatches = rowMatches[r].match(/<(td|th)[\s\S]*?<\/(td|th)>/gi) || [];
+              const rowCells = cellMatches.map(c => c.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").trim());
+              grid.push(rowCells);
+            }
+
+            const headerRow = grid[0] || [];
+            const firstRowText = normalizeText(headerRow.join(" "));
+
+            if (hasFoundSmartTable && (firstRowText.includes("visa") || firstRowText.includes("synthese") || firstRowText.includes("signature"))) {
+              break;
+            }
+
+            let tableSmartCol = -1;
+            for (let c = 0; c < headerRow.length; c++) {
+              const normCell = normalizeText(headerRow[c]);
+              if (
+                normCell.includes("specifique") ||
+                normCell.includes("s de smart") ||
+                normCell.includes("doivent etre specifiques") ||
+                (normCell.includes("objectif") && normCell.includes("smart"))
+              ) {
+                tableSmartCol = c;
+                break;
+              }
+            }
+
+            if (tableSmartCol === -1 && grid.length > 1) {
+              for (let c = 0; c < grid[1].length; c++) {
+                const normCell = normalizeText(grid[1][c]);
+                if (
+                  normCell.includes("specifique") ||
+                  normCell.includes("s de smart") ||
+                  normCell.includes("doivent etre specifiques")
+                ) {
+                  tableSmartCol = c;
+                  break;
+                }
+              }
+            }
+
+            if (headerRow.length >= 2 && tableSmartCol === -1) {
+              let col0IsNumbering = true;
+              let col1HasText = false;
+              for (let r = 1; r < grid.length; r++) {
+                const c0 = (grid[r][0] || "").trim();
+                const c1 = (grid[r][1] || "").trim();
+                if (c0 && !/^\d+[\.\)\:\-]?$/.test(c0)) col0IsNumbering = false;
+                if (c1 && c1.length > 3 && !/^\d+$/.test(c1)) col1HasText = true;
+              }
+              if (col0IsNumbering && col1HasText) tableSmartCol = 1;
+            }
+
+            if (tableSmartCol !== -1) {
+              hasFoundSmartTable = true;
+              activeSmartCol = tableSmartCol;
+              for (let r = 1; r < grid.length; r++) {
+                let rawCellText = grid[r][activeSmartCol] || "";
+                if ((/^\d+[\.\)\:\-]?$/.test(rawCellText.trim()) || !rawCellText.trim()) && grid[r].length > 1) {
+                  const altText = (grid[r][1] || "").trim();
+                  if (altText.length > 3 && !/^\d+$/.test(altText)) rawCellText = altText;
+                }
+                const clean = rawCellText.replace(/^[\s\d]+[\.\)\:\-\n\s]+/, "").trim();
+                const normClean = normalizeText(clean);
+                if (
+                  clean &&
+                  clean.length > 3 &&
+                  !/^\d+$/.test(clean) &&
+                  !normClean.startsWith("objectif") &&
+                  !normClean.includes("specifique") &&
+                  !normClean.includes("moyen terme") &&
+                  !normClean.includes("vision carriere")
+                ) {
+                  objectives.push(clean);
+                }
+              }
+            }
+          }
+
+          if (objectives.length > 0) {
+            return res.json({ success: true, objectives });
+          }
+        } catch (wordErr) {
+          console.warn("Word parser exception:", wordErr);
+        }
+      }
+
+      // 2. If JSON file (.json)
+      if (lowerName.endsWith(".json")) {
+        try {
+          const text = buffer.toString("utf-8");
+          const json = JSON.parse(text);
+          const rawObjs = json?.previousObjectives || json?.nextObjectives || json?.annualReport?.nextObjectives || json?.annualReport?.previousObjectives || [];
+          const objectives = rawObjs
+            .map((o: any) => typeof o === "string" ? o : (o.objective || o.title || ""))
+            .filter((o: string) => o && o.trim().length > 2);
+          if (objectives.length > 0) {
+            return res.json({ success: true, objectives });
+          }
+        } catch (jsonErr) {
+          console.warn("JSON parser exception:", jsonErr);
+        }
+      }
+
+      // 3. Fallback / PDF: Gemini AI extraction
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (apiKey) {
+        const ai = new GoogleGenAI({
+          apiKey: apiKey,
+          httpOptions: { headers: { "User-Agent": "aistudio-build" } },
+        });
+
+        let parts: any[] = [];
+        if (lowerName.endsWith(".pdf") || mimeType === "application/pdf") {
+          parts = [
+            {
+              inlineData: {
+                data: base64Str,
+                mimeType: "application/pdf"
+              }
+            },
+            {
+              text: "Analyse ce document de Bilan Annuel N-1 et extrait UNIQUEMENT la liste des objectifs fixés pour l'année à venir / l'année prochaine (les objectifs SMART définis à la fin du bilan annuel précédent). Ne confonds pas avec les objectifs à moyen terme ou la vision carrière. Retourne UNIQUEMENT les libellés de ces objectifs sous forme de tableau JSON avec la clé 'objectives'."
+            }
+          ];
+        } else if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
+          const rawText = (await mammoth.extractRawText({ buffer })).value || "";
+          parts = [
+            {
+              text: `Analyse le texte suivant issu d'un Bilan Annuel N-1 et extrait UNIQUEMENT la liste des objectifs fixés pour l'année à venir / l'année prochaine (les objectifs SMART définis à la fin du bilan annuel précédent). Ne confonds pas avec les objectifs à moyen terme ou la vision carrière.
+
+Texte du document:
+---
+${rawText}
+---`
+            }
+          ];
+        } else {
+          const rawText = buffer.toString("utf-8");
+          parts = [
+            {
+              text: `Analyse le document suivant et extrait la liste des objectifs fixés pour l'année à venir:
+              
+${rawText}`
+            }
+          ];
+        }
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: parts,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                objectives: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Liste des libellés d'objectifs pour l'année à venir extraits du document"
+                }
+              },
+              required: ["objectives"]
+            }
+          }
+        });
+
+        const jsonText = response.text?.trim() || "{}";
+        const parsed = JSON.parse(jsonText);
+        const objectives = (parsed.objectives || []).filter((o: string) => o && o.trim().length > 3);
+        if (objectives.length > 0) {
+          return res.json({ success: true, objectives });
+        }
+      }
+
+      return res.status(404).json({
+        error: "Aucun objectif pour l'année passée n'a pu être identifié dans ce fichier. Assurez-vous qu'il contient la section 'Objectifs pour l'année prochaine' ou le tableau des objectifs SMART."
+      });
+    } catch (err: any) {
+      console.error("Extract file objectives error:", err);
+      return res.status(500).json({ error: err.message || "Erreur lors de l'analyse du fichier." });
+    }
+  });
+
   // Helper: Obtain access token using Google Service Account JWT
   async function getServiceAccountAccessToken(): Promise<string> {
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "sheets-backend@sheets-backend-508208.iam.gserviceaccount.com";

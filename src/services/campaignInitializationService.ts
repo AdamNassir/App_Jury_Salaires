@@ -6,6 +6,7 @@ import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, U
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
 import { extractPlainTextUrl } from '../utils/urlUtils';
+import { ReferentDataService } from './referentDataService';
 
 export interface RawRow {
   [key: string]: any;
@@ -1295,7 +1296,18 @@ export class CampaignInitializationService {
     let currentStepNum = 0;
     const usersToRegister: Partial<UserProfile>[] = [];
 
-    // 2. Traiter chaque collaborateur qualifié (Candidat de la campagne)
+    // 2. Précharger et stocker les données Référent pour l'ensemble des candidats de la campagne
+    let preloadedReferentMap: Record<string, any> = {};
+    try {
+      preloadedReferentMap = await ReferentDataService.preloadCampaignReferentData(
+        preview.year,
+        preview.candidatesToProcess.map(c => ({ idProfil: c.idProfil, displayName: c.displayName }))
+      );
+    } catch (refErr) {
+      console.warn('Notice preload campaign referent data:', refErr);
+    }
+
+    // 3. Traiter chaque collaborateur qualifié (Candidat de la campagne)
     for (let i = 0; i < preview.candidatesToProcess.length; i++) {
       const cand = preview.candidatesToProcess[i];
       const dossierId = `${cand.idProfil}_${preview.year}`;
@@ -1422,6 +1434,8 @@ export class CampaignInitializationService {
         }
       });
 
+      const candReferentData = preloadedReferentMap[cand.idProfil.toLowerCase()] || preloadedReferentMap[cand.idProfil] || null;
+
       const dossierObj: Dossier = {
         id: dossierId,
         candidateId: cand.idProfil,
@@ -1443,6 +1457,7 @@ export class CampaignInitializationService {
         clientFeedbacks: existingDossier?.clientFeedbacks || [],
         documents: existingDossier?.documents || [],
         consultantFeedbacks: mergedConsultantFeedbacks,
+        referentData: candReferentData || existingDossier?.referentData,
         createdAt: existingDossier?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         ...(existingDossier ? {
@@ -1452,6 +1467,7 @@ export class CampaignInitializationService {
           clientFeedbacks: existingDossier.clientFeedbacks || [],
           documents: existingDossier.documents || [],
           consultantFeedbacks: mergedConsultantFeedbacks,
+          referentData: candReferentData || existingDossier.referentData,
           createdAt: existingDossier.createdAt,
         } : {}),
       };
