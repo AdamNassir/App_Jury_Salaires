@@ -9,6 +9,7 @@ class UserDirectoryServiceImpl {
       email === 'guillaumebestece@gmail.com' ||
       email === 'guillaume.best@logiclever.com' ||
       email === 'adam.nassir@logiclever.com' ||
+      email === 'muriel.guiochet@logiclever.com' ||
       isJulien;
 
     let roles: UserRole[] = Array.isArray(data.roles) ? [...data.roles] : [];

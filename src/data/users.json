@@ -81,5 +81,27 @@
     "experienceYears": 0,
     "assignedCandidateIds": [],
     "updatedAt": "2026-09-25T00:00:00.000Z"
+  },
+  {
+    "id": "LL_ADMIN_MURIEL",
+    "idProfil": "LL_ADMIN_MURIEL",
+    "matricule": "LL003",
+    "nom": "Guiochet",
+    "prenom": "Muriel",
+    "displayName": "Muriel Guiochet",
+    "email": "muriel.guiochet@logiclever.com",
+    "roles": [
+      "CANDIDATE",
+      "JURY",
+      "ADMIN"
+    ],
+    "team": "Direction",
+    "currentGrade": "Directrice",
+    "currentSalary": 0,
+    "currentTJM": 0,
+    "entryDate": "2020-01-01",
+    "experienceYears": 10,
+    "assignedCandidateIds": [],
+    "updatedAt": "2026-09-29T00:00:00.000Z"
   }
 ]

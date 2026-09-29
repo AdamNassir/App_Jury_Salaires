@@ -138,6 +138,7 @@ export default function App() {
           normalizedEmail === 'guillaumebestece@gmail.com' ||
           normalizedEmail === 'guillaume.best@logiclever.com' ||
           normalizedEmail === 'adam.nassir@logiclever.com' ||
+          normalizedEmail === 'muriel.guiochet@logiclever.com' ||
           isJulien;
 
         // Résolution immédiate via le répertoire d'utilisateurs local / JSON

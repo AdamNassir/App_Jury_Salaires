@@ -8,7 +8,7 @@ type Database = Record<CollectionName, RecordData[]>;
 export type Mutation = { collection: CollectionName; id: string; kind: 'set' | 'update' | 'delete'; data?: RecordData; merge?: boolean };
 export const DATABASE_KEY = 'app_local_database_v2';
 const BUILTIN_USERS_VERSION_KEY = 'app_local_builtin_users_version';
-const BUILTIN_USERS_VERSION = '1';
+const BUILTIN_USERS_VERSION = '2';
 const legacyKeys: Record<CollectionName, string> = {
   campaigns: 'app_local_campaigns_v1', dossiers: 'app_local_dossiers_v1',
   users: 'app_users_directory_custom_v1', personnes: 'app_local_personnes_v1',
@@ -35,15 +35,20 @@ function readDatabase(): Database {
     }
 
     if (localStorage.getItem(BUILTIN_USERS_VERSION_KEY) !== BUILTIN_USERS_VERSION) {
-      const julien = (users as RecordData[]).find(user => user.idProfil === 'COMP1');
-      const existingIndex = parsed.users.findIndex((user: RecordData) =>
-        user.idProfil === 'COMP1' ||
-        user.email?.trim().toLowerCase() === 'julien.bourlon@logiclever.com'
-      );
-      if (julien && existingIndex < 0) {
-        parsed.users.push(clone(julien));
-        localStorage.setItem(DATABASE_KEY, JSON.stringify(parsed));
-      }
+      (users as RecordData[]).forEach(builtinUser => {
+        const existingIndex = parsed.users.findIndex((user: RecordData) =>
+          (builtinUser.idProfil && user.idProfil === builtinUser.idProfil) ||
+          (builtinUser.email && user.email?.trim().toLowerCase() === builtinUser.email?.trim().toLowerCase())
+        );
+        if (existingIndex < 0) {
+          parsed.users.push(clone(builtinUser));
+        } else {
+          if (builtinUser.roles && Array.isArray(builtinUser.roles)) {
+            parsed.users[existingIndex].roles = builtinUser.roles;
+          }
+        }
+      });
+      localStorage.setItem(DATABASE_KEY, JSON.stringify(parsed));
       localStorage.setItem(BUILTIN_USERS_VERSION_KEY, BUILTIN_USERS_VERSION);
     }
     return parsed;
