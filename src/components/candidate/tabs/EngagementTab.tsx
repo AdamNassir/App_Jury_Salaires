@@ -31,6 +31,7 @@ interface EngagementTabProps {
   profile?: UserProfile;
   dossier?: Dossier;
   campaignYear?: number;
+  readOnly?: boolean;
 }
 
 export function EngagementTab({
@@ -39,7 +40,8 @@ export function EngagementTab({
   setReportData,
   profile,
   dossier,
-  campaignYear = 2026
+  campaignYear = new Date().getFullYear(),
+  readOnly = false
 }: EngagementTabProps) {
   const candidatIdProfil = (
     dossier?.idProfil ||
@@ -106,7 +108,7 @@ export function EngagementTab({
 
   useEffect(() => {
     // Synchroniser si le dossier reçoit ses données préchargées
-    if (dossier?.referentData && (!referentData.meteos.length && !referentData.actions.length && !referentData.missions.length)) {
+    if (dossier?.referentData) {
       setReferentData(dossier.referentData);
       return;
     }
@@ -395,9 +397,11 @@ export function EngagementTab({
 
               <div>
                 <div
-                  onClick={() => setReportData(prev => ({ ...prev, isReferentOrAspiring: !prev.isReferentOrAspiring }))}
+                  onClick={readOnly ? undefined : () => setReportData(prev => ({ ...prev, isReferentOrAspiring: !prev.isReferentOrAspiring }))}
+                  aria-disabled={readOnly}
                   className={cn(
-                    "p-8 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between group",
+                    "p-8 rounded-xl border-2 transition-all flex items-center justify-between group",
+                    readOnly ? "cursor-default" : "cursor-pointer",
                     reportData.isReferentOrAspiring ? "bg-accent border-accent text-white shadow-xl shadow-accent/20" : "bg-white border-accent/10 hover:border-accent/40"
                   )}
                 >
@@ -490,6 +494,7 @@ export function EngagementTab({
                       label="Commentaire"
                       value={reportData.referentMeteosComment || ''}
                       onChange={v => setReportData(prev => ({ ...prev, referentMeteosComment: v }))}
+                      disabled={readOnly}
                     />
                   </div>
 
@@ -576,6 +581,7 @@ export function EngagementTab({
                         label="Commentaire"
                         value={reportData.referentActionsComment || ''}
                         onChange={v => setReportData(prev => ({ ...prev, referentActionsComment: v }))}
+                        disabled={readOnly}
                       />
                     </div>
 
@@ -663,6 +669,7 @@ export function EngagementTab({
                         label="Commentaire"
                         value={reportData.referentMissionsComment || ''}
                         onChange={v => setReportData(prev => ({ ...prev, referentMissionsComment: v }))}
+                        disabled={readOnly}
                       />
                     </div>
                   </div>
@@ -728,6 +735,7 @@ export function EngagementTab({
                         label="Commentaire"
                         value={reportData.referentCoachingComment || ''}
                         onChange={v => setReportData(prev => ({ ...prev, referentCoachingComment: v }))}
+                        disabled={readOnly}
                       />
                     </div>
 
@@ -802,6 +810,7 @@ export function EngagementTab({
                         label="Commentaire"
                         value={reportData.referentEncadrementComment || ''}
                         onChange={v => setReportData(prev => ({ ...prev, referentEncadrementComment: v }))}
+                        disabled={readOnly}
                       />
                     </div>
 
@@ -860,6 +869,7 @@ export function EngagementTab({
                         label="Commentaire"
                         value={reportData.referentParrainComment || ''}
                         onChange={v => setReportData(prev => ({ ...prev, referentParrainComment: v }))}
+                        disabled={readOnly}
                       />
                     </div>
 
@@ -869,6 +879,7 @@ export function EngagementTab({
                         label="Ai-je animé le On-boarding Logiclever ?"
                         value={reportData.referentOnboardingAnimation || ''}
                         onChange={v => setReportData(prev => ({ ...prev, referentOnboardingAnimation: v }))}
+                        disabled={readOnly}
                       />
                     </div>
                   </div>
@@ -921,6 +932,7 @@ export function EngagementTab({
                       label="Commentaire"
                       value={reportData.referentAccountsComment || ''}
                       onChange={v => setReportData(prev => ({ ...prev, referentAccountsComment: v }))}
+                      disabled={readOnly}
                     />
                   </div>
                 </div>

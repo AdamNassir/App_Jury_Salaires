@@ -9,6 +9,8 @@ import { EngagementTab, engagementSections } from '../candidate/tabs/EngagementT
 import { SyntheseTab } from '../candidate/tabs/SyntheseTab';
 import { SatisfactionTab } from '../candidate/tabs/SatisfactionTab';
 import { PretentionsTab } from '../candidate/tabs/PretentionsTab';
+import { ExpertisesTab } from '../candidate/tabs/ExpertisesTab';
+import { BilanIntroTab } from '../candidate/tabs/BilanIntroTab';
 import { extractPlainTextUrl, getValidUrl, copyPlainTextToClipboard } from '../../utils/urlUtils';
 
 interface JuryDossierViewerProps {
@@ -37,6 +39,9 @@ export function JuryDossierViewer({
   extraTab
 }: JuryDossierViewerProps) {
   const [copiedMeteoIndex, setCopiedMeteoIndex] = useState<number | null>(null);
+  const campaignYear = dossier.campaignYear ||
+    (dossier.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, ''), 10) : undefined) ||
+    new Date().getFullYear();
 
   const handleCopyOnly = async (link: string, idx: number, e?: React.MouseEvent) => {
     if (e) {
@@ -55,26 +60,20 @@ export function JuryDossierViewer({
   const isReadOnly = !isAssigned;
   const dossierTabs: Array<[string, string]> = [
     ...(extraTab ? [[extraTab.id, extraTab.label] as [string, string]] : []),
+    ['BILAN_INTRO', 'Objectifs Bilan Annuel'],
     ['SYNTHESE', 'Synthèse'],
     ['OBJECTIFS_PASSES', 'Objectifs Année Passée'],
     ['SATISFACTION', 'Satisfaction'],
     ['EXPERTISES', 'Savoir-faire'],
-    ['AUTONOMIE', 'Autonomie en mission'],
-    ['COMMERCIAL', 'Vente/commercial'],
-    ['VIE_LOGICLEVER', 'Vie LogicLever'],
-    ['RECRUTEMENT', 'Recrutement'],
-    ['ENCADREMENT', 'Encadrement'],
-    ['AMELIORATION', 'Amélioration Continue'],
-    ...(dossier.annualReport?.isReferentOrAspiring ? [['REFERENT_LOGICLEVER', 'Référent LogicLever'] as [string, string]] : []),
+    ...engagementSections.map(section => [section.id, section.label] as [string, string]),
     ['METEOS', 'Météos Client'],
     ['RETOURS_PAIRS', 'Retours Pairs'],
     ['PRETENTIONS', 'Objectifs'],
     ['CALCULATRICE', 'Prétentions de carrière et salariales'],
-    ...(!hideDecisionTab ? [['DECISION', 'Décision'] as [string, string]] : [])
+    ...(!hideDecisionTab ? [['DECISION', 'Avis du Jury'] as [string, string]] : [])
   ];
   const activeEngagementSection = engagementSections.find(section =>
-    !!expandedTabs[section.id] &&
-    (section.id !== 'REFERENT_LOGICLEVER' || !!dossier.annualReport?.isReferentOrAspiring)
+    !!expandedTabs[section.id]
   );
 
   return (
@@ -103,12 +102,20 @@ export function JuryDossierViewer({
         </div>
       )}
 
+      {expandedTabs['BILAN_INTRO'] && (
+        <BilanIntroTab />
+      )}
+
       {activeEngagementSection && dossier.annualReport && (
         <fieldset disabled className="min-w-0 border-0 p-0 m-0 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_button]:pointer-events-none" aria-label={`${activeEngagementSection.label} en lecture seule`}>
           <EngagementTab
             section={activeEngagementSection.id}
             reportData={dossier.annualReport}
             setReportData={() => undefined}
+            profile={candidate || undefined}
+            dossier={dossier}
+            campaignYear={campaignYear}
+            readOnly
           />
         </fieldset>
       )}
@@ -128,6 +135,16 @@ export function JuryDossierViewer({
             reportData={dossier.annualReport}
             setReportData={() => undefined}
             isLockedForEditing={true}
+          />
+        </fieldset>
+      )}
+
+      {expandedTabs['EXPERTISES'] && dossier.annualReport && (
+        <fieldset disabled className="min-w-0 border-0 p-0 m-0 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_button]:pointer-events-none" aria-label="Savoir-faire en lecture seule">
+          <ExpertisesTab
+            reportData={dossier.annualReport}
+            setReportData={() => undefined}
+            isLockedForEditing
           />
         </fieldset>
       )}
@@ -222,35 +239,7 @@ export function JuryDossierViewer({
         </div>
       </AccordionSection>
 
-      {/* 3. Expertises */}
-      <AccordionSection 
-        label="Expertises" 
-        tabMode
-        isOpen={!!expandedTabs['EXPERTISES']} 
-        onToggle={() => toggleTab('EXPERTISES')}
-      >
-        <div className="space-y-12">
-          <ReportSection title="Savoir-faire identifiés" content={dossier.annualReport?.knowHow} onZoom={setZoomData} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <ReportSection title="Activités Commerciales" content={dossier.annualReport?.commercialActivities} onZoom={setZoomData} />
-            <ReportSection title="Formations" content={dossier.annualReport?.training} onZoom={setZoomData} />
-          </div>
-          <div className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-8">
-            <h5 className="text-[10px] font-black text-accent/30 uppercase tracking-widest mb-4">Expertise Technique & Progression</h5>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <ReportSection title="Progression métier" content={dossier.annualReport?.progressionDetails} noBg onZoom={setZoomData} />
-              <ReportSection title="Logiciels & Tech" content={dossier.annualReport?.techDetails} noBg onZoom={setZoomData} />
-              <ReportSection title="Certifications" content={dossier.annualReport?.certificationsDetail} noBg onZoom={setZoomData} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-accent/5 pt-8">
-              <ReportSection title="Livrables marquants" content={dossier.annualReport?.deliverables} noBg onZoom={setZoomData} />
-              <ReportSection title="Préparation réunions" content={dossier.annualReport?.meetingPrep} noBg onZoom={setZoomData} />
-            </div>
-          </div>
-        </div>
-      </AccordionSection>
-
-      {/* 4. Engagement sections, aligned with the candidate dossier tabs */}
+      {/* Engagement sections, aligned with the candidate dossier tabs */}
       <AccordionSection 
         label="Engagement" 
         tabMode

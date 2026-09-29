@@ -55,6 +55,9 @@ interface CandidateViewProps {
 
 export function CandidateView({ profile, dossier, currentUser, initialTab, targetLinkId, onTabChange }: CandidateViewProps) {
   const [dossierStatus, setDossierStatus] = useState<DossierStatus>(() => dossier?.status || 'OUVERT');
+  const campaignYear = dossier?.campaignYear ||
+    (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, ''), 10) : undefined) ||
+    new Date().getFullYear();
 
   // Keep dossierStatus in sync if dossier prop changes from parent
   useEffect(() => {
@@ -305,7 +308,6 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
       }
 
       // 2. Récupérer l'année de campagne et le matricule du candidat
-      const campaignYear = dossier?.campaignYear || (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, '')) : 2026) || 2026;
       const targetDossierId = dossier?.id || `${profile.id}_${campaignYear}`;
       const matricule = profile.matricule || profile.idProfil || profile.id || profile.displayName;
 
@@ -401,7 +403,6 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
     setPastImportErrorMessage(null);
 
     try {
-      const campaignYear = dossier?.campaignYear || (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, '')) : 2026) || 2026;
       const priorYear = campaignYear - 1;
       const targetDossierId = dossier?.id || `${profile.id}_${campaignYear}`;
 
@@ -924,7 +925,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
               setReportData={setReportData}
               profile={profile}
               dossier={dossier}
-              campaignYear={2026}
+              campaignYear={campaignYear}
             />
           )}
 

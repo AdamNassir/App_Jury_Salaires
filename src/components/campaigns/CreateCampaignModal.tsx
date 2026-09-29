@@ -23,6 +23,7 @@ import {
   CampaignInitPreview,
   convertSpreadsheetSheetToCsv
 } from '../../services/campaignInitializationService';
+import { requestGoogleSheetsAccess } from '../../lib/firebase';
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -158,12 +159,21 @@ export function CreateCampaignModal({
     setLaunchError(null);
     setIsSubmitting(true);
     try {
-      // 1. Ne pas conserver les copies volumineuses des fichiers sources dans la campagne (état décoché par défaut)
+      // 1. Demander un jeton Google Sheets frais avant de précharger les
+      // données Référent. La connexion standard ne demande pas ce scope.
+      const sheetsAccessToken = await requestGoogleSheetsAccess();
+      if (!sheetsAccessToken) {
+        throw new Error(
+          "L’autorisation Google Sheets est nécessaire pour charger les données Référent."
+        );
+      }
+
+      // 2. Ne pas conserver les copies volumineuses des fichiers sources dans la campagne (état décoché par défaut)
       const rhCampaignFiles: CampaignFile[] = [];
       const pairsCampaignFiles: CampaignFile[] = [];
       const otherCampaignFiles: CampaignFile[] = [];
 
-      // 2. Exécuter l'initialisation des données (personnes, participants RH, dossiers avec évaluateurs assignés)
+      // 3. Exécuter l'initialisation des données (personnes, participants RH, dossiers avec évaluateurs assignés)
       const res = await CampaignInitializationService.executeCampaignInitialization(
         preview,
         {

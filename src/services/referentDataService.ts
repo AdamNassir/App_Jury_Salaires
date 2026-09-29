@@ -152,7 +152,7 @@ function parseDateFlexible(dateStr?: string | null): Date | null {
 export function isDateIntervalInCampaign(
   startDateStr?: string | null,
   endDateStr?: string | null,
-  campaignYear: number = 2026
+  campaignYear: number = new Date().getFullYear()
 ): boolean {
   const startCampaign = new Date(campaignYear - 1, 6, 1, 0, 0, 0); // 01/07/(campaignYear-1)
   const endCampaign = new Date(campaignYear, 5, 30, 23, 59, 59); // 30/06/campaignYear
@@ -195,7 +195,7 @@ export function isDateIntervalInCampaign(
 /**
  * Vérifie si une date tombe dans l'année de campagne (01/07/N-1 au 30/06/N)
  */
-export function isDateInCampaignYear(dateStr?: string | null, campaignYear: number = 2026): boolean {
+export function isDateInCampaignYear(dateStr?: string | null, campaignYear: number = new Date().getFullYear()): boolean {
   if (!dateStr) return false;
   const clean = dateStr.trim();
   
@@ -365,7 +365,7 @@ export class ReferentDataService {
   static getCachedData(
     candidatIdProfil?: string,
     candidatName?: string,
-    campaignYear: number = 2026
+    campaignYear: number = new Date().getFullYear()
   ): ReferentDatasets | null {
     const key = `${(candidatIdProfil || candidatName || '').trim().toLowerCase()}_${campaignYear}`;
     return this.cache[key] || null;
@@ -376,7 +376,7 @@ export class ReferentDataService {
    */
   static getStoredCampaignCandidateData(
     candidatIdProfil?: string,
-    campaignYear: number = 2026
+    campaignYear: number = new Date().getFullYear()
   ): ReferentDatasets | null {
     if (!candidatIdProfil) return null;
     const cleanId = candidatIdProfil.trim().toLowerCase();
@@ -408,7 +408,7 @@ export class ReferentDataService {
    * et les stocke dans l'application pour un accès immédiat.
    */
   static async preloadCampaignReferentData(
-    campaignYear: number = 2026,
+    campaignYear: number = new Date().getFullYear(),
     candidates: Array<{ idProfil: string; displayName?: string }> = []
   ): Promise<Record<string, ReferentDatasets>> {
     const resultMap: Record<string, ReferentDatasets> = {};
@@ -695,7 +695,7 @@ export class ReferentDataService {
   static async loadReferentData(
     candidatIdProfil?: string,
     candidatName?: string,
-    campaignYear: number = 2026,
+    campaignYear: number = new Date().getFullYear(),
     forceRefresh: boolean = false
   ): Promise<ReferentDatasets> {
     const cacheKey = `${(candidatIdProfil || candidatName || '').trim().toLowerCase()}_${campaignYear}`;
