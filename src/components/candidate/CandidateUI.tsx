@@ -567,7 +567,6 @@ export function FormField({
                     type="text"
                     value={linkText}
                     onChange={e => setLinkText(e.target.value)}
-                    placeholder="Ex : blurg"
                     className="w-full p-3 bg-accent/5 rounded-lg border border-accent/10 focus:border-primary focus:ring-0 text-sm font-medium outline-none"
                     autoFocus={!linkText}
                   />
@@ -581,7 +580,6 @@ export function FormField({
                     type="url"
                     value={linkUrl}
                     onChange={e => setLinkUrl(e.target.value)}
-                    placeholder="https://docs.google.com/..."
                     className="w-full p-3 bg-accent/5 rounded-lg border border-accent/10 focus:border-primary focus:ring-0 text-sm font-medium outline-none"
                     autoFocus={Boolean(linkText)}
                     onKeyDown={e => {
