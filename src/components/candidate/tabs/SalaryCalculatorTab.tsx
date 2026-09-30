@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Calculator, ExternalLink, Info } from 'lucide-react';
-import { NumberInput } from '../CandidateUI';
 import { UserProfile, Dossier, AnnualReport, Grade } from '../../../types';
 import { formatCurrency } from '../../../lib/utils';
 import { calculateYears, calculateSalaryFormule, calculateSalaryFormulaResult, getPrimeAnciennete, resolveTargetGrade } from '../../../lib/salaryUtils';
@@ -220,39 +219,43 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
         <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 space-y-6 mt-10">
             <div className="text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4">Projections Salariales</div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-              <div className="w-full">
-              <div className="flex items-center justify-between mb-4 px-2">
-                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em]">
-                  <span>Je pense que LL peut me facturer (</span>
-                  <a
-                    id="link_tj_cible_calc"
-                    href="https://docs.google.com/spreadsheets/d/1LatJvU7ZI5m6-is2oyVihfBSDqzJsdbvxL3pCMQhpJQ/edit?gid=872847313#gid=872847313"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary font-bold underline inline-flex items-center gap-0.5 hover:text-primary-dark px-1 py-0.5 rounded transition-all"
-                  >
-                    TJ cible
-                    <ExternalLink className="w-2.5 h-2.5 inline" />
-                  </a>
-                  <span>) :</span>
-                </label>
-              </div>
-              <input
-                type="number"
-                min={0}
-                value={tjCible || ''}
-                onChange={e => {
-                  const val = e.target.value === '' ? 0 : Math.max(0, Math.floor(Number(e.target.value)));
-                  setTjCible(val);
-                  setReportData?.(prev => ({ ...prev, targetTJM: val }));
-                }}
-                className="w-full p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 items-end">
+              <div className="w-full flex flex-col justify-between h-full">
+                <div className="min-h-[44px] flex items-end mb-3 px-2">
+                  <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] leading-snug">
+                    <span>Je pense que LL peut me facturer (</span>
+                    <a
+                      id="link_tj_cible_calc"
+                      href="https://docs.google.com/spreadsheets/d/1LatJvU7ZI5m6-is2oyVihfBSDqzJsdbvxL3pCMQhpJQ/edit?gid=872847313#gid=872847313"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary font-bold underline inline-flex items-center gap-0.5 hover:text-primary-dark px-1 py-0.5 rounded transition-all"
+                    >
+                      TJ cible
+                      <ExternalLink className="w-2.5 h-2.5 inline" />
+                    </a>
+                    <span>) :</span>
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  value={tjCible || ''}
+                  onChange={e => {
+                    const val = e.target.value === '' ? 0 : Math.max(0, Math.floor(Number(e.target.value)));
+                    setTjCible(val);
+                    setReportData?.(prev => ({ ...prev, targetTJM: val }));
+                  }}
+                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                />
               </div>
 
-              <div className="w-full" title="Le taux applicable dans la formule dépend de ce grade cible pour la promotion.">
-                <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] mb-4 px-2">Évolution de poste souhaitée (Grade)</label>
+              <div className="w-full flex flex-col justify-between h-full" title="Le taux applicable dans la formule dépend de ce grade cible pour la promotion.">
+                <div className="min-h-[44px] flex items-end mb-3 px-2">
+                  <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] leading-snug">
+                    Évolution de poste souhaitée (Grade)
+                  </label>
+                </div>
                 <select
                   value={grade}
                   onChange={e => {
@@ -260,7 +263,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                     setGrade(value);
                     setReportData?.(prev => ({ ...prev, wishedGrade: value }));
                   }}
-                  className="w-full p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
                 >
                   {availableTargetGrades.map(g => (
                     <option key={g} value={g}>{g}</option>
@@ -268,35 +271,73 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                 </select>
               </div>
 
-              <NumberInput
-                label="% Investissement (0-100)"
-                value={investPerc}
-                onChange={v => setInvestPerc(Math.min(100, Math.max(0, v)))}
-                min={0}
-                max={100}
-                step={1}
-              />
+              <div className="w-full flex flex-col justify-between h-full">
+                <div className="min-h-[44px] flex items-end mb-3 px-2">
+                  <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] leading-snug">
+                    % Investissement (0-100)
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={investPerc ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      setInvestPerc(0);
+                      return;
+                    }
+                    const val = Number(raw);
+                    if (!isNaN(val)) setInvestPerc(val);
+                  }}
+                  onBlur={() => {
+                    setInvestPerc(prev => Math.min(100, Math.max(0, prev || 0)));
+                  }}
+                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                />
+              </div>
 
-              <NumberInput
-                label="% Mission (95-100)"
-                value={missionPerc}
-                onChange={v => setMissionPerc(Math.min(100, Math.max(95, v)))}
-                min={95}
-                max={100}
-                step={1}
-              />
+              <div className="w-full flex flex-col justify-between h-full">
+                <div className="min-h-[44px] flex items-end mb-3 px-2">
+                  <label className="block text-[10px] font-black text-accent/30 uppercase tracking-[0.2em] leading-snug">
+                    % Mission (95-100)
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  min={95}
+                  max={100}
+                  step={1}
+                  value={missionPerc ?? ''}
+                  onChange={e => {
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      setMissionPerc(95);
+                      return;
+                    }
+                    const val = Number(raw);
+                    if (!isNaN(val)) setMissionPerc(val);
+                  }}
+                  onBlur={() => {
+                    setMissionPerc(prev => Math.min(100, Math.max(95, prev || 95)));
+                  }}
+                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                />
+              </div>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5" title="Calcul Automatique : ((Taux Grade Actuel × 193 × TJ Vendu) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
+              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : ((Taux Grade Actuel × 193 × TJ Vendu) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Salaire Vendu</div>
                 <div className="text-lg font-bold text-accent">{formatCurrency(salaireVendu)}</div>
               </div>
-              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5" title="Calcul Automatique : ((Taux Grade Cible × 193 × TJ Cible) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
+              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : ((Taux Grade Cible × 193 × TJ Cible) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Salaire TJ Cible</div>
                 <div className="text-lg font-bold text-accent">{formatCurrency(salaireCible)}</div>
               </div>
-              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5" title="Calcul Automatique : ((Taux Grade Cible × 193 × (TJ Cible + 30)) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
+              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : ((Taux Grade Cible × 193 × (TJ Cible + 30)) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Max TJ Cible (100%)</div>
                 <div className="text-lg font-bold text-green-600">{formatCurrency(salaireCible100)}</div>
               </div>
