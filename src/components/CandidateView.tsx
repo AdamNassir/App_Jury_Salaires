@@ -12,7 +12,7 @@ import { calculateYears, calculateSalaryFormule, getPrimeAnciennete, resolveTarg
 import { generateDossierPDF } from '../utils/pdfGenerator';
 import { requestGoogleDriveAccess, setGoogleDriveAccessToken } from '../lib/firebase';
 import { DriveObjectivesService } from '../services/driveObjectivesService';
-import { TabButton } from './candidate/CandidateUI';
+import { TabButton, CandidateReadOnlyContext } from './candidate/CandidateUI';
 import { BilanIntroTab } from './candidate/tabs/BilanIntroTab';
 import { DocumentsTab } from './candidate/tabs/DocumentsTab';
 import { SyntheseTab } from './candidate/tabs/SyntheseTab';
@@ -50,10 +50,11 @@ interface CandidateViewProps {
   initialTab?: string | null;
   targetLinkId?: string | null;
   onTabChange?: (tab: string) => void;
+  readOnly?: boolean;
 }
 
 
-export function CandidateView({ profile, dossier, currentUser, initialTab, targetLinkId, onTabChange }: CandidateViewProps) {
+export function CandidateView({ profile, dossier, currentUser, initialTab, targetLinkId, onTabChange, readOnly }: CandidateViewProps) {
   const [dossierStatus, setDossierStatus] = useState<DossierStatus>(() => dossier?.status || 'OUVERT');
   const campaignYear = dossier?.campaignYear ||
     (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, ''), 10) : undefined) ||
@@ -67,7 +68,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
     }
   }, [dossier?.status]);
 
-  const isLockedForEditing = dossierStatus !== 'OUVERT';
+  const isLockedForEditing = Boolean(readOnly) || dossierStatus !== 'OUVERT';
   const isDossierComplet = dossierStatus === 'COMPLET' || dossierStatus === 'VALIDE';
 
   const [loading, setLoading] = useState(false);
@@ -146,7 +147,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
     'EXPERTISES',
     ...engagementSections.map(s => s.id),
     'METEOS',
-    ...((isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0)
+    ...((readOnly || isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0)
       ? (['RETOURS_PAIRS', 'AVIS_JURY'] as CandidateTabType[])
       : []),
     'PRETENTIONS',
@@ -489,8 +490,9 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
       ? saveOperationVersionRef.current
       : ++saveOperationVersionRef.current;
 
+    if (readOnly) return;
     if (isLockedForEditing && !isSilent) {
-      alert('Ce dossier est validé et ne peut plus être modifié.');
+      alert('Ce dossier est en mode consultation et ne peut plus être modifié.');
       return;
     }
     if (isLockedForEditing && isSilent) return;
@@ -677,7 +679,8 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
   const hasUploadedDocs = (dossier?.documents && dossier.documents.length > 0);
 
   return (
-    <div className="space-y-8">
+    <CandidateReadOnlyContext.Provider value={isLockedForEditing}>
+      <div className="space-y-8">
       {dossierStatus === 'VALIDE' && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
           <div className="flex items-center gap-4">
@@ -728,7 +731,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
               </div>
             ))}
             <TabButton active={activeTab === 'METEOS'} onClick={() => handleTabChange('METEOS')} label="Météos Client" count={meteoLinks.length + feedbacks.length} />
-            {(isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0) && (
+            {(readOnly || isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0) && (
               <>
                 <TabButton 
                   active={activeTab === 'RETOURS_PAIRS'} 
@@ -785,7 +788,12 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
               </button>
             )}
             
-            {dossierStatus === 'VALIDE' ? (
+            {readOnly ? (
+              <div className="w-full py-3.5 px-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-bold text-center text-xs flex items-center justify-center gap-2">
+                <Eye className="w-4 h-4 text-blue-600" />
+                Mode Consultation (Jury)
+              </div>
+            ) : dossierStatus === 'VALIDE' ? (
               <div className="w-full py-3.5 px-4 rounded-xl bg-green-50 border border-green-200 text-green-700 font-bold text-center text-xs flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
                 Dossier Délibéré & Validé
@@ -862,7 +870,10 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
 
       <fieldset
         disabled={isLockedForEditing && activeTab !== 'RETOURS_PAIRS' && activeTab !== 'AVIS_JURY'}
-        className="lg:col-span-3 pb-24 min-w-0"
+        className={cn(
+          "lg:col-span-3 pb-24 min-w-0 border-0 p-0 m-0",
+          isLockedForEditing && activeTab !== 'RETOURS_PAIRS' && activeTab !== 'AVIS_JURY' && "[&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_[contenteditable]]:pointer-events-none [&_[contenteditable]]:select-text"
+        )}
       >
         <AnimatePresence mode="wait">
           {activeTab === 'DOCUMENTS' && (
@@ -888,6 +899,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
             <SyntheseTab
               reportData={reportData}
               setReportData={setReportData}
+              isLockedForEditing={isLockedForEditing}
             />
           )}
 
@@ -899,6 +911,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
               isImportingPastObjectives={isImportingPastObjectives}
               handleManualDepositBilanN1={handleManualDepositBilanN1}
               isManualDepositingBilan={isManualDepositingBilan}
+              isLockedForEditing={isLockedForEditing}
             />
           )}
 
@@ -926,6 +939,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
               profile={profile}
               dossier={dossier}
               campaignYear={campaignYear}
+              readOnly={isLockedForEditing}
             />
           )}
 
@@ -933,12 +947,14 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
             <MeteosTab
               meteoLinks={meteoLinks}
               setMeteoLinks={setMeteoLinks}
+              dossier={dossier}
               feedbacks={feedbacks}
               setFeedbacks={setFeedbacks}
               meteoSubTab={meteoSubTab}
               setMeteoSubTab={setMeteoSubTab}
               selectedMeteoIndex={selectedMeteoIndex}
               setSelectedMeteoIndex={setSelectedMeteoIndex}
+              isLockedForEditing={isLockedForEditing}
             />
           )}
 
@@ -962,6 +978,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
               corridorMaxSalary={corridorMaxSalary}
               corridorGrade={corridorGrade}
               addObjectiveFuture={addObjectiveFuture}
+              isLockedForEditing={isLockedForEditing}
             />
           )}
 
@@ -971,6 +988,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
               dossier={dossier}
               reportData={reportData}
               setReportData={setReportData}
+              readOnly={isLockedForEditing}
             />
           )}
         </AnimatePresence>
@@ -990,6 +1008,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
       </fieldset>
     </div>
     </div>
+    </CandidateReadOnlyContext.Provider>
   );
 }
 

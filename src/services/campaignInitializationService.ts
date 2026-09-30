@@ -2,7 +2,7 @@ import { defaultReportData } from '../data/defaultAnnualReport';
 import * as XLSX from 'xlsx';
 import { collection, getDocs, doc, writeBatch, query, where } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
-import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole, ClientFeedback, ConsultantFeedback } from '../types';
+import { Personne, CampaignParticipant, Dossier, Grade, UserProfile, Campaign, UserRole, ClientFeedback, ConsultantFeedback, EvaluationRelationType } from '../types';
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
 import { extractPlainTextUrl } from '../utils/urlUtils';
@@ -22,6 +22,7 @@ export interface SheetParsingResult {
 export interface MeteoLinkItem {
   idProfil: string;
   link: string;
+  date?: string;
   rawRowIndex?: number;
 }
 
@@ -139,6 +140,7 @@ export interface CandidateInitData {
   experienceEmbauche?: number;
   experienceYears?: number; // Total = Experience_Arrivee_Valorisee_LL + Anciennete_LL
   meteoLinks?: string[]; // Liens issus de Vues_Meteos (Col Q)
+  meteoDetails?: Array<{ link: string; date?: string }>;
   isExistingPersonne: boolean;
   isExistingParticipant: boolean;
   isExistingUser: boolean;
@@ -195,8 +197,14 @@ export interface CampaignInitPreview {
   expiredPrimesCount: number;
   meteoLinksCount: number;
   meteoLinksByCandidate: Record<string, string[]>;
+  meteoDetailsByCandidate?: Record<string, Array<{ link: string; date?: string }>>;
   assignmentsByCandidate: Record<string, string[]>; // candidateIdProfil -> evaluatorIdProfils[]
-  assignmentsDetailsByCandidate?: Record<string, Record<string, { project?: string; client?: string }>>; // candidateIdProfil -> { [evaluatorIdProfil]: { project, client } }
+  assignmentsDetailsByCandidate?: Record<string, Record<string, { 
+    project?: string; 
+    client?: string; 
+    typePrime?: string; 
+    relationTypes?: EvaluationRelationType[]; 
+  }>>; // candidateIdProfil -> { [evaluatorIdProfil]: details }
   warnings: string[];
   blockingErrors: string[];
   canProceed: boolean;
@@ -714,6 +722,12 @@ export class CampaignInitializationService {
       const meteoDate = parseExcelDate(row[colDateIndex]);
       if (!meteoDate || meteoDate < periodStart || meteoDate > periodEnd) continue;
       
+      const dateStr = meteoDate.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      
       // Col Q : conserver le texte affiché dans la cellule, sans lire la cible hypertexte sous-jacente.
       let linkValue = '';
       if (worksheet) {
@@ -737,6 +751,7 @@ export class CampaignInitializationService {
           items.push({
             idProfil,
             link: singleLink,
+            date: dateStr,
             rawRowIndex: i + 1
           });
         }
@@ -837,6 +852,7 @@ export class CampaignInitializationService {
 
     // 3. Lire Vues_Meteos
     const meteoLinksByCandidate: Record<string, string[]> = {};
+    const meteoDetailsByCandidate: Record<string, Array<{ link: string; date?: string }>> = {};
     let totalMeteoLinksCount = 0;
     if (vuesMeteosSpreadsheet) {
       try {
@@ -845,9 +861,11 @@ export class CampaignInitializationService {
         meteoItems.forEach(item => {
           if (!meteoLinksByCandidate[item.idProfil]) {
             meteoLinksByCandidate[item.idProfil] = [];
+            meteoDetailsByCandidate[item.idProfil] = [];
           }
           if (!meteoLinksByCandidate[item.idProfil].includes(item.link)) {
             meteoLinksByCandidate[item.idProfil].push(item.link);
+            meteoDetailsByCandidate[item.idProfil].push({ link: item.link, date: item.date });
           }
         });
       } catch (e: any) {
@@ -858,6 +876,7 @@ export class CampaignInitializationService {
     // Associer les liens météos aux candidats
     parsedCandidates.forEach(cand => {
       cand.meteoLinks = meteoLinksByCandidate[cand.idProfil] || [];
+      cand.meteoDetails = meteoDetailsByCandidate[cand.idProfil] || [];
     });
 
     // 4. Charger données existantes LocalStorage pour rapprochement & préservation
@@ -1060,7 +1079,7 @@ export class CampaignInitializationService {
     };
 
     const assignmentsByCandidate: Record<string, string[]> = {};
-    const assignmentsDetailsByCandidate: Record<string, Record<string, { project?: string; client?: string }>> = {};
+    const assignmentsDetailsByCandidate: Record<string, Record<string, { project?: string; client?: string; typePrime?: string; relationTypes?: EvaluationRelationType[] }>> = {};
     const assignmentsByEvaluator: Record<string, string[]> = {};
     let activePrimesCount = 0;
     let expiredPrimesCount = 0;
@@ -1102,10 +1121,21 @@ export class CampaignInitializationService {
         if (!assignmentsDetailsByCandidate[candIdProfil]) {
           assignmentsDetailsByCandidate[candIdProfil] = {};
         }
+
+        // Vérification de la Colonne C (Type_Prime) : Encadrement et Commerciale
+        const hasEncadrement = pr.typePrime ? /encadrement/i.test(pr.typePrime) : false;
+        const hasCommerciale = pr.typePrime ? /commercial/i.test(pr.typePrime) : false;
+        const detectedRelationTypes: EvaluationRelationType[] = [];
+        if (hasEncadrement) detectedRelationTypes.push('Encadrement');
+        if (hasCommerciale) detectedRelationTypes.push('Commerciale');
+        if (detectedRelationTypes.length === 0) detectedRelationTypes.push('Collègue_Mission');
+
         if (!assignmentsDetailsByCandidate[candIdProfil][evalIdProfil]) {
           assignmentsDetailsByCandidate[candIdProfil][evalIdProfil] = {
             project: pr.project,
-            client: pr.client
+            client: pr.client,
+            typePrime: pr.typePrime,
+            relationTypes: detectedRelationTypes
           };
         } else {
           // If not set yet, set project and client
@@ -1115,6 +1145,12 @@ export class CampaignInitializationService {
           if (!assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].client && pr.client) {
             assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].client = pr.client;
           }
+          if (!assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].typePrime && pr.typePrime) {
+            assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].typePrime = pr.typePrime;
+          }
+          const prevTypes = assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].relationTypes || [];
+          const merged = Array.from(new Set([...prevTypes, ...detectedRelationTypes]));
+          assignmentsDetailsByCandidate[candIdProfil][evalIdProfil].relationTypes = merged;
         }
 
         if (!assignmentsByEvaluator[evalIdProfil]) {
@@ -1234,6 +1270,7 @@ export class CampaignInitializationService {
       expiredPrimesCount,
       meteoLinksCount: totalMeteoLinksCount,
       meteoLinksByCandidate,
+      meteoDetailsByCandidate,
       assignmentsByCandidate,
       assignmentsDetailsByCandidate,
       warnings,
@@ -1378,6 +1415,11 @@ export class CampaignInitializationService {
       // Liens météo issus de Vues_Meteos (valeur réelle dans la cellule, sans fabrication de faux feedbacks)
       const meteoLinks = cand.meteoLinks || [];
       const mergedMeteoLinks = Array.from(new Set([...(existingDossier?.meteoLinks || []), ...meteoLinks]));
+      const meteoDetails = cand.meteoDetails || [];
+      const mergedMeteoDetails = [
+        ...(existingDossier?.meteoDetails || []),
+        ...meteoDetails.filter(md => !existingDossier?.meteoDetails?.some(e => e.link === md.link))
+      ];
 
       // Préparer les feedbacks évaluateurs en pré-remplissant Projet/Mission et Client Concerné issus du fichier Primes
       const mergedConsultantFeedbacks: Record<string, ConsultantFeedback> = {
@@ -1398,17 +1440,25 @@ export class CampaignInitializationService {
         if (existingKey) {
           // Si le feedback existant n'a pas encore de client ou projet spécifié, injecter les valeurs du fichier Primes
           const curr = mergedConsultantFeedbacks[existingKey];
-          if ((!curr.project && details?.project) || (!curr.client && details?.client)) {
+          const assignedTypes = details?.relationTypes || ['Collègue_Mission'];
+          const existingHasCustomTypes = Array.isArray(curr.relationTypes) && curr.relationTypes.length > 0 && !(curr.relationTypes.length === 1 && curr.relationTypes[0] === 'Collègue_Mission');
+          const finalTypes = existingHasCustomTypes ? curr.relationTypes! : assignedTypes;
+
+          if ((!curr.project && details?.project) || (!curr.client && details?.client) || !existingHasCustomTypes) {
             mergedConsultantFeedbacks[existingKey] = {
               ...curr,
               project: curr.project || details?.project || '',
               client: curr.client || details?.client || '',
+              relationTypes: finalTypes,
+              relationType: finalTypes.map(r => String(r).replace(/_/g, ' ')).join(', '),
+              type: (finalTypes[0] as EvaluationRelationType) || 'Collègue_Mission',
               updatedAt: new Date().toISOString()
             };
           }
-        } else if (details?.project || details?.client) {
-          // Créer un brouillon pré-rempli pour cet évaluateur
+        } else if (details?.project || details?.client || details?.relationTypes) {
+          // Créer un brouillon pré-rempli pour cet évaluateur avec types détectés
           const draftKey = `eval_${evalIdProfil}_init`;
+          const initRelTypes = details?.relationTypes || ['Collègue_Mission'];
           mergedConsultantFeedbacks[draftKey] = {
             id: draftKey,
             consultantId: evalIdProfil,
@@ -1418,8 +1468,9 @@ export class CampaignInitializationService {
             campaignId: campaignId,
             client: details?.client || '',
             project: details?.project || '',
-            relationType: 'Collègue_Mission',
-            type: 'Collègue_Mission',
+            relationTypes: initRelTypes,
+            relationType: initRelTypes.map(r => String(r).replace(/_/g, ' ')).join(', '),
+            type: (initRelTypes[0] as EvaluationRelationType) || 'Collègue_Mission',
             targetTJMin: 0,
             targetTJMax: 0,
             missionPercentage: 98,
@@ -1446,6 +1497,7 @@ export class CampaignInitializationService {
         campaignYear: preview.year,
         status: 'OUVERT',
         assignedConsultantIds: assignedEvaluators,
+        assignmentsDetails: candAssignmentDetails,
         annualReport: {
           ...defaultReportData,
           currentGrade: cand.grade,
@@ -1454,6 +1506,7 @@ export class CampaignInitializationService {
           currentSalary: cand.currentSalary,
         },
         meteoLinks: mergedMeteoLinks,
+        meteoDetails: mergedMeteoDetails,
         clientFeedbacks: existingDossier?.clientFeedbacks || [],
         documents: existingDossier?.documents || [],
         consultantFeedbacks: mergedConsultantFeedbacks,

@@ -323,6 +323,7 @@ export interface ConsultantFeedback {
   consultantName: string;
   type: ConsultationType;
   relationType?: EvaluationRelationType | string;
+  relationTypes?: (EvaluationRelationType | string)[];
   campaignId?: string;
   client?: string;
   project?: string;
@@ -399,11 +400,13 @@ export interface Dossier {
   annualReport?: AnnualReport;
   clientFeedbacks?: ClientFeedback[];
   meteoLinks?: string[];
+  meteoDetails?: Array<{ link: string; date?: string }>;
   documents?: DossierDocument[];
   referentData?: ReferentDatasets;
   
   // Assignments
   assignedConsultantIds: string[];
+  assignmentsDetails?: Record<string, { project?: string; client?: string; typePrime?: string; relationTypes?: EvaluationRelationType[] }>;
   
   // Feedbacks from Consultants
   consultantFeedbacks: Record<string, ConsultantFeedback>; // Key is consultantId

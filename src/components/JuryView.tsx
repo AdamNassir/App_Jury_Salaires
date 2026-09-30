@@ -138,7 +138,6 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
         <div className="flex items-center gap-12">
           <div>
             <h2 className="text-secondary tracking-tight">Espace Jury</h2>
-            <p className="text-[10px] text-accent/40 uppercase tracking-[0.3em] font-black mt-2">Arbitrage & Validation des Augmentations 2025</p>
           </div>
 
           <div className="flex bg-accent/5 p-1 rounded-xl border border-accent/10">

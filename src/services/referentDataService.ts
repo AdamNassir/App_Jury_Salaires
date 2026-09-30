@@ -570,8 +570,9 @@ export class ReferentDataService {
         const encadrement = accompagnements.filter(item => item.type === 'ENCADREMENT');
         const parrain = accompagnements.filter(item => item.type === 'PARRAIN');
 
-        // 5. Clients
+        // 5. Clients (ignorer les lignes où la colonne C / index 2 vaut 28)
         const clients: ReferentClientItem[] = clientRes.rows
+          .filter(r => String(r[2] ?? '').trim() !== '28')
           .map(r => ({
             nomClient: String(r[1] || r[0] || 'Client'),
             idProfil: String(r[3] || ''),
@@ -1053,7 +1054,9 @@ export class ReferentDataService {
       try {
         const fetchRes = await fetchSheetDataWithHeaders('Vue_Client');
         const rows = fetchRes.rows;
+        // Ignorer les lignes où la colonne C (index 2) vaut 28
         clients = rows
+          .filter(r => String(r[2] ?? '').trim() !== '28')
           .map(r => ({
             nomClient: String(r[1] || r[0] || 'Client'), // Col B
             idProfil: String(r[3] || ''), // Col D
@@ -1068,7 +1071,7 @@ export class ReferentDataService {
           url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=1815147854#gid=1815147854',
           columnTarget: 'Colonne D (Id Profil)',
           idProfilUsed: userDisplayId,
-          filterRule: `Colonne D == "${userDisplayId}"`,
+          filterRule: `Colonne D == "${userDisplayId}" ET Colonne C != "28"`,
           rowsRetrievedTotal: fetchRes.totalRows,
           rowsMatchedCandidate: clients.length,
           status: fetchRes.error ? 'ERROR' : (clients.length > 0 ? 'SUCCESS' : (fetchRes.totalRows > 0 ? 'WARNING' : 'ERROR')),

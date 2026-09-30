@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Trash2, ExternalLink, FileSpreadsheet, AlertCircle, Copy, Check } from 'lucide-react';
-import { ClientFeedback } from '../../../types';
+import { Plus, Trash2, ExternalLink, FileSpreadsheet, AlertCircle, Copy, Check, Calendar } from 'lucide-react';
+import { ClientFeedback, Dossier } from '../../../types';
 import { extractPlainTextUrl, getValidUrl, copyPlainTextToClipboard } from '../../../utils/urlUtils';
 
 interface MeteosTabProps {
   meteoLinks?: string[];
   setMeteoLinks?: React.Dispatch<React.SetStateAction<string[]>>;
+  dossier?: Dossier;
   // Props de rétrocompatibilité
   feedbacks?: ClientFeedback[];
   setFeedbacks?: React.Dispatch<React.SetStateAction<ClientFeedback[]>>;
@@ -14,16 +15,48 @@ interface MeteosTabProps {
   setMeteoSubTab?: (tab: 'LIST' | 'CHART') => void;
   selectedMeteoIndex?: number | null;
   setSelectedMeteoIndex?: (index: number | null) => void;
+  isLockedForEditing?: boolean;
 }
 
 export function MeteosTab({
   meteoLinks = [],
   setMeteoLinks,
-  feedbacks = []
+  dossier,
+  feedbacks = [],
+  isLockedForEditing = false
 }: MeteosTabProps) {
   const [newLinkInput, setNewLinkInput] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const getMeteoDate = (linkUrl: string): string | undefined => {
+    const clean = extractPlainTextUrl(linkUrl).toLowerCase();
+    if (!clean) return undefined;
+
+    // 1. Depuis dossier.meteoDetails (rempli lors de l'initialisation de campagne)
+    const detail = dossier?.meteoDetails?.find(
+      d => extractPlainTextUrl(d.link).toLowerCase() === clean
+    );
+    if (detail?.date) return detail.date;
+
+    // 2. Depuis dossier.referentData?.meteos (colonne F de Vue_Meteo)
+    const refMeteo = dossier?.referentData?.meteos?.find(m => {
+      const l1 = extractPlainTextUrl(m.lienMeteo || '').toLowerCase();
+      const l2 = extractPlainTextUrl(m.id || '').toLowerCase();
+      return (l1 && (l1 === clean || clean.includes(l1) || l1.includes(clean))) ||
+             (l2 && (l2 === clean || clean.includes(l2) || l2.includes(clean)));
+    });
+    if (refMeteo?.dateMeteo) return refMeteo.dateMeteo;
+
+    // 3. Depuis feedbacks clients
+    const fb = feedbacks.find(f => {
+      const fl = extractPlainTextUrl(f.liensMeteo || f.fileUrl || '').toLowerCase();
+      return fl && (fl === clean || clean.includes(fl) || fl.includes(clean));
+    });
+    if (fb?.realizationDate) return fb.realizationDate;
+
+    return undefined;
+  };
 
   // Rassemble les liens météos du profil (colonne Q de Vues_Meteo + éventuels liens antérieurs)
   const allMeteoLinks = Array.from(
@@ -52,6 +85,7 @@ export function MeteosTab({
 
   const handleAddLink = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLockedForEditing) return;
     const cleaned = extractPlainTextUrl(newLinkInput);
     if (!cleaned) return;
 
@@ -63,6 +97,7 @@ export function MeteosTab({
   };
 
   const handleRemoveLink = (linkToRemove: string) => {
+    if (isLockedForEditing) return;
     if (setMeteoLinks) {
       setMeteoLinks(prev => (prev || []).filter(l => l !== linkToRemove));
     }
@@ -80,7 +115,7 @@ export function MeteosTab({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-accent/10 pb-6">
           <h2 className="text-secondary">Météos Client</h2>
 
-          {setMeteoLinks && !showAddForm && (
+          {!isLockedForEditing && setMeteoLinks && !showAddForm && (
             <button
               type="button"
               onClick={() => setShowAddForm(true)}
@@ -143,6 +178,7 @@ export function MeteosTab({
               {allMeteoLinks.map((link, idx) => {
                 const plainTextUrl = extractPlainTextUrl(link);
                 const validUrl = getValidUrl(plainTextUrl);
+                const meteoDate = getMeteoDate(link);
                 return (
                   <div
                     key={idx}
@@ -153,9 +189,15 @@ export function MeteosTab({
                         <FileSpreadsheet className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-bold text-accent">Météo {idx + 1}</span>
                           <span className="text-[10px] text-accent/40 font-mono">#{idx + 1}</span>
+                          {meteoDate && (
+                            <span className="text-[11px] font-semibold text-accent/80 bg-accent/5 border border-accent/10 px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 shadow-2xs">
+                              <Calendar className="w-3 h-3 text-primary shrink-0" />
+                              <span>{meteoDate}</span>
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <a
@@ -217,7 +259,7 @@ export function MeteosTab({
                         <span>Ouvrir la fiche météo</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
-                      {setMeteoLinks && (
+                      {!isLockedForEditing && setMeteoLinks && (
                         <button
                           type="button"
                           onClick={() => handleRemoveLink(link)}

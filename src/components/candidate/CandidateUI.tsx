@@ -277,6 +277,8 @@ export function wysiwygHtmlToMarkdown(html: string): string {
   return raw;
 }
 
+export const CandidateReadOnlyContext = React.createContext<boolean>(false);
+
 export function FormField({
   label,
   value,
@@ -298,6 +300,9 @@ export function FormField({
   maxLength?: number;
   labelHref?: string;
 }) {
+  const isContextReadOnly = React.useContext(CandidateReadOnlyContext);
+  const isFieldDisabled = Boolean(disabled || isContextReadOnly);
+
   const [showTooltip, setShowTooltip] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -327,6 +332,7 @@ export function FormField({
   }, [value, isExpanded]);
 
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    if (isFieldDisabled) return;
     const el = e.currentTarget;
     const md = wysiwygHtmlToMarkdown(el.innerHTML);
     onChange(md.slice(0, maxLength));
@@ -480,16 +486,18 @@ export function FormField({
 
         <div className="flex items-center gap-2">
           {/* Bouton insérer un lien dans le WYSIWYG */}
-          <button
-            type="button"
-            onClick={() => handleOpenLinkModal(false)}
-            disabled={disabled}
-            className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-wider hover:text-primary-dark transition-all px-2.5 py-1 bg-primary/10 hover:bg-primary/20 rounded-md cursor-pointer disabled:opacity-40"
-            title="Insérer ou transformer la sélection en lien hypertexte"
-          >
-            <LinkIcon className="w-3 h-3" />
-            <span>+ Lien</span>
-          </button>
+          {!isFieldDisabled && (
+            <button
+              type="button"
+              onClick={() => handleOpenLinkModal(false)}
+              disabled={isFieldDisabled}
+              className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-wider hover:text-primary-dark transition-all px-2.5 py-1 bg-primary/10 hover:bg-primary/20 rounded-md cursor-pointer disabled:opacity-40"
+              title="Insérer ou transformer la sélection en lien hypertexte"
+            >
+              <LinkIcon className="w-3 h-3" />
+              <span>+ Lien</span>
+            </button>
+          )}
 
           <span
             className={cn(
@@ -513,17 +521,20 @@ export function FormField({
       </div>
 
       {/* Éditeur WYSIWYG direct (contentEditable) */}
-      <div className="relative rounded-xl border border-accent/10 focus-within:border-secondary transition-all bg-accent/5 overflow-hidden">
+      <div className={cn(
+        "relative rounded-xl border transition-all overflow-hidden",
+        isFieldDisabled ? "border-accent/10 bg-accent/[0.02]" : "border-accent/10 focus-within:border-secondary bg-accent/5"
+      )}>
         <div
           ref={editorRef}
-          contentEditable={!disabled}
+          contentEditable={!isFieldDisabled}
           onInput={handleInput}
           onClick={handleEditorClick}
           data-placeholder={placeholder || 'Saisissez votre texte ici...'}
           className={cn(
             "w-full p-5 min-h-[110px] text-base font-light outline-none leading-relaxed text-accent transition-all",
             "empty:before:content-[attr(data-placeholder)] empty:before:text-accent/25 empty:before:pointer-events-none",
-            disabled && "opacity-50 cursor-not-allowed"
+            isFieldDisabled && "cursor-default select-text opacity-90"
           )}
         />
       </div>
@@ -633,21 +644,23 @@ export function FormField({
                 <div>
                   <h3 className="text-xl font-bold text-accent tracking-tight">{label}</h3>
                   <p className="text-[10px] text-accent/40 uppercase tracking-[0.2em] font-black mt-1">
-                    Édition plein écran
+                    {isFieldDisabled ? 'Consultation plein écran (Lecture seule)' : 'Édition plein écran'}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
                   {/* Bouton lien plein écran */}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenLinkModal(true)}
-                    disabled={disabled}
-                    className="flex items-center gap-1.5 text-xs font-black text-primary uppercase tracking-wider hover:text-primary-dark transition-all px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded-lg cursor-pointer disabled:opacity-40"
-                    title="Insérer un lien hypertexte sur la sélection"
-                  >
-                    <LinkIcon className="w-3.5 h-3.5" />
-                    <span>+ Insérer un lien</span>
-                  </button>
+                  {!isFieldDisabled && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenLinkModal(true)}
+                      disabled={isFieldDisabled}
+                      className="flex items-center gap-1.5 text-xs font-black text-primary uppercase tracking-wider hover:text-primary-dark transition-all px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded-lg cursor-pointer disabled:opacity-40"
+                      title="Insérer un lien hypertexte sur la sélection"
+                    >
+                      <LinkIcon className="w-3.5 h-3.5" />
+                      <span>+ Insérer un lien</span>
+                    </button>
+                  )}
 
                   <span className="text-xs text-accent/40 font-mono">
                     {charCount}/{maxLength}
@@ -665,12 +678,13 @@ export function FormField({
               <div className="flex-1 p-8 flex flex-col min-h-0">
                 <div
                   ref={expandedEditorRef}
-                  contentEditable={!disabled}
+                  contentEditable={!isFieldDisabled}
                   onInput={handleInput}
                   onClick={handleEditorClick}
                   data-placeholder={placeholder || 'Saisissez votre texte ici...'}
                   className={cn(
-                    "w-full h-full flex-1 p-8 bg-accent/5 rounded-xl border border-accent/10 focus:border-secondary text-xl font-light outline-none placeholder:text-accent/10 custom-scrollbar leading-relaxed overflow-y-auto text-accent",
+                    "w-full h-full flex-1 p-8 rounded-xl border text-xl font-light outline-none custom-scrollbar leading-relaxed overflow-y-auto text-accent",
+                    isFieldDisabled ? "bg-accent/[0.02] border-accent/10 cursor-default select-text" : "bg-accent/5 border-accent/10 focus:border-secondary",
                     "empty:before:content-[attr(data-placeholder)] empty:before:text-accent/25 empty:before:pointer-events-none"
                   )}
                 />

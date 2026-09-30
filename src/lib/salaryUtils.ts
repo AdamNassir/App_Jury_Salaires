@@ -80,14 +80,19 @@ export const calculateSalaryFormulaResult = (
   investmentPercentage: number,
   missionPercentage: number
 ) => {
-  const targetProjection = (missionPercentage / 100) * (
-    ((investmentPercentage * (salaireCible100 - salaireCible)) / 100) + salaireCible
+  const targetProjection = Math.round(
+    (missionPercentage / 100) * (
+      ((investmentPercentage * (salaireCible100 - salaireCible)) / 100) + salaireCible
+    )
   );
-  const soldCap = (missionPercentage / 100) * (
-    ((investmentPercentage * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu
+  const soldCap = Math.round(
+    (missionPercentage / 100) * (
+      ((investmentPercentage * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu
+    )
   );
 
-  return Math.round(Math.max(currentSalary, Math.min(targetProjection, soldCap)));
+  const minVenduCible = Math.min(soldCap, targetProjection);
+  return Math.max(currentSalary || 0, minVenduCible);
 };
 
 export const calculateMargin = (tj: number, salary: number, prime: number) => {

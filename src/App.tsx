@@ -4,7 +4,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, signInWithGoogle, logout, googleRedirectError } from './lib/firebase';
 import { describeAuthError } from './lib/authErrors';
 import { AuthErrorNotice } from './components/AuthErrorNotice';
-import { UserProfile, UserRole, Dossier } from './types';
+import { UserProfile, UserRole, Dossier, ConsultantFeedback } from './types';
 import { UserDirectoryService } from './services/userDirectoryService';
 import { LocalDatabaseService } from './services/localDatabaseService';
 import { cn } from './lib/utils';
@@ -41,6 +41,8 @@ export default function App() {
   const [targetLinkId, setTargetLinkId] = useState<string | null>(null);
   const [candidateProfiles, setCandidateProfiles] = useState<UserProfile[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [evaluatorProfiles, setEvaluatorProfiles] = useState<UserProfile[]>([]);
+  const [selectedEvaluatorId, setSelectedEvaluatorId] = useState<string>('');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [signInError, setSignInError] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -92,13 +94,14 @@ export default function App() {
   useEffect(() => {
     if (!profile || (!profile.roles?.includes('JURY') && !profile.roles?.includes('ADMIN'))) return;
 
-    // Read candidate profiles from the local directory.
-    const syncCandidates = () => {
-      const directoryCandidates = UserDirectoryService.getCandidates();
-      setCandidateProfiles(directoryCandidates);
+    // Read candidate and evaluator profiles from the local directory.
+    const syncUsers = () => {
+      const allUsers = UserDirectoryService.getAllUsers();
+      setCandidateProfiles(allUsers.filter(u => u.roles?.includes('CANDIDATE')));
+      setEvaluatorProfiles(allUsers.filter(u => u.roles?.includes('EVALUATOR')));
     };
-    syncCandidates();
-    const unsubDir = UserDirectoryService.subscribe(syncCandidates);
+    syncUsers();
+    const unsubDir = UserDirectoryService.subscribe(syncUsers);
 
     return unsubDir;
   }, [profile]);
@@ -595,6 +598,22 @@ export default function App() {
           const activeCandidateId = selectedCandidateId || profile?.id || '';
           const activeCandidateProfile = candidateMap.get(activeCandidateId) || profile!;
 
+          // Map des évaluateurs autorisés (pour le sélecteur d'impersonation admin - strictement le rôle EVALUATOR)
+          const evaluatorMap = new Map<string, UserProfile>();
+          if (profile) evaluatorMap.set(profile.id, profile);
+          evaluatorProfiles.forEach(e => {
+            if (e.roles?.includes('EVALUATOR')) {
+              evaluatorMap.set(e.id, e);
+            }
+          });
+          const evaluatorOptions = Array.from(evaluatorMap.values()).sort((a, b) => {
+            if (a.id === profile?.id) return -1;
+            if (b.id === profile?.id) return 1;
+            return (a.displayName || a.email).localeCompare(b.displayName || b.email);
+          });
+          const activeEvaluatorId = selectedEvaluatorId || profile?.id || '';
+          const activeEvaluatorProfile = evaluatorMap.get(activeEvaluatorId) || profile!;
+
           // Trouver tous les dossiers appartenant à ce candidat
           const candidateDossiers = allDossiers.filter(d => 
             d.candidateId === activeCandidateId || 
@@ -736,6 +755,27 @@ export default function App() {
                       )}
                     </div>
                   )}
+
+                  {/* Sélecteur d'Évaluateur pour Admin dans l'espace Évaluateurs */}
+                  {isAdmin && activeView === 'EVALUATIONS' && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2.5 bg-accent/5 p-2 px-3.5 rounded-xl border border-accent/10 shadow-sm">
+                        <UserIcon className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-accent/60">Évaluateur :</span>
+                        <select
+                          value={activeEvaluatorId}
+                          onChange={(e) => setSelectedEvaluatorId(e.target.value)}
+                          className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
+                        >
+                          {evaluatorOptions.map(ev => (
+                            <option key={ev.id} value={ev.id}>
+                              {ev.id === profile?.id ? `Mon profil (${ev.displayName || ev.email})` : (ev.displayName || ev.email)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -759,8 +799,8 @@ export default function App() {
                   </motion.div>
                 )}
                 {activeView === 'EVALUATIONS' && (
-                  <motion.div key="evaluations" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                    <ConsultantView dossiers={allDossiers} profile={profile} />
+                  <motion.div key={`evaluations_${activeEvaluatorId}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                    <ConsultantView dossiers={allDossiers} profile={activeEvaluatorProfile} />
                   </motion.div>
                 )}
                 {activeView === 'JURY' && (

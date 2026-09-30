@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Calculator, ExternalLink, Info } from 'lucide-react';
 import { UserProfile, Dossier, AnnualReport, Grade } from '../../../types';
-import { formatCurrency } from '../../../lib/utils';
+import { formatCurrency, cn } from '../../../lib/utils';
 import { calculateYears, calculateSalaryFormule, calculateSalaryFormulaResult, getPrimeAnciennete, resolveTargetGrade } from '../../../lib/salaryUtils';
+import { CandidateReadOnlyContext } from '../CandidateUI';
 
 interface SalaryCalculatorTabProps {
   key?: React.Key;
@@ -11,9 +12,13 @@ interface SalaryCalculatorTabProps {
   dossier?: Dossier;
   reportData: AnnualReport;
   setReportData?: React.Dispatch<React.SetStateAction<AnnualReport>>;
+  readOnly?: boolean;
 }
 
-export function SalaryCalculatorTab({ profile, dossier, reportData, setReportData }: SalaryCalculatorTabProps) {
+export function SalaryCalculatorTab({ profile, dossier, reportData, setReportData, readOnly }: SalaryCalculatorTabProps) {
+  const isContextReadOnly = React.useContext(CandidateReadOnlyContext);
+  const isEffectivelyReadOnly = Boolean(readOnly || isContextReadOnly);
+
   const effectiveCurrent = (reportData.currentGrade || profile.currentGrade || 'Junior') as Grade | 'Junior';
   const effectiveWished = resolveTargetGrade(effectiveCurrent, reportData.wishedGrade);
 
@@ -83,97 +88,23 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
   
   const salaireCible = calculateSalaryFormule(tjCible, grade, targetYearsExpert, prime);
   const salaireCible100 = calculateSalaryFormule(tjCible + 30, grade, targetYearsExpert, prime);
-  
-  const resFormule = calculateSalaryFormulaResult(
-    currentSalary,
-    salaireCible,
-    salaireCible100,
-    salaireVendu,
-    salaireVendu100,
-    investPerc,
-    missionPerc
+
+  const projectedSalaireVendu = Math.round(
+    (missionPerc / 100) * (((investPerc * (salaireVendu100 - salaireVendu)) / 100) + salaireVendu)
   );
+  const projectedSalaireCible = Math.round(
+    (missionPerc / 100) * (((investPerc * (salaireCible100 - salaireCible)) / 100) + salaireCible)
+  );
+  
+  // Résultat Calcul : Min entre Salaire Vendu et Salaire TJ Cible, puis Max entre ce min et Rémunération au 30/06
+  const minVenduCible = Math.min(projectedSalaireVendu, projectedSalaireCible);
+  const resFormule = Math.max(currentSalary || 0, minVenduCible);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <div className="bg-white p-8 rounded-xl border border-accent/10 shadow-lg">
         <div className="border-b border-accent/10 pb-6 mb-8">
           <h2 className="text-secondary">Prétentions de carrière et salariales</h2>
-        </div>
-
-        {/* Grille de référence */}
-        <div className="border border-accent/10 rounded-2xl p-6 bg-accent/[0.02] space-y-4">
-          <h3 className="text-sm font-bold text-accent">
-            Attendu en fonction du grade / de l'expérience / du TJ / du salaire
-          </h3>
-          <div className="overflow-x-auto rounded-xl border border-accent/10 bg-white">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-accent/5 border-b border-accent/10 text-accent/70 font-semibold whitespace-nowrap">
-                  <th className="p-3">Grade</th>
-                  <th className="p-3">Expérience</th>
-                  <th className="p-3">TJ</th>
-                  <th className="p-3 text-center">Autonome en mission</th>
-                  <th className="p-3 text-center">Vente / Commercial</th>
-                  <th className="p-3 text-center">Vie Logiclever</th>
-                  <th className="p-3 text-center">Recrutement</th>
-                  <th className="p-3 text-center">Encadrement</th>
-                  <th className="p-3 text-right">Brut annuel<br /><span className="text-[10px] font-normal text-accent/50">(k€)</span></th>
-                  <th className="p-3 text-right">Prix revient Logiclever<br /><span className="text-[10px] font-normal text-accent/50">(k€)</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-accent/5 text-accent whitespace-nowrap">
-                <tr className="hover:bg-accent/[0.02] transition-colors">
-                  <td className="p-3 font-bold text-accent">Junior</td>
-                  <td className="p-3 text-accent/80">0 - 2 ans</td>
-                  <td className="p-3 text-accent/80">&lt;= 530</td>
-                  <td className="p-3 text-center font-bold text-primary">+</td>
-                  <td className="p-3 text-center font-bold text-primary">+</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center text-accent/20"></td>
-                  <td className="p-3 text-right font-semibold text-accent">39 → 45</td>
-                  <td className="p-3 text-right text-accent/70">64 → 73</td>
-                </tr>
-                <tr className="hover:bg-accent/[0.02] transition-colors">
-                  <td className="p-3 font-bold text-accent">Confirmé</td>
-                  <td className="p-3 text-accent/80">2 - 5 ans</td>
-                  <td className="p-3 text-accent/80">535 - 565</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center font-bold text-primary">+++</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center text-accent/20"></td>
-                  <td className="p-3 text-right font-semibold text-accent">46 → 50</td>
-                  <td className="p-3 text-right text-accent/70">75 → 79</td>
-                </tr>
-                <tr className="hover:bg-accent/[0.02] transition-colors">
-                  <td className="p-3 font-bold text-accent">Sénior</td>
-                  <td className="p-3 text-accent/80">5 - 8 ans</td>
-                  <td className="p-3 text-accent/80">570 - 645</td>
-                  <td className="p-3 text-center font-bold text-primary">+++</td>
-                  <td className="p-3 text-center font-bold text-primary">+++</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center font-bold text-primary">+</td>
-                  <td className="p-3 text-right font-semibold text-accent">51 → 59</td>
-                  <td className="p-3 text-right text-accent/70">82 → 93</td>
-                </tr>
-                <tr className="hover:bg-accent/[0.02] transition-colors">
-                  <td className="p-3 font-bold text-accent">Expert</td>
-                  <td className="p-3 text-accent/80">&gt; 8 ans</td>
-                  <td className="p-3 text-accent/80">&gt;= 650</td>
-                  <td className="p-3 text-center font-bold text-primary">++++</td>
-                  <td className="p-3 text-center font-bold text-primary">+++</td>
-                  <td className="p-3 text-center font-bold text-primary">++</td>
-                  <td className="p-3 text-center font-bold text-primary">+++</td>
-                  <td className="p-3 text-center font-bold text-primary">+++</td>
-                  <td className="p-3 text-right font-semibold text-accent">&gt;60</td>
-                  <td className="p-3 text-right text-accent/70">&gt;96</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -241,12 +172,18 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                   type="number"
                   min={0}
                   value={tjCible || ''}
+                  disabled={isEffectivelyReadOnly}
+                  readOnly={isEffectivelyReadOnly}
                   onChange={e => {
+                    if (isEffectivelyReadOnly) return;
                     const val = e.target.value === '' ? 0 : Math.max(0, Math.floor(Number(e.target.value)));
                     setTjCible(val);
                     setReportData?.(prev => ({ ...prev, targetTJM: val }));
                   }}
-                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                  className={cn(
+                    "w-full h-[76px] p-6 rounded-xl border focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight",
+                    isEffectivelyReadOnly ? "bg-accent/5 border-accent/10 cursor-not-allowed text-accent/80" : "bg-white border-accent/10"
+                  )}
                 />
               </div>
 
@@ -258,12 +195,17 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                 </div>
                 <select
                   value={grade}
+                  disabled={isEffectivelyReadOnly}
                   onChange={e => {
+                    if (isEffectivelyReadOnly) return;
                     const value = e.target.value as Grade | 'Junior';
                     setGrade(value);
                     setReportData?.(prev => ({ ...prev, wishedGrade: value }));
                   }}
-                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                  className={cn(
+                    "w-full h-[76px] p-6 rounded-xl border focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight",
+                    isEffectivelyReadOnly ? "bg-accent/5 border-accent/10 cursor-not-allowed text-accent/80" : "bg-white border-accent/10"
+                  )}
                 >
                   {availableTargetGrades.map(g => (
                     <option key={g} value={g}>{g}</option>
@@ -283,7 +225,10 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                   max={100}
                   step={1}
                   value={investPerc ?? ''}
+                  disabled={isEffectivelyReadOnly}
+                  readOnly={isEffectivelyReadOnly}
                   onChange={e => {
+                    if (isEffectivelyReadOnly) return;
                     const raw = e.target.value;
                     if (raw === '') {
                       setInvestPerc(0);
@@ -293,9 +238,13 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                     if (!isNaN(val)) setInvestPerc(val);
                   }}
                   onBlur={() => {
+                    if (isEffectivelyReadOnly) return;
                     setInvestPerc(prev => Math.min(100, Math.max(0, prev || 0)));
                   }}
-                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                  className={cn(
+                    "w-full h-[76px] p-6 rounded-xl border focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight",
+                    isEffectivelyReadOnly ? "bg-accent/5 border-accent/10 cursor-not-allowed text-accent/80" : "bg-white border-accent/10"
+                  )}
                 />
               </div>
 
@@ -311,7 +260,10 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                   max={100}
                   step={1}
                   value={missionPerc ?? ''}
+                  disabled={isEffectivelyReadOnly}
+                  readOnly={isEffectivelyReadOnly}
                   onChange={e => {
+                    if (isEffectivelyReadOnly) return;
                     const raw = e.target.value;
                     if (raw === '') {
                       setMissionPerc(95);
@@ -321,21 +273,25 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
                     if (!isNaN(val)) setMissionPerc(val);
                   }}
                   onBlur={() => {
+                    if (isEffectivelyReadOnly) return;
                     setMissionPerc(prev => Math.min(100, Math.max(95, prev || 95)));
                   }}
-                  className="w-full h-[76px] p-6 bg-white rounded-xl border border-accent/10 focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight"
+                  className={cn(
+                    "w-full h-[76px] p-6 rounded-xl border focus:border-secondary focus:ring-0 text-xl font-bold tracking-tight",
+                    isEffectivelyReadOnly ? "bg-accent/5 border-accent/10 cursor-not-allowed text-accent/80" : "bg-white border-accent/10"
+                  )}
                 />
               </div>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : ((Taux Grade Actuel × 193 × TJ Vendu) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
+              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : (Pourcentage mission / 100) × ((Pourcentage investissement × (Salaire Vendu 100% - Salaire Vendu Base)) / 100 + Salaire Vendu Base)">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Salaire Vendu</div>
-                <div className="text-lg font-bold text-accent">{formatCurrency(salaireVendu)}</div>
+                <div className="text-lg font-bold text-accent">{formatCurrency(projectedSalaireVendu)}</div>
               </div>
-              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : ((Taux Grade Cible × 193 × TJ Cible) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
+              <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : (Pourcentage mission / 100) × ((Pourcentage investissement × (Max TJ Cible 100% - Salaire TJ Cible Base)) / 100 + Salaire TJ Cible Base)">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Salaire TJ Cible</div>
-                <div className="text-lg font-bold text-accent">{formatCurrency(salaireCible)}</div>
+                <div className="text-lg font-bold text-accent">{formatCurrency(projectedSalaireCible)}</div>
               </div>
               <div className="p-4 bg-white rounded-xl shadow-sm border border-accent/5 flex flex-col justify-between min-h-[76px]" title="Calcul Automatique : ((Taux Grade Cible × 193 × (TJ Cible + 30)) - 6000 - Prime Ancienneté - (216 × 5.5)) / 1.45 / 1.01">
                 <div className="text-[10px] font-black text-accent/40 uppercase mb-1">Max TJ Cible (100%)</div>
@@ -343,7 +299,7 @@ export function SalaryCalculatorTab({ profile, dossier, reportData, setReportDat
               </div>
             </div>
 
-            <div className="p-6 bg-primary/10 rounded-xl border border-primary/20 flex flex-col items-center justify-center text-center mt-6 shadow-inner" title="Calcul Automatique : Max(Salaire Actuel, Formule1, Formule2) où FormuleX = (Pourcentage mission / 100) * ((Pourcentage investissement * (SalaireX 100% - SalaireX)) / 100 + SalaireX)">
+            <div className="p-6 bg-primary/10 rounded-xl border border-primary/20 flex flex-col items-center justify-center text-center mt-6 shadow-inner" title="Calcul Automatique : Max(Rémunération au 30/06, Min(Salaire Vendu, Salaire TJ Cible))">
               <div className="text-xs font-black uppercase text-primary/60 tracking-widest mb-2">Résultat Calcul</div>
               <div className="text-4xl font-black text-primary tracking-tighter">
                 {formatCurrency(resFormule)}

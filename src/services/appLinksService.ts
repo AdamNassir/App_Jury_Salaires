@@ -186,18 +186,6 @@ export const INITIAL_APP_LINKS: AppLinkItem[] = [
     targetTab: 'REFERENT_LOGICLEVER'
   },
   {
-    id: 'link_template_cv_ll',
-    libelle: 'Espace Candidat (Savoir-faire) - CV 2025_Template_Logiclever',
-    url: 'https://docs.google.com/presentation/d/1hkoD3yAMaqFRhoLe0VrIp5ljT_0onNI8qZsbNH2cH3k/edit?slide=id.g34bcd725496_0_385#slide=id.g34bcd725496_0_385',
-    category: 'CANDIDAT',
-    description: 'Consulter le modèle de CV.',
-    appLocation: 'Espace Candidat > Savoir-faire',
-    inAppAccessType: 'CLICKABLE',
-    inAppDetails: 'Lien externe cliquable "Modèle CV Google Slides"',
-    targetView: 'CANDIDATE',
-    targetTab: 'EXPERTISES'
-  },
-  {
     id: 'link_rep_depot_cv',
     libelle: 'Espace Candidat (Savoir-faire) - Dépôt des CVs',
     url: 'https://drive.google.com/drive/u/0/folders/157QwJI_599602Iqb5fXpveFELz79Qy57',

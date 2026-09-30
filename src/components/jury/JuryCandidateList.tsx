@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gavel, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Dossier } from '../../types';
 
@@ -27,13 +27,7 @@ export function JuryCandidateList({
               : "bg-white border-accent/10 hover:border-secondary/50"
           )}
         >
-          <div className="flex items-center gap-6">
-            <div className={cn(
-              "w-14 h-14 rounded-base flex items-center justify-center shrink-0 transition-colors shadow-inner",
-              selectedDossierId === d.id ? "bg-white/10" : "bg-accent/5"
-            )}>
-              <Gavel className={cn("w-7 h-7", selectedDossierId === d.id ? "text-white" : "text-primary")} />
-            </div>
+          <div className="flex items-center justify-between gap-6">
             <div className="min-w-0 flex-1">
               <div className="font-bold truncate text-xl mb-1">{d.candidateName}</div>
               <div className="flex items-center gap-2 flex-wrap mt-1">

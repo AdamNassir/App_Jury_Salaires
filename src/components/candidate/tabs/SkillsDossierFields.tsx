@@ -13,17 +13,6 @@ export function SkillsDossierFields({ reportData, setReportData, disabled }: Ski
   return (
     <div className="space-y-10 mb-10 pb-10 border-b border-accent/10">
       <div className="space-y-4">
-        <h3 className="text-lg font-bold text-accent">
-          <a
-            id="link_template_cv_ll"
-            href="https://docs.google.com/presentation/d/1hkoD3yAMaqFRhoLe0VrIp5ljT_0onNI8qZsbNH2cH3k/edit?slide=id.g34bcd725496_0_385#slide=id.g34bcd725496_0_385"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary underline hover:text-primary/80 transition-colors inline-block px-1.5 py-0.5 rounded"
-          >
-            CV (Modèle Google Slides)
-          </a>
-        </h3>
         <p className="text-accent/60">Lien vers le CV qui doit être à jour et mettre en lumière vos points forts.</p>
         <div>
           <a

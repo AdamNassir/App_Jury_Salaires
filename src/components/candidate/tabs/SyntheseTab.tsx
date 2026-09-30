@@ -7,9 +7,10 @@ import { ExternalLink, FileSpreadsheet } from 'lucide-react';
 interface SyntheseTabProps {
   reportData: AnnualReport;
   setReportData: React.Dispatch<React.SetStateAction<AnnualReport>>;
+  isLockedForEditing?: boolean;
 }
 
-export function SyntheseTab({ reportData, setReportData }: SyntheseTabProps) {
+export function SyntheseTab({ reportData, setReportData, isLockedForEditing }: SyntheseTabProps) {
   return (
     <motion.div
       key="synthese"
@@ -79,7 +80,11 @@ export function SyntheseTab({ reportData, setReportData }: SyntheseTabProps) {
             <FormField
               label="Autres activités commerciales n’ayant pas permis la vente d’un consultant :"
               value={reportData.commercialActivities || ''}
-              onChange={v => setReportData(prev => ({ ...prev, commercialActivities: v }))}
+              onChange={v => {
+                if (isLockedForEditing) return;
+                setReportData(prev => ({ ...prev, commercialActivities: v }));
+              }}
+              disabled={isLockedForEditing}
               placeholder="Écrivez vos activités commerciales ici..."
             />
           </div>

@@ -12,6 +12,7 @@ interface ObjectivesTabProps {
   isImportingPastObjectives?: boolean;
   handleManualDepositBilanN1?: (file: File) => Promise<void>;
   isManualDepositingBilan?: boolean;
+  isLockedForEditing?: boolean;
 }
 
 export function ObjectivesTab({
@@ -20,11 +21,13 @@ export function ObjectivesTab({
   handleImportPastYearObjectives,
   isImportingPastObjectives,
   handleManualDepositBilanN1,
-  isManualDepositingBilan
+  isManualDepositingBilan,
+  isLockedForEditing = false
 }: ObjectivesTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addObjectivePast = () => {
+    if (isLockedForEditing) return;
     setReportData(prev => ({
       ...prev,
       previousObjectives: [...prev.previousObjectives, { objective: '', comments: '', reached: 'OUI' }]
@@ -35,7 +38,7 @@ export function ObjectivesTab({
     <motion.div key="obj-p" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
       <Section
         title="Objectifs Année Passée"
-        action={
+        action={!isLockedForEditing ? (
           <div className="flex items-center gap-2">
             {handleImportPastYearObjectives && (
               <button
@@ -75,26 +78,30 @@ export function ObjectivesTab({
               </label>
             )}
           </div>
-        }
+        ) : undefined}
       >
         <div className="space-y-6">
           {reportData.previousObjectives.map((obj, idx) => (
             <div key={idx} className="p-8 bg-accent/5 rounded-xl border border-accent/10 relative group">
-              <button 
-                type="button"
-                onClick={() => setReportData(prev => ({
-                  ...prev,
-                  previousObjectives: prev.previousObjectives.filter((_, i) => i !== idx)
-                }))}
-                className="absolute top-4 right-4 text-accent/20 hover:text-red-500 transition-colors"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
+              {!isLockedForEditing && (
+                <button 
+                  type="button"
+                  onClick={() => setReportData(prev => ({
+                    ...prev,
+                    previousObjectives: prev.previousObjectives.filter((_, i) => i !== idx)
+                  }))}
+                  className="absolute top-4 right-4 text-accent/20 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <FormField 
                   label="Objectif" 
                   value={obj.objective} 
+                  disabled={isLockedForEditing}
                   onChange={v => {
+                    if (isLockedForEditing) return;
                     setReportData(prev => {
                       const newObjs = [...prev.previousObjectives];
                       newObjs[idx] = { ...newObjs[idx], objective: v };
@@ -105,7 +112,9 @@ export function ObjectivesTab({
                 <FormField 
                   label="Commentaires" 
                   value={obj.comments} 
+                  disabled={isLockedForEditing}
                   onChange={v => {
+                    if (isLockedForEditing) return;
                     setReportData(prev => {
                       const newObjs = [...prev.previousObjectives];
                       newObjs[idx] = { ...newObjs[idx], comments: v };
@@ -121,7 +130,9 @@ export function ObjectivesTab({
                     <button
                       key={status}
                       type="button"
+                      disabled={isLockedForEditing}
                       onClick={() => {
+                        if (isLockedForEditing) return;
                         setReportData(prev => {
                           const newObjs = [...prev.previousObjectives];
                           newObjs[idx] = { ...newObjs[idx], reached: status };
@@ -130,7 +141,8 @@ export function ObjectivesTab({
                       }}
                       className={cn(
                         "px-4 py-2 rounded-base text-[10px] font-black uppercase tracking-widest transition-all",
-                        obj.reached === status ? "bg-primary text-white" : "bg-white text-accent/40 border border-accent/10"
+                        obj.reached === status ? "bg-primary text-white" : "bg-white text-accent/40 border border-accent/10",
+                        isLockedForEditing && "cursor-default"
                       )}
                     >
                       {status}
@@ -140,13 +152,15 @@ export function ObjectivesTab({
               </div>
             </div>
           ))}
-          <button 
-            type="button"
-            onClick={addObjectivePast} 
-            className="w-full py-4 border-2 border-dashed border-accent/10 rounded-xl text-accent/40 font-bold hover:border-primary/50 hover:text-primary transition-all flex items-center justify-center gap-3"
-          >
-            <Plus className="w-5 h-5" /> Ajouter un objectif passé
-          </button>
+          {!isLockedForEditing && (
+            <button 
+              type="button"
+              onClick={addObjectivePast} 
+              className="w-full py-4 border-2 border-dashed border-accent/10 rounded-xl text-accent/40 font-bold hover:border-primary/50 hover:text-primary transition-all flex items-center justify-center gap-3"
+            >
+              <Plus className="w-5 h-5" /> Ajouter un objectif passé
+            </button>
+          )}
         </div>
       </Section>
     </motion.div>

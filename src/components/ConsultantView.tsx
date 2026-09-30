@@ -6,7 +6,6 @@ import { UserDirectoryService } from '../services/userDirectoryService';
 import { LocalDatabaseService } from '../services/localDatabaseService';
 import { User, MessageSquare, CheckCircle2, Search, AlertCircle, Building2, Briefcase, Plus, ShieldCheck, History, Clock, FileEdit, Check, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { JuryDossierViewer } from './jury/JuryDossierViewer';
 import { JuryZoomModal } from './jury/JuryUI';
 
 interface ConsultantViewProps {
@@ -15,7 +14,6 @@ interface ConsultantViewProps {
 }
 
 const RELATION_TYPES: EvaluationRelationType[] = [
-  'Auto_Evaluation',
   'Commerciale',
   'Encadrement',
   'Meteo_Client',
@@ -27,18 +25,11 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('ALL');
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
-  const [selectedEvaluationKey, setSelectedEvaluationKey] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ASSIGNED' | 'TO_TREAT'>(
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ASSIGNED'>(
     (profile.roles?.includes('EVALUATOR') || (profile.assignedCandidateIds && profile.assignedCandidateIds.length > 0)) ? 'ASSIGNED' : 'ALL'
   );
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
-  const [isCreatingNewEvaluation, setIsCreatingNewEvaluation] = useState(false);
-  const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({
-    EVALUATION: true
-  });
-  const toggleTab = (tab: string) => {
-    setExpandedTabs({ [tab]: true });
-  };
   const [zoomData, setZoomData] = useState<{ title: string; content: string } | null>(null);
 
   // Load campaigns from LocalStorage
@@ -125,20 +116,24 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
     });
   };
 
-  // Filter based on "ASSIGNED", "TO_TREAT" vs "ALL"
+  // Filter based on "ASSIGNED" vs "ALL" and searchQuery
   const filteredDossiers = campaignDossiers.filter(d => {
     const isAssigned = checkIsAssigned(d);
-    const myFeedbacks = getMyFeedbacks(d);
 
-    if (filterStatus === 'ASSIGNED') {
-      return isAssigned;
+    if (filterStatus === 'ASSIGNED' && !isAssigned) {
+      return false;
     }
 
-    if (filterStatus === 'TO_TREAT') {
-      if (d.status === 'VALIDE') return false;
-      const hasValidatedFeedback = myFeedbacks.some(([_, f]) => f.status === 'VALIDE' || f.validated);
-      return !hasValidatedFeedback;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const candName = (d.candidateName || '').toLowerCase();
+      const candEmail = (d.candidateEmail || '').toLowerCase();
+      const idProfil = (d.idProfil || d.candidateId || '').toLowerCase();
+      if (!candName.includes(q) && !candEmail.includes(q) && !idProfil.includes(q)) {
+        return false;
+      }
     }
+
     return true;
   });
 
@@ -190,8 +185,6 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
       }
 
       setSelectedDossierId(null);
-      setSelectedEvaluationKey(null);
-      setIsCreatingNewEvaluation(false);
       setShowDeleteModal(false);
     } catch (err) {
       console.error("Erreur lors de la suppression des dossiers de la campagne:", err);
@@ -226,8 +219,6 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
             value={selectedCampaignId}
             onChange={(e) => {
               setSelectedCampaignId(e.target.value);
-              setSelectedEvaluationKey(null);
-              setIsCreatingNewEvaluation(false);
             }}
             className="px-4 py-2.5 bg-accent/5 border border-accent/15 rounded-xl text-sm font-bold text-accent outline-none focus:border-primary transition-all cursor-pointer"
           >
@@ -278,16 +269,7 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                   filterStatus === 'ASSIGNED' ? "bg-purple-600 text-white shadow-sm" : "text-accent/40 hover:bg-accent/10"
                 )}
               >
-                Assignés
-              </button>
-              <button 
-                onClick={() => setFilterStatus('TO_TREAT')}
-                className={cn(
-                  "px-2.5 py-1.5 rounded-base text-[10px] font-black uppercase transition-all tracking-wider cursor-pointer",
-                  filterStatus === 'TO_TREAT' ? "bg-primary text-white shadow-sm" : "text-accent/40 hover:bg-accent/10"
-                )}
-              >
-                À traiter
+                Feedback Obligatoire
               </button>
               <button 
                 onClick={() => setFilterStatus('ALL')}
@@ -301,8 +283,45 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
             </div>
           </div>
 
+          {/* Barre de recherche de dossier par nom */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-accent/30 absolute left-3.5 top-3 pointer-events-none" />
+            <input 
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher un dossier par nom..."
+              className="w-full pl-10 pr-9 py-2.5 bg-accent/5 border border-accent/10 rounded-xl text-xs font-semibold text-accent placeholder:text-accent/30 outline-none focus:border-primary focus:bg-white transition-all shadow-inner"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-accent/30 hover:text-accent text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full hover:bg-accent/10 transition-colors"
+                title="Effacer la recherche"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
           <div className="space-y-3 max-h-[750px] overflow-y-auto pr-1">
-            {filteredDossiers.map(d => {
+            {filteredDossiers.length === 0 ? (
+              <div className="p-8 text-center bg-white border border-dashed border-accent/10 rounded-xl text-accent/40">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-xs font-medium">
+                  {searchQuery ? `Aucun dossier trouvé pour « ${searchQuery} »` : "Aucun dossier dans cette catégorie."}
+                </p>
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="mt-2 text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                  >
+                    Effacer la recherche
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredDossiers.map(d => {
               const isAssigned = checkIsAssigned(d);
               const myFeedbacks = getMyFeedbacks(d);
               const isOwnDossier = d.candidateId === profile.id || (profile.idProfil && d.idProfil === profile.idProfil);
@@ -313,8 +332,6 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                   key={d.id}
                   onClick={() => {
                     setSelectedDossierId(d.id);
-                    setSelectedEvaluationKey(null);
-                    setIsCreatingNewEvaluation(false);
                   }}
                   className={cn(
                     "w-full p-5 rounded-xl border transition-all text-left group shadow-sm cursor-pointer",
@@ -333,14 +350,6 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                     <div className="overflow-hidden flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-bold text-base truncate">{d.candidateName}</span>
-                        {isAssigned && (
-                          <span className={cn(
-                            "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded",
-                            isSelected ? "bg-purple-500 text-white" : "bg-purple-100 text-purple-800"
-                          )}>
-                            Assigné (Primes)
-                          </span>
-                        )}
                         {isOwnDossier && (
                           <span className={cn(
                             "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded",
@@ -371,13 +380,7 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                   </div>
                 </button>
               );
-            })}
-
-            {filteredDossiers.length === 0 && (
-              <div className="p-12 text-center bg-accent/5 border border-dashed border-accent/20 rounded-xl text-accent/40 text-sm font-light">
-                Aucun candidat à évaluer pour cette sélection.
-              </div>
-            )}
+            }))}
           </div>
         </div>
 
@@ -402,54 +405,15 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 pb-6 text-sm border-b border-accent/10 mb-6">
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">TJ Vendu</div>
-                    <div className="font-bold text-accent text-lg">
-                      {candidates[selectedDossier.candidateId]?.currentTJM || selectedDossier.annualReport?.currentTJM ? `${candidates[selectedDossier.candidateId]?.currentTJM || selectedDossier.annualReport?.currentTJM}€` : 'Non renseigné'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">TJM Cible Souhaité</div>
-                    <div className="font-bold text-primary text-lg">
-                      {selectedDossier.annualReport?.targetTJM ? `${selectedDossier.annualReport.targetTJM}€` : 'Non renseigné'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-accent/30 tracking-widest mb-1">Grade Souhaité</div>
-                    <div className="font-bold text-secondary text-lg">
-                      {selectedDossier.annualReport?.wishedGrade || 'Maintien'}
-                    </div>
-                  </div>
+                {/* Formulaire d'évaluation directe */}
+                <div className="pt-6">
+                  <ConsultantFeedbackForm 
+                    dossier={selectedDossier} 
+                    consultant={profile}
+                    selectedCampaign={activeCampaign}
+                    isCampaignClosed={isCampaignClosed}
+                  />
                 </div>
-
-                {/* Onglets et contenu du dossier au format Jury */}
-                <JuryDossierViewer
-                  dossier={selectedDossier}
-                  candidate={selectedCandidate}
-                  profile={profile}
-                  expandedTabs={expandedTabs}
-                  toggleTab={toggleTab}
-                  setZoomData={setZoomData}
-                  isAssigned={checkIsAssigned(selectedDossier)}
-                  hideDecisionTab={true}
-                  extraTab={{
-                    id: 'EVALUATION',
-                    label: 'Mon Évaluation',
-                    content: (
-                      <ConsultantFeedbackForm 
-                        dossier={selectedDossier} 
-                        consultant={profile}
-                        selectedCampaign={activeCampaign}
-                        isCampaignClosed={isCampaignClosed}
-                        selectedEvaluationKey={selectedEvaluationKey}
-                        setSelectedEvaluationKey={setSelectedEvaluationKey}
-                        isCreatingNewEvaluation={isCreatingNewEvaluation}
-                        setIsCreatingNewEvaluation={setIsCreatingNewEvaluation}
-                      />
-                    )
-                  }}
-                />
               </div>
             </div>
           ) : (
@@ -546,21 +510,13 @@ interface ConsultantFeedbackFormProps {
   consultant: UserProfile;
   selectedCampaign: Campaign | null;
   isCampaignClosed: boolean;
-  selectedEvaluationKey: string | null;
-  setSelectedEvaluationKey: (key: string | null) => void;
-  isCreatingNewEvaluation: boolean;
-  setIsCreatingNewEvaluation: (create: boolean) => void;
 }
 
 function ConsultantFeedbackForm({
   dossier,
   consultant,
   selectedCampaign,
-  isCampaignClosed,
-  selectedEvaluationKey,
-  setSelectedEvaluationKey,
-  isCreatingNewEvaluation,
-  setIsCreatingNewEvaluation
+  isCampaignClosed
 }: ConsultantFeedbackFormProps) {
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -569,7 +525,6 @@ function ConsultantFeedbackForm({
 
   // Filter feedback items belonging to this consultant
   // Feedbacks are stored in dossier.consultantFeedbacks as a dictionary.
-  // Each entry can have a unique key (e.g. feedbackId or consultant.id)
   const allFeedbacksDict = dossier.consultantFeedbacks || {};
   const myFeedbackEntries = Object.entries(allFeedbacksDict).filter(([key, f]) => {
     const matchId = f.evaluatorUid === consultant.id || f.consultantId === consultant.id;
@@ -579,15 +534,33 @@ function ConsultantFeedbackForm({
     return matchId || matchIdProfil || matchMatricule || matchName;
   });
 
-  // Effective key selected:
-  const activeKey = selectedEvaluationKey || (myFeedbackEntries.length > 0 && !isCreatingNewEvaluation ? myFeedbackEntries[0][0] : null);
+  // Effective key selected: strictly a singular avis per evaluator on this dossier
+  const activeKey = myFeedbackEntries.length > 0 ? myFeedbackEntries[0][0] : null;
   const activeFeedback = activeKey ? allFeedbacksDict[activeKey] : null;
 
-  const defaultRelationType: EvaluationRelationType = isOwnDossier ? 'Auto_Evaluation' : 'Collègue_Mission';
+  // Détails de la prime (Projet / Client / Type_Prime) assignée à cet évaluateur pour ce candidat
+  const assignedPrimeDetails = dossier.assignmentsDetails?.[consultant.idProfil || ''] ||
+    dossier.assignmentsDetails?.[consultant.id] ||
+    (consultant.matricule ? dossier.assignmentsDetails?.[consultant.matricule] : undefined);
+
+  // Détection automatique depuis la colonne C (Type_Prime) : Encadrement et Commerciale
+  const initialAssignedTypes: EvaluationRelationType[] = [];
+  if (assignedPrimeDetails?.relationTypes && assignedPrimeDetails.relationTypes.length > 0) {
+    initialAssignedTypes.push(...(assignedPrimeDetails.relationTypes as EvaluationRelationType[]));
+  } else if (assignedPrimeDetails?.typePrime) {
+    if (/encadrement/i.test(assignedPrimeDetails.typePrime)) initialAssignedTypes.push('Encadrement');
+    if (/commercial/i.test(assignedPrimeDetails.typePrime)) initialAssignedTypes.push('Commerciale');
+  }
+
+  const defaultRelationTypes: EvaluationRelationType[] = initialAssignedTypes.length > 0 
+    ? initialAssignedTypes 
+    : ['Collègue_Mission'];
+  const [selectedRelationTypes, setSelectedRelationTypes] = useState<EvaluationRelationType[]>(defaultRelationTypes);
 
   const [formData, setFormData] = useState<Partial<ConsultantFeedback>>({
-    relationType: defaultRelationType,
-    type: defaultRelationType,
+    relationType: defaultRelationTypes.join(', '),
+    relationTypes: defaultRelationTypes,
+    type: defaultRelationTypes[0],
     client: '',
     project: '',
     targetTJMin: 0,
@@ -601,14 +574,18 @@ function ConsultantFeedbackForm({
     validated: false
   });
 
-  // Synchronize formData when switching selected evaluation or entering creation mode
+  // Synchronize formData when dossier changes or active evaluation is loaded
   useEffect(() => {
-    if (isCreatingNewEvaluation || !activeFeedback) {
+    if (!activeFeedback) {
+      const initClient = assignedPrimeDetails?.client || '';
+      const initProject = assignedPrimeDetails?.project || '';
+      setSelectedRelationTypes(defaultRelationTypes);
       setFormData({
-        relationType: defaultRelationType,
-        type: defaultRelationType,
-        client: '',
-        project: '',
+        relationType: defaultRelationTypes.join(', '),
+        relationTypes: defaultRelationTypes,
+        type: defaultRelationTypes[0],
+        client: initClient,
+        project: initProject,
         targetTJMin: 0,
         targetTJMax: 0,
         missionPercentage: 98,
@@ -625,17 +602,35 @@ function ConsultantFeedbackForm({
       const rawType = activeFeedback.relationType || activeFeedback.type;
       const isLegacy = legacyTypes.includes(rawType as string) && !RELATION_TYPES.includes(rawType as EvaluationRelationType);
 
+      // Résolution multi-valeurs des types de relation
+      let resolvedTypes: EvaluationRelationType[] = [];
+      if (Array.isArray(activeFeedback.relationTypes) && activeFeedback.relationTypes.length > 0) {
+        resolvedTypes = activeFeedback.relationTypes.filter(r => RELATION_TYPES.includes(r as EvaluationRelationType)) as EvaluationRelationType[];
+      } else if (activeFeedback.relationType) {
+        const parts = String(activeFeedback.relationType).split(',').map(s => s.trim().replace(/ /g, '_'));
+        resolvedTypes = parts.filter(p => RELATION_TYPES.includes(p as EvaluationRelationType)) as EvaluationRelationType[];
+      }
+      if (resolvedTypes.length === 0 || (resolvedTypes.length === 1 && resolvedTypes[0] === 'Collègue_Mission' && initialAssignedTypes.length > 0)) {
+        resolvedTypes = initialAssignedTypes.length > 0 ? initialAssignedTypes : defaultRelationTypes;
+      }
+
+      setSelectedRelationTypes(resolvedTypes);
+
       // Harmonize confidenceIndex to 1-5 range if it was on a 1-10 scale
       let normalizedConfidence = activeFeedback.confidenceIndex ?? 4;
       if (normalizedConfidence > 5) {
         normalizedConfidence = Math.min(5, Math.round(normalizedConfidence / 2));
       }
 
+      const clientVal = activeFeedback.client || assignedPrimeDetails?.client || '';
+      const projectVal = activeFeedback.project || assignedPrimeDetails?.project || '';
+
       setFormData({
         ...activeFeedback,
-        relationType: (activeFeedback.relationType || activeFeedback.type) as EvaluationRelationType,
-        client: activeFeedback.client || '',
-        project: activeFeedback.project || '',
+        relationType: resolvedTypes.map(r => r.replace(/_/g, ' ')).join(', '),
+        relationTypes: resolvedTypes,
+        client: clientVal,
+        project: projectVal,
         missionPercentage: activeFeedback.missionPercentage !== undefined ? activeFeedback.missionPercentage : 98,
         investmentPercentage: activeFeedback.investmentPercentage !== undefined ? activeFeedback.investmentPercentage : 60,
         confidenceIndex: normalizedConfidence,
@@ -643,9 +638,33 @@ function ConsultantFeedbackForm({
         status: activeFeedback.status || (activeFeedback.validated ? 'VALIDE' : 'BROUILLON')
       });
     }
-  }, [activeKey, isCreatingNewEvaluation, dossier.id]);
+  }, [activeKey, dossier.id]);
 
   const isReadOnly = isCampaignClosed;
+
+  // Gestion de la sélection multiple des types de relations
+  const toggleRelationType = (rel: EvaluationRelationType) => {
+    if (isReadOnly) return;
+
+    let updated: EvaluationRelationType[];
+    if (selectedRelationTypes.includes(rel)) {
+      if (selectedRelationTypes.length > 1) {
+        updated = selectedRelationTypes.filter(r => r !== rel);
+      } else {
+        // Conserver au moins un type sélectionné
+        return;
+      }
+    } else {
+      updated = [...selectedRelationTypes, rel];
+    }
+    setSelectedRelationTypes(updated);
+    setFormData(prev => ({
+      ...prev,
+      relationTypes: updated,
+      relationType: updated.map(r => r.replace(/_/g, ' ')).join(', '),
+      type: updated[0] as ConsultationType
+    }));
+  };
 
   // Save as Draft or Validate
   const handleSave = async (targetStatus: 'BROUILLON' | 'VALIDE') => {
@@ -667,24 +686,12 @@ function ConsultantFeedbackForm({
       return;
     }
 
-    // Auto-evaluation check
-    const finalRelationType = formData.relationType || 'Collègue_Mission';
-    if (finalRelationType === 'Auto_Evaluation' && !isOwnDossier) {
-      setToastMessage("L'auto-évaluation ne peut être réalisée que sur votre propre dossier.");
-      return;
-    }
-    if (isOwnDossier && finalRelationType !== 'Auto_Evaluation') {
-      setToastMessage("Sur votre propre dossier, seul le type 'Auto_Evaluation' est autorisé.");
-      return;
-    }
+    const finalRelationTypes = selectedRelationTypes.length > 0 ? selectedRelationTypes : defaultRelationTypes;
 
     setLoading(true);
     try {
-      // Determine evaluation unique ID:
-      // If we are modifying an existing evaluation key, use it; otherwise generate a new unique key
-      const evalId = (!isCreatingNewEvaluation && activeKey) 
-        ? activeKey 
-        : `eval_${consultant.id}_${Date.now()}`;
+      // Determine evaluation unique ID: strictly a singular avis per evaluator on this dossier
+      const evalId = activeKey || `eval_${consultant.idProfil || consultant.id}`;
 
       const feedbackToSave: ConsultantFeedback = {
         id: evalId,
@@ -696,10 +703,11 @@ function ConsultantFeedbackForm({
         // Campaign reference
         campaignId: selectedCampaign?.id || dossier.campaignId || undefined,
         // Evaluation metadata
-        client: formData.client.trim(),
-        project: formData.project.trim(),
-        relationType: finalRelationType,
-        type: finalRelationType,
+        client: (formData.client || '').trim(),
+        project: (formData.project || '').trim(),
+        relationTypes: finalRelationTypes,
+        relationType: finalRelationTypes.map(r => r.replace(/_/g, ' ')).join(', '),
+        type: finalRelationTypes[0] as ConsultationType,
         // Financial & technical recommendations
         targetTJMin: Math.max(0, Number(formData.targetTJMin) || 0),
         targetTJMax: Math.max(0, Number(formData.targetTJMax) || 0),
@@ -726,9 +734,6 @@ function ConsultantFeedbackForm({
         updatedAt: new Date().toISOString()
       });
 
-
-      setSelectedEvaluationKey(evalId);
-      setIsCreatingNewEvaluation(false);
       setToastMessage(targetStatus === 'VALIDE' ? "Évaluation validée avec succès !" : "Brouillon enregistré.");
       setTimeout(() => setToastMessage(null), 4000);
     } catch (error: any) {
@@ -743,82 +748,28 @@ function ConsultantFeedbackForm({
     <div className="bg-accent p-8 rounded-xl text-white shadow-2xl relative overflow-hidden group border border-accent/20 space-y-8">
       <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 rounded-full -mr-40 -mt-40 blur-3xl pointer-events-none" />
 
-      {/* Barre supérieure : Mes avis sur ce candidat & bouton Nouvel avis */}
+      {/* Barre supérieure : Titre et état de l'avis unique */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-white/10 relative">
         <div>
           <h3 className="text-white text-xl font-bold flex items-center gap-3">
             <MessageSquare className="w-6 h-6 text-primary" />
-            Évaluation par les Pairs / Associés
+            Feedback
           </h3>
-          <p className="text-white/50 text-sm font-light mt-0.5">
-            Vous pouvez enregistrer plusieurs évaluations pour ce candidat selon le client, le projet ou le type de relation.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {myFeedbackEntries.length > 0 && !isReadOnly && (
-            <button
-              onClick={() => {
-                setIsCreatingNewEvaluation(true);
-                setSelectedEvaluationKey(null);
-              }}
-              className={cn(
-                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border",
-                isCreatingNewEvaluation 
-                  ? "bg-primary text-white border-primary shadow-lg" 
-                  : "bg-white/5 hover:bg-white/10 text-white border-white/10"
-              )}
-            >
-              <Plus className="w-4 h-4" />
-              Nouvel Avis
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sélecteur des avis existants pour ce candidat */}
-      {myFeedbackEntries.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-[10px] font-black uppercase text-white/40 tracking-widest">Vos avis enregistrés sur ce candidat :</div>
-          <div className="flex flex-wrap gap-2">
-            {myFeedbackEntries.map(([key, f]) => {
-              const isSelected = activeKey === key && !isCreatingNewEvaluation;
-              const isValide = f.status === 'VALIDE' || f.validated;
-              const isLegacy = f.isLegacyType || ['Coach', 'Collègue en mission', 'Météo Client', 'Logiclever', 'COP & Epic'].includes((f.relationType || f.type) as string);
-
-              return (
-                <button
-                  key={key}
-                  onClick={() => {
-                    setSelectedEvaluationKey(key);
-                    setIsCreatingNewEvaluation(false);
-                  }}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border text-left cursor-pointer",
-                    isSelected 
-                      ? "bg-primary text-white border-primary shadow-lg" 
-                      : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
-                  )}
-                >
-                  <span>{f.client || 'Client non spécifié'} — {f.project || 'Projet non spécifié'}</span>
-                  <span className={cn(
-                    "text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider",
-                    isValide ? "bg-green-500/20 text-green-300" : "bg-yellow-500/20 text-yellow-300"
-                  )}>
-                    {isValide ? 'Validé' : 'Brouillon'}
-                  </span>
-                  {isLegacy && (
-                    <span className="text-[9px] bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1" title="Ancien type nécessitant rapprochement">
-                      <AlertTriangle className="w-3 h-3" />
-                      Rapprochement
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+        {activeFeedback && (
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "text-xs px-3 py-1.5 rounded-full font-black uppercase tracking-wider border",
+              (activeFeedback.status === 'VALIDE' || activeFeedback.validated)
+                ? "bg-green-500/20 text-green-300 border-green-500/30"
+                : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+            )}>
+              {(activeFeedback.status === 'VALIDE' || activeFeedback.validated) ? 'Avis Validé' : 'Brouillon'}
+            </span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Alerte si ancien type à rapprocher */}
       {formData.isLegacyType && (
@@ -832,86 +783,90 @@ function ConsultantFeedbackForm({
 
       {/* Formulaire */}
       <div className="space-y-6">
-        {/* 1. Type de relation */}
+        {/* 1. Type de relation (sélection multiple) */}
         <div>
-          <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3">
-            Type de Relation Métier *
-          </label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">
+              Type de Relation Métier * (choix multiple possible)
+            </label>
+            <span className="text-[10px] text-primary font-bold">
+              {selectedRelationTypes.length} sélectionné(s)
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2.5">
             {RELATION_TYPES.map(rel => {
-              const isSelected = formData.relationType === rel;
-              const isAutoEval = rel === 'Auto_Evaluation';
-              const disabled = isReadOnly || (isAutoEval && !isOwnDossier) || (!isAutoEval && isOwnDossier);
+              const isSelected = selectedRelationTypes.includes(rel);
+              const disabled = isReadOnly;
 
               return (
                 <button
                   key={rel}
                   type="button"
                   disabled={disabled}
-                  onClick={() => setFormData({ ...formData, relationType: rel, type: rel })}
+                  onClick={() => toggleRelationType(rel)}
                   className={cn(
-                    "px-4 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer",
+                    "px-4 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center gap-2",
                     isSelected 
-                      ? "bg-primary border-primary text-white shadow-lg" 
+                      ? "bg-primary border-primary text-white shadow-lg ring-2 ring-primary/40" 
                       : "bg-white/5 border-white/10 hover:bg-white/10 text-white/70",
                     disabled && "opacity-30 cursor-not-allowed hover:bg-white/5"
                   )}
                 >
-                  {rel.replace('_', ' ')}
-                  {isAutoEval && " (Mon dossier)"}
+                  <span className={cn(
+                    "w-4 h-4 rounded-md flex items-center justify-center text-[10px] border transition-colors",
+                    isSelected ? "bg-white text-primary border-white" : "border-white/20 bg-white/5"
+                  )}>
+                    {isSelected ? "✓" : ""}
+                  </span>
+                  <span>{rel.replace(/_/g, ' ')}</span>
                 </button>
               );
             })}
           </div>
-          {isOwnDossier && (
-            <p className="text-white/40 text-xs mt-2 italic">
-              Vous évaluez votre propre dossier : seul le type « Auto_Evaluation » est applicable.
-            </p>
-          )}
         </div>
 
-        {/* 2. Client et Projet */}
+        {/* 2. Client et Projet (Lecture seule / Grisés car pré-remplis automatiquement) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
             <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
-              Client concerné *
+              Client concerné
             </label>
             <div className="relative">
               <Building2 className="w-4 h-4 text-white/30 absolute left-4 top-3.5" />
               <input
                 type="text"
-                disabled={isReadOnly}
+                disabled={true}
+                readOnly={true}
                 value={formData.client || ''}
-                onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                placeholder="Ex: BNP Paribas, Décathlon, Total..."
-                className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm outline-none focus:border-primary transition-all disabled:opacity-50"
+                placeholder="Renseigné via Primes..."
+                className="w-full pl-11 pr-4 py-3 bg-white/5 opacity-60 cursor-not-allowed border border-white/10 rounded-xl text-white/70 text-sm outline-none shadow-inner"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
-              Projet / Mission *
+              Projet / Mission
             </label>
             <div className="relative">
               <Briefcase className="w-4 h-4 text-white/30 absolute left-4 top-3.5" />
               <input
                 type="text"
-                disabled={isReadOnly}
+                disabled={true}
+                readOnly={true}
                 value={formData.project || ''}
-                onChange={(e) => setFormData({ ...formData, project: e.target.value })}
-                placeholder="Ex: Migration Cloud, Lead Dev React..."
-                className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white text-sm outline-none focus:border-primary transition-all disabled:opacity-50"
+                placeholder="Renseigné via Primes..."
+                className="w-full pl-11 pr-4 py-3 bg-white/5 opacity-60 cursor-not-allowed border border-white/10 rounded-xl text-white/70 text-sm outline-none shadow-inner"
               />
             </div>
           </div>
         </div>
 
-        {/* 3. Recommandation TJM, Pourcentages & Confiance */}
+        {/* 3. Recommandation TJ Cible, Pourcentages & Confiance */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
           <div>
             <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
-              TJM Min Préconisé (€)
+              TJ Cible Min Préconisé (€)
             </label>
             <input
               type="number"
@@ -926,7 +881,7 @@ function ConsultantFeedbackForm({
 
           <div>
             <label className="block text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">
-              TJM Max Préconisé (€)
+              TJ Cible Max Préconisé (€)
             </label>
             <input
               type="number"
@@ -963,51 +918,6 @@ function ConsultantFeedbackForm({
               <span>4</span>
               <span>5</span>
             </div>
-          </div>
-        </div>
-
-        {/* 3bis. % Mission & % Investissement pour la formule */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-1">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">
-                % Mission (Objectif 98%)
-              </label>
-              <span className="text-xs font-bold text-primary">{formData.missionPercentage ?? 98}%</span>
-            </div>
-            <input
-              type="number"
-              min="95"
-              max="100"
-              step="1"
-              disabled={isReadOnly}
-              value={formData.missionPercentage !== undefined ? formData.missionPercentage : 98}
-              onChange={(e) => setFormData({ ...formData, missionPercentage: Math.min(100, Math.max(95, Number(e.target.value))) })}
-              placeholder="98"
-              className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
-            />
-            <p className="text-[10px] text-white/40 mt-1 font-light">Taux de réalisation de la mission pour le calcul formule.</p>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">
-                % Investissement (Objectif 60%)
-              </label>
-              <span className="text-xs font-bold text-primary">{formData.investmentPercentage ?? 60}%</span>
-            </div>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="1"
-              disabled={isReadOnly}
-              value={formData.investmentPercentage !== undefined ? formData.investmentPercentage : 60}
-              onChange={(e) => setFormData({ ...formData, investmentPercentage: Math.min(100, Math.max(0, Number(e.target.value))) })}
-              placeholder="60"
-              className="w-full p-3 bg-white/5 border border-white/15 rounded-xl text-white font-bold text-base outline-none focus:border-primary transition-all disabled:opacity-50"
-            />
-            <p className="text-[10px] text-white/40 mt-1 font-light">Taux d'investissement interne pour le calcul formule.</p>
           </div>
         </div>
 

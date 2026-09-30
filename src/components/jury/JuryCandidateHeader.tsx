@@ -61,24 +61,19 @@ export function JuryCandidateHeader({
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-12 pb-10 border-b border-accent/10 relative">
-        <div className="flex items-center gap-6">
-          <div className="w-20 h-20 bg-accent/5 rounded-2xl flex items-center justify-center text-accent/20 border border-accent/10 shrink-0">
-            <Award className="w-10 h-10" />
-          </div>
-          <div>
-            <h2 className="text-secondary mb-2 leading-none">{dossier.candidateName}</h2>
-            <div className="flex items-center gap-4 text-accent/40 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                <span className="text-lg font-light italic">{dossier.candidateEmail}</span>
-              </div>
-              {candidate?.matricule && (
-                <>
-                  <span className="w-1 h-1 bg-accent/20 rounded-full" />
-                  <span className="text-xs font-black uppercase tracking-widest">{candidate.matricule}</span>
-                </>
-              )}
+        <div>
+          <h2 className="text-secondary mb-2 leading-none">{dossier.candidateName}</h2>
+          <div className="flex items-center gap-4 text-accent/40 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              <span className="text-lg font-light italic">{dossier.candidateEmail}</span>
             </div>
+            {candidate?.matricule && (
+              <>
+                <span className="w-1 h-1 bg-accent/20 rounded-full" />
+                <span className="text-xs font-black uppercase tracking-widest">{candidate.matricule}</span>
+              </>
+            )}
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { CheckCircle2, Plus, Trash2, ExternalLink, AlertCircle, RefreshCw, Table as TableIcon, Loader2, Sparkles, Building, UserCheck } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, AlertCircle, RefreshCw, Table as TableIcon, Loader2, Sparkles, Building, UserCheck } from 'lucide-react';
 import { Section, FormField } from '../CandidateUI';
 import { AnnualReport, UserProfile, Dossier } from '../../../types';
 import { cn } from '../../../lib/utils';
@@ -328,7 +328,6 @@ export function EngagementTab({
             <div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <FormField label="Promouvoir Logiclever : Avec qui ?, Comment ?" value={reportData.recruitmentPromotion} onChange={v => setReportData(prev => ({ ...prev, recruitmentPromotion: v }))} tooltip="Points sur votre implication dans la promotion de l'image de marque." />
-                <FormField label="Recrutement : Avez vous interviewé des candidats ?" value={reportData.recruitmentInterviews} onChange={v => setReportData(prev => ({ ...prev, recruitmentInterviews: v }))} />
                 <FormField label="Réseaux sociaux : Avez vous ajouté des collègues sur LinkedIn ?, etc" value={reportData.recruitmentSocial} onChange={v => setReportData(prev => ({ ...prev, recruitmentSocial: v }))} />
               </div>
             </div>
@@ -395,30 +394,7 @@ export function EngagementTab({
                 </ul>
               </div>
 
-              <div>
-                <div
-                  onClick={readOnly ? undefined : () => setReportData(prev => ({ ...prev, isReferentOrAspiring: !prev.isReferentOrAspiring }))}
-                  aria-disabled={readOnly}
-                  className={cn(
-                    "p-8 rounded-xl border-2 transition-all flex items-center justify-between group",
-                    readOnly ? "cursor-default" : "cursor-pointer",
-                    reportData.isReferentOrAspiring ? "bg-accent border-accent text-white shadow-xl shadow-accent/20" : "bg-white border-accent/10 hover:border-accent/40"
-                  )}
-                >
-                  <div>
-                    <div className="text-xl font-bold">Je suis Référent ou souhaite le devenir</div>
-                  </div>
-                  <div className={cn(
-                    "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all",
-                    reportData.isReferentOrAspiring ? "bg-white border-white text-accent" : "border-accent/10 text-transparent"
-                  )}>
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                </div>
-              </div>
-
-              {reportData.isReferentOrAspiring && (
-                <div id="link_ref_pieces_jointes" className="space-y-12">
+              <div id="link_ref_pieces_jointes" className="space-y-12">
                   {referentData.error && (
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between">
                       <span>{referentData.error}</span>
@@ -435,7 +411,7 @@ export function EngagementTab({
                   {/* 1. Suivre les missions (Vue_Meteo - Col E, F, Q, R, B, S, Z) */}
                   <div id="link_ref_meteo" className="p-8 bg-accent/5 rounded-xl border border-accent/10 space-y-6 transition-all">
                     <div className="border-b border-accent/10 pb-4">
-                      <h4 className="text-lg font-bold text-secondary">Suivre les missions</h4>
+                      <h4 className="text-lg font-bold text-secondary">Liste des météos effectuées</h4>
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-accent/10 bg-white">
@@ -590,7 +566,7 @@ export function EngagementTab({
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-black uppercase tracking-wider text-accent/70 flex items-center gap-1.5">
                           <Building className="w-3.5 h-3.5 text-primary" />
-                          Missions créées / réalisées par le candidat ({referentData.missions.length})
+                          Missions publiées dans l'app LL ({referentData.missions.length})
                         </span>
                       </div>
 
@@ -936,7 +912,6 @@ export function EngagementTab({
                     />
                   </div>
                 </div>
-              )}
             </div>
           )}
 

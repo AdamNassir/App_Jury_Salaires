@@ -15,11 +15,13 @@ interface PretentionsTabProps {
   corridorMaxSalary?: number;
   corridorGrade?: Grade | 'Junior';
   addObjectiveFuture?: () => void;
+  isLockedForEditing?: boolean;
 }
 
 export function PretentionsTab({
   reportData,
-  setReportData
+  setReportData,
+  isLockedForEditing = false
 }: PretentionsTabProps) {
   // --- Objectifs moyen-terme (Vision / Carrière) ---
   const midTermGoals: string[] = React.useMemo(() => {
@@ -36,6 +38,7 @@ export function PretentionsTab({
   }, [reportData.careerGoalsList, reportData.careerGoal1, reportData.careerGoal2, reportData.careerGoals]);
 
   const updateMidTermGoal = (index: number, val: string) => {
+    if (isLockedForEditing) return;
     const updated = [...midTermGoals];
     updated[index] = val;
     setReportData(prev => ({
@@ -48,6 +51,7 @@ export function PretentionsTab({
   };
 
   const addMidTermGoal = () => {
+    if (isLockedForEditing) return;
     const updated = [...midTermGoals, ''];
     setReportData(prev => ({
       ...prev,
@@ -59,6 +63,7 @@ export function PretentionsTab({
   };
 
   const removeMidTermGoal = (index: number) => {
+    if (isLockedForEditing) return;
     const updated = midTermGoals.filter((_, i) => i !== index);
     const finalGoals = updated.length > 0 ? updated : [''];
     setReportData(prev => ({
@@ -77,17 +82,20 @@ export function PretentionsTab({
       : [{ objective: '', benefit: '', means: '', measures: '' }];
 
   const updateObjective = (index: number, patch: Partial<NextObjective>) => {
+    if (isLockedForEditing) return;
     const updated = [...objectives];
     updated[index] = { ...updated[index], ...patch };
     setReportData(prev => ({ ...prev, nextObjectives: updated }));
   };
 
   const addObjective = () => {
+    if (isLockedForEditing) return;
     const updated = [...objectives, { objective: '', benefit: '', means: '', measures: '' }];
     setReportData(prev => ({ ...prev, nextObjectives: updated }));
   };
 
   const removeObjective = (index: number) => {
+    if (isLockedForEditing) return;
     if (objectives.length <= 1) {
       setReportData(prev => ({ ...prev, nextObjectives: [{ objective: '', benefit: '', means: '', measures: '' }] }));
       return;
@@ -108,14 +116,16 @@ export function PretentionsTab({
                 <h3 className="text-xl font-bold text-secondary tracking-tight">Objectifs moyen-terme (Vision / Carrière)</h3>
                 <p className="text-sm font-black text-accent/40 uppercase tracking-widest mt-1">Objectifs</p>
               </div>
-              <button
-                type="button"
-                onClick={addMidTermGoal}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Ajouter un objectif</span>
-              </button>
+              {!isLockedForEditing && (
+                <button
+                  type="button"
+                  onClick={addMidTermGoal}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Ajouter un objectif</span>
+                </button>
+              )}
             </div>
             
             <div className="space-y-5">
@@ -126,18 +136,21 @@ export function PretentionsTab({
                       <span className="w-6 h-6 rounded-full bg-secondary text-white flex items-center justify-center text-xs font-bold">{index + 1}</span>
                       <span>Objectif {index + 1}</span>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => removeMidTermGoal(index)}
-                      title="Supprimer cet objectif"
-                      className="text-red-500 hover:text-red-700 p-1 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!isLockedForEditing && (
+                      <button
+                        type="button"
+                        onClick={() => removeMidTermGoal(index)}
+                        title="Supprimer cet objectif"
+                        className="text-red-500 hover:text-red-700 p-1 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   <FormField
                     label={`Objectif moyen-terme #${index + 1}`}
                     value={goal}
+                    disabled={isLockedForEditing}
                     onChange={val => updateMidTermGoal(index, val)}
                     placeholder={`Décrivez votre objectif moyen-terme #${index + 1}...`}
                   />
@@ -183,14 +196,16 @@ export function PretentionsTab({
               <div>
                 <h3 className="text-xl font-bold text-secondary tracking-tight">Les objectifs pour l’année prochaine</h3>
               </div>
-              <button
-                type="button"
-                onClick={addObjective}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Ajouter un objectif</span>
-              </button>
+              {!isLockedForEditing && (
+                <button
+                  type="button"
+                  onClick={addObjective}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Ajouter un objectif</span>
+                </button>
+              )}
             </div>
 
             <div className="space-y-6">
@@ -201,7 +216,7 @@ export function PretentionsTab({
                       <Target className="w-4 h-4 text-secondary" />
                       <span className="text-[11px] font-black uppercase tracking-wider text-secondary">Objectif #{idx + 1}</span>
                     </div>
-                    {objectives.length > 1 && (
+                    {!isLockedForEditing && objectives.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeObjective(idx)}
@@ -217,6 +232,7 @@ export function PretentionsTab({
                     <FormField
                       label="Objectif Spécifique (S de SMART)"
                       value={obj.objective}
+                      disabled={isLockedForEditing}
                       onChange={v => updateObjective(idx, { objective: v })}
                       placeholder="Décrivez précisément la situation et les résultats à atteindre..."
                     />
@@ -224,6 +240,7 @@ export function PretentionsTab({
                     <FormField
                       label="Bénéfice(s) (Afin de...)"
                       value={obj.benefit}
+                      disabled={isLockedForEditing}
                       onChange={v => updateObjective(idx, { benefit: v })}
                       placeholder="Pourquoi cet objectif est utile pour vous et Logiclever..."
                     />
@@ -231,6 +248,7 @@ export function PretentionsTab({
                     <FormField
                       label="Moyens à mettre en œuvre (Ambitieux et Réalistes - A et R de SMART)"
                       value={obj.means}
+                      disabled={isLockedForEditing}
                       onChange={v => updateObjective(idx, { means: v })}
                       placeholder="Actions concrètes, formations, accompagnement..."
                     />
@@ -238,6 +256,7 @@ export function PretentionsTab({
                     <FormField
                       label="Mesures & Échéance (Mesurable et Temporel - M et T de SMART)"
                       value={obj.measures}
+                      disabled={isLockedForEditing}
                       onChange={v => updateObjective(idx, { measures: v })}
                       placeholder="Indicateurs de succès, dates clés..."
                     />
