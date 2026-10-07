@@ -16,9 +16,10 @@ import { Dashboard } from './components/Dashboard';
 import { UserManagement } from './components/UserManagement';
 import { CampaignManagement } from './components/CampaignManagement';
 import { AdminLinksTable } from './components/admin/AdminLinksTable';
-import { LogIn, ShieldAlert, Loader2, Settings, Users, User as UserIcon, FolderKanban, ShieldCheck, Calendar, Link as LinkIcon } from 'lucide-react';
+import { PersonalSpaceView } from './components/personal/PersonalSpaceView';
+import { LogIn, ShieldAlert, Loader2, Settings, Users, User as UserIcon, FolderKanban, ShieldCheck, Calendar, Link as LinkIcon, ArrowRight, UserCheck, FileText, Scale, LogOut, Award } from 'lucide-react';
 
-type ActiveViewType = 'CANDIDATE' | 'EVALUATIONS' | 'JURY' | 'CAMPAIGNS' | 'ADMIN' | 'LINKS';
+type ActiveViewType = 'PERSONAL_SPACE' | 'CANDIDATE' | 'EVALUATIONS' | 'JURY' | 'CAMPAIGNS' | 'ADMIN' | 'LINKS';
 
 interface HistoryItem {
   view: ActiveViewType | null;
@@ -403,37 +404,90 @@ export default function App() {
     const isJuryUser = profile.roles?.includes('JURY');
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white px-4 font-sans py-12">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50/50 px-4 sm:px-6 lg:px-8 font-sans py-10 sm:py-16">
         <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-8 sm:p-12 rounded-2xl shadow-xl max-w-2xl w-full border border-accent/5"
+          className="bg-white p-6 sm:p-10 lg:p-12 rounded-3xl shadow-xl max-w-6xl w-full border border-accent/10 space-y-8"
         >
-          <h2 className="text-accent mb-2 text-center leading-tight">Bienvenue, {user.displayName}</h2>
-          <p className="text-accent/60 mb-8 text-center text-lg font-light">
-            Accédez à votre espace de travail.
-          </p>
-          <div className="grid gap-4">
+          {/* En-tête élargi et accueillant */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-accent/10 pb-6">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-secondary tracking-tight">
+                Bienvenue, {user.displayName}
+              </h1>
+              <p className="text-accent/60 text-sm sm:text-base font-light mt-1">
+                Sélectionnez votre espace de travail pour accéder à vos outils et dossiers.
+              </p>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/80 rounded-xl transition-all cursor-pointer self-start sm:self-center"
+              title="Se déconnecter"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Déconnexion</span>
+            </button>
+          </div>
+
+          {/* Grille principale des espaces de travail */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+            {/* 0. Espace Personnel (Compte, Historique, Bilans Drive) */}
+            <button
+              onClick={() => handleViewSelection('PERSONAL_SPACE')}
+              className={cn(
+                "p-6 sm:p-7 border rounded-2xl text-left transition-all group relative overflow-hidden bg-white flex flex-col justify-between hover:shadow-md cursor-pointer",
+                activeView === 'PERSONAL_SPACE' 
+                  ? "border-primary bg-primary/5 ring-2 ring-primary" 
+                  : "border-accent/15 hover:border-primary/60 hover:bg-primary/[0.02]"
+              )}
+            >
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <UserCheck className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wider font-black">
+                  Mon Compte & Historique
+                </span>
+              </div>
+              <div>
+                <div className="font-bold text-lg text-secondary group-hover:text-primary transition-colors flex items-center justify-between mb-2">
+                  <span>Espace Personnel</span>
+                  <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                </div>
+                <p className="text-xs sm:text-sm text-accent/60 font-light leading-relaxed">
+                  Consulter vos dossiers de campagnes passées (2024, 2025...), décisions du jury, météos clients et vos bilans annuels Drive.
+                </p>
+              </div>
+            </button>
+
             {/* 1. Interface Candidat (Mon dossier) */}
             {(profile.roles?.includes('CANDIDATE') || isAdminUser) && (
               <button
                 onClick={() => handleViewSelection('CANDIDATE')}
                 className={cn(
-                  "p-6 border rounded-xl text-left transition-all group relative overflow-hidden",
+                  "p-6 sm:p-7 border rounded-2xl text-left transition-all group relative overflow-hidden bg-white flex flex-col justify-between hover:shadow-md cursor-pointer",
                   activeView === 'CANDIDATE' 
-                    ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                    : "border-accent/10 hover:border-secondary hover:bg-secondary/5 cursor-pointer"
+                    ? "border-primary bg-primary/5 ring-2 ring-primary" 
+                    : "border-accent/15 hover:border-secondary/60 hover:bg-secondary/[0.02]"
                 )}
               >
-                <div className={cn(
-                  "font-bold text-lg mb-1 flex items-center gap-3",
-                  activeView === 'CANDIDATE' ? "text-primary" : "text-accent group-hover:text-secondary"
-                )}>
-                  Interface Candidat
-                  <span className="text-[10px] bg-secondary/10 text-secondary px-3 py-1 rounded-base uppercase tracking-widest font-black">Mon dossier</span>
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] bg-secondary/10 text-secondary px-3 py-1 rounded-full uppercase tracking-wider font-black">
+                    Mon dossier
+                  </span>
                 </div>
-                <div className="text-sm text-accent/60 font-light font-sans">
-                  Gérer votre bilan annuel personnel, auto-évaluation et vos pièces justificatives
+                <div>
+                  <div className="font-bold text-lg text-accent group-hover:text-secondary transition-colors flex items-center justify-between mb-2">
+                    <span>Interface Candidat</span>
+                    <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-secondary group-hover:translate-x-1 transition-all" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-accent/60 font-light leading-relaxed">
+                    Gérer votre bilan annuel personnel, votre auto-évaluation et vos pièces justificatives.
+                  </p>
                 </div>
               </button>
             )}
@@ -443,21 +497,28 @@ export default function App() {
               <button
                 onClick={() => handleViewSelection('EVALUATIONS')}
                 className={cn(
-                  "p-6 border rounded-xl text-left transition-all group relative overflow-hidden",
+                  "p-6 sm:p-7 border rounded-2xl text-left transition-all group relative overflow-hidden bg-white flex flex-col justify-between hover:shadow-md cursor-pointer",
                   activeView === 'EVALUATIONS' 
-                    ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                    : "border-accent/10 hover:border-secondary hover:bg-secondary/5 cursor-pointer"
+                    ? "border-primary bg-primary/5 ring-2 ring-primary" 
+                    : "border-accent/15 hover:border-primary/60 hover:bg-primary/[0.02]"
                 )}
               >
-                <div className={cn(
-                  "font-bold text-lg mb-1 flex items-center gap-3",
-                  activeView === 'EVALUATIONS' ? "text-primary" : "text-accent group-hover:text-secondary"
-                )}>
-                  Évaluations & Feedback Pairs
-                  <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-base uppercase tracking-widest font-black">Évaluateur</span>
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-3 py-1 rounded-full uppercase tracking-wider font-black">
+                    Évaluateur
+                  </span>
                 </div>
-                <div className="text-sm text-accent/60 font-light font-sans">
-                  Consulter les dossiers de vos collègues et partager vos retours d'expérience et avis techniques
+                <div>
+                  <div className="font-bold text-lg text-secondary group-hover:text-primary transition-colors flex items-center justify-between mb-2">
+                    <span>Évaluations & Feedback Pairs</span>
+                    <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-accent/60 font-light leading-relaxed">
+                    Consulter les dossiers de vos collègues et partager vos retours d'expérience et avis techniques.
+                  </p>
                 </div>
               </button>
             )}
@@ -467,100 +528,111 @@ export default function App() {
               <button
                 onClick={() => handleViewSelection('JURY')}
                 className={cn(
-                  "p-6 border rounded-xl text-left transition-all group relative overflow-hidden",
+                  "p-6 sm:p-7 border rounded-2xl text-left transition-all group relative overflow-hidden bg-white flex flex-col justify-between hover:shadow-md cursor-pointer",
                   activeView === 'JURY' 
-                    ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                    : "border-accent/10 hover:border-secondary hover:bg-secondary/5 cursor-pointer"
+                    ? "border-primary bg-primary/5 ring-2 ring-primary" 
+                    : "border-accent/15 hover:border-secondary/60 hover:bg-secondary/[0.02]"
                 )}
               >
-                <div className={cn(
-                  "font-bold text-lg mb-1 flex items-center gap-3",
-                  activeView === 'JURY' ? "text-primary" : "text-accent group-hover:text-secondary"
-                )}>
-                  Conseil du Jury
-                  <span className="text-[10px] bg-secondary/10 text-secondary px-3 py-1 rounded-base uppercase tracking-widest font-black">Délibérations</span>
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Scale className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] bg-amber-100 text-amber-800 px-3 py-1 rounded-full uppercase tracking-wider font-black">
+                    Délibérations
+                  </span>
                 </div>
-                <div className="text-sm text-accent/60 font-light font-sans">
-                  Piloter les décisions finales, barèmes, augmentations salariales et arbitrage global
+                <div>
+                  <div className="font-bold text-lg text-secondary group-hover:text-secondary transition-colors flex items-center justify-between mb-2">
+                    <span>Conseil du Jury</span>
+                    <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-secondary group-hover:translate-x-1 transition-all" />
+                  </div>
+                  <p className="text-xs sm:text-sm text-accent/60 font-light leading-relaxed">
+                    Piloter les décisions finales, barèmes, augmentations salariales et arbitrage global.
+                  </p>
                 </div>
               </button>
             )}
-
-            {(isAdminUser || isJuryUser) && (
-              <div className="pt-4 border-t border-accent/10 space-y-3">
-                <div className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-primary" /> Espace Administration & Paramétrage
-                </div>
-                <div className={cn(
-                  "grid gap-4",
-                  isAdminUser ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"
-                )}>
-                  {isAdminUser && (
-                    <button
-                      onClick={() => handleViewSelection('CAMPAIGNS')}
-                      className={cn(
-                        "p-6 border rounded-xl text-left transition-all group relative overflow-hidden bg-primary/5",
-                        activeView === 'CAMPAIGNS' 
-                          ? "border-primary bg-primary/10 ring-1 ring-primary" 
-                          : "border-primary/20 hover:border-primary cursor-pointer"
-                      )}
-                    >
-                      <div className="font-bold text-base text-primary mb-1 flex items-center gap-2">
-                        <FolderKanban className="w-5 h-5" />
-                        Gestion des Campagnes
-                      </div>
-                      <div className="text-xs text-accent/60 font-light">
-                        Créer, initialiser et clôturer les campagnes de jury.
-                      </div>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => handleViewSelection('ADMIN')}
-                    className={cn(
-                      "p-6 border rounded-xl text-left transition-all group relative overflow-hidden bg-accent/5",
-                      activeView === 'ADMIN' 
-                        ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                        : "border-accent/10 hover:border-primary/50 cursor-pointer"
-                    )}
-                  >
-                    <div className="font-bold text-base text-accent mb-1 flex items-center gap-2">
-                      <Settings className="w-5 h-5 opacity-50" />
-                      Paramétrage Utilisateurs
-                    </div>
-                    <div className="text-xs text-accent/60 font-light">
-                      Gestion des utilisateurs, effectifs et rôles.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handleViewSelection('LINKS')}
-                    className={cn(
-                      "p-6 border rounded-xl text-left transition-all group relative overflow-hidden bg-secondary/5",
-                      activeView === 'LINKS' 
-                        ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                        : "border-accent/10 hover:border-primary/50 cursor-pointer"
-                    )}
-                  >
-                    <div className="font-bold text-base text-secondary mb-1 flex items-center gap-2">
-                      <LinkIcon className="w-5 h-5 text-primary" />
-                      Répertoire des Liens
-                    </div>
-                    <div className="text-xs text-accent/60 font-light">
-                      Gestion des hyperliens (Drives, Sheets, Modèles).
-                    </div>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
-          
-          <button 
-            onClick={handleLogout}
-            className="mt-8 w-full border border-red-200 text-red-500 py-3 rounded-xl text-base font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            Se déconnecter
-          </button>
+
+          {/* Section Administration & Paramétrage */}
+          {(isAdminUser || isJuryUser) && (
+            <div className="pt-6 border-t border-accent/10 space-y-4">
+              <div className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                <span>Espace Administration & Paramétrage</span>
+              </div>
+              <div className={cn(
+                "grid gap-4 sm:gap-5",
+                isAdminUser ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2"
+              )}>
+                {isAdminUser && (
+                  <button
+                    onClick={() => handleViewSelection('CAMPAIGNS')}
+                    className={cn(
+                      "p-5 sm:p-6 border rounded-2xl text-left transition-all group relative overflow-hidden bg-primary/5 hover:shadow-xs cursor-pointer",
+                      activeView === 'CAMPAIGNS' 
+                        ? "border-primary bg-primary/10 ring-2 ring-primary" 
+                        : "border-primary/20 hover:border-primary"
+                    )}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                      <FolderKanban className="w-5 h-5" />
+                    </div>
+                    <div className="font-bold text-base text-primary mb-1 flex items-center justify-between">
+                      <span>Gestion des Campagnes</span>
+                      <ArrowRight className="w-4 h-4 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                    </div>
+                    <p className="text-xs text-accent/60 font-light leading-relaxed">
+                      Créer, initialiser, rattraper et clôturer les campagnes de jury.
+                    </p>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => handleViewSelection('ADMIN')}
+                  className={cn(
+                    "p-5 sm:p-6 border rounded-2xl text-left transition-all group relative overflow-hidden bg-accent/5 hover:shadow-xs cursor-pointer",
+                    activeView === 'ADMIN' 
+                      ? "border-primary bg-primary/5 ring-2 ring-primary" 
+                      : "border-accent/15 hover:border-primary/50"
+                  )}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <Settings className="w-5 h-5 opacity-70" />
+                  </div>
+                  <div className="font-bold text-base text-secondary mb-1 flex items-center justify-between">
+                    <span>Paramétrage Utilisateurs</span>
+                    <ArrowRight className="w-4 h-4 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                  </div>
+                  <p className="text-xs text-accent/60 font-light leading-relaxed">
+                    Gestion des collaborateurs, effectifs, rôles et synchronisations.
+                  </p>
+                </button>
+
+                <button
+                  onClick={() => handleViewSelection('LINKS')}
+                  className={cn(
+                    "p-5 sm:p-6 border rounded-2xl text-left transition-all group relative overflow-hidden bg-secondary/5 hover:shadow-xs cursor-pointer",
+                    activeView === 'LINKS' 
+                      ? "border-primary bg-primary/5 ring-2 ring-primary" 
+                      : "border-accent/15 hover:border-primary/50"
+                  )}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <LinkIcon className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="font-bold text-base text-secondary mb-1 flex items-center justify-between">
+                    <span>Répertoire des Liens</span>
+                    <ArrowRight className="w-4 h-4 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                  </div>
+                  <p className="text-xs text-accent/60 font-light leading-relaxed">
+                    Gestion des hyperliens (Drives, Sheets, Modèles officiels).
+                  </p>
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
     );
@@ -574,6 +646,7 @@ export default function App() {
         profile={profile} 
         onLogout={handleLogout} 
         onHome={goHome} 
+        onOpenPersonalSpace={() => handleViewSelection('PERSONAL_SPACE')}
         onBack={handleGoBack}
         canGoBack={canGoBackState || !showRoleSelection}
       />
@@ -659,6 +732,7 @@ export default function App() {
                   <div>
                     <h1 className="text-primary text-xs font-black uppercase tracking-[0.2em] mb-1">JURY DES SALAIRES LOGICLEVER</h1>
                     <h2 className="text-secondary text-3xl font-extrabold tracking-tight">
+                      {activeView === 'PERSONAL_SPACE' && 'Espace Personnel'}
                       {activeView === 'CANDIDATE' && 'Espace Candidat'}
                       {activeView === 'EVALUATIONS' && 'Évaluation des Collègues'}
                       {activeView === 'JURY' && 'Espace de Pilotage'}
@@ -709,6 +783,27 @@ export default function App() {
                         <LinkIcon className="w-4 h-4" />
                         Hyperliens & URLs
                       </button>
+                    </div>
+                  )}
+
+                  {/* Sélecteur de Collaborateur pour Admin dans l'Espace Personnel */}
+                  {isAdmin && activeView === 'PERSONAL_SPACE' && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2.5 bg-accent/5 p-2 px-3.5 rounded-xl border border-accent/10 shadow-sm">
+                        <UserIcon className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-accent/60">Collaborateur :</span>
+                        <select
+                          value={activeCandidateId}
+                          onChange={(e) => setSelectedCandidateId(e.target.value)}
+                          className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
+                        >
+                          {candidateOptions.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.id === profile.id ? `Mon compte personnel (${c.displayName || c.email})` : (c.displayName || c.email)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   )}
 
@@ -786,6 +881,19 @@ export default function App() {
               )}
 
               <AnimatePresence>
+                {activeView === 'PERSONAL_SPACE' && (
+                  <motion.div key={`personal_space_${activeCandidateId}`} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+                    <PersonalSpaceView 
+                      currentUser={activeCandidateProfile} 
+                      dossiers={allDossiers} 
+                      campaigns={allCampaigns} 
+                      isAdmin={isAdmin}
+                      allUsers={candidateOptions}
+                      selectedUserId={activeCandidateId}
+                      onSelectUser={(id) => setSelectedCandidateId(id)}
+                    />
+                  </motion.div>
+                )}
                 {activeView === 'CANDIDATE' && (
                   <motion.div key={activeCandidateId} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                     <CandidateView 

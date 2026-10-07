@@ -480,27 +480,29 @@ export class ReferentDataService {
         };
         const userDisplayId = cand.idProfil.trim();
 
-        // 1. Meteos
+        // 1. Meteos : STRICTEMENT Colonne B pour l'IdProfil, Colonne Z pour l'Année, Colonne Q pour le Lien
         const meteos: ReferentMeteoItem[] = meteoRes.rows
           .map(r => ({
-            idProfilEvalue: String(r[1] || ''),
-            idProfil: String(r[4] || ''),
-            dateMeteo: String(r[5] || ''),
-            lienMeteo: String(r[16] || ''),
-            consultantEvalue: String(r[17] || ''),
-            client: String(r[18] || ''),
-            anneeJury: String(r[25] || '').trim()
+            idProfilEvalue: String(r[1] || '').trim(), // Col B
+            idProfil: String(r[1] || '').trim(), // Col B uniquement
+            dateMeteo: String(r[5] || '').trim(), // Col F
+            lienMeteo: String(r[16] || '').trim(), // Col Q
+            consultantEvalue: String(r[17] || '').trim(), // Col R
+            client: String(r[18] || '').trim(), // Col S
+            anneeJury: String(r[25] || '').trim() // Col Z
           }))
           .filter(item => {
-            const matchesCandidat = isIdMatch(item.idProfil);
+            const matchesCandidat = isIdMatch(item.idProfilEvalue); // STRICTEMENT Colonne B
+            const targetYearStr = String(campaignYear).trim();
+            const targetYearShort = targetYearStr.slice(-2);
+
             const matchesYearColZ = Boolean(
               item.anneeJury &&
               (item.anneeJury === targetYearStr ||
                item.anneeJury.includes(targetYearStr) ||
                item.anneeJury === targetYearShort)
             );
-            const matchesDateMeteo = isDateInCampaignYear(item.dateMeteo, campaignYear);
-            return matchesCandidat && (matchesYearColZ || matchesDateMeteo);
+            return matchesCandidat && matchesYearColZ && Boolean(item.lienMeteo);
           });
 
         // 2. Actions
@@ -779,16 +781,16 @@ export class ReferentDataService {
         const rows = fetchRes.rows;
         meteos = rows
           .map(r => ({
-            idProfilEvalue: String(r[1] || ''), // Col B
-            idProfil: String(r[4] || ''), // Col E
-            dateMeteo: String(r[5] || ''), // Col F
-            lienMeteo: String(r[16] || ''), // Col Q
-            consultantEvalue: String(r[17] || ''), // Col R
-            client: String(r[18] || ''), // Col S
+            idProfilEvalue: String(r[1] || '').trim(), // Col B
+            idProfil: String(r[1] || '').trim(), // Col B uniquement
+            dateMeteo: String(r[5] || '').trim(), // Col F
+            lienMeteo: String(r[16] || '').trim(), // Col Q
+            consultantEvalue: String(r[17] || '').trim(), // Col R
+            client: String(r[18] || '').trim(), // Col S
             anneeJury: String(r[25] || '').trim() // Col Z
           }))
           .filter(item => {
-            const matchesCandidat = isIdMatch(item.idProfil); // Colonne E strictement
+            const matchesCandidat = isIdMatch(item.idProfilEvalue); // STRICTEMENT Colonne B
             const targetYearStr = String(campaignYear).trim();
             const targetYearShort = targetYearStr.slice(-2); // ex: "26"
 
@@ -799,10 +801,7 @@ export class ReferentDataService {
                item.anneeJury === targetYearShort)
             );
 
-            // Vérification par la Date Météo (Colonne F), supportant DD/MM/YY et DD/MM/YYYY
-            const matchesDateMeteo = isDateInCampaignYear(item.dateMeteo, campaignYear);
-
-            return matchesCandidat && (matchesYearColZ || matchesDateMeteo);
+            return matchesCandidat && matchesYearColZ && Boolean(item.lienMeteo);
           });
 
         auditLog.push({
@@ -810,9 +809,9 @@ export class ReferentDataService {
           tableName: 'Suivre les missions (Météos)',
           sheetName: 'Vue_Meteo',
           url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=0#gid=0',
-          columnTarget: 'Colonne E (IdProfil Référent)',
+          columnTarget: 'Colonne B (IdProfil Évalué)',
           idProfilUsed: userDisplayId,
-          filterRule: `Colonne E == "${userDisplayId}" ET (Col Z == "${campaignYear}" OU Date Météo (Col F) en campagne ${campaignYear-1}-${campaignYear})`,
+          filterRule: `Colonne B == "${userDisplayId}" ET Col Z == "${campaignYear}"`,
           rowsRetrievedTotal: fetchRes.totalRows,
           rowsMatchedCandidate: meteos.length,
           status: fetchRes.error ? 'ERROR' : (meteos.length > 0 ? 'SUCCESS' : (fetchRes.totalRows > 0 ? 'WARNING' : 'ERROR')),

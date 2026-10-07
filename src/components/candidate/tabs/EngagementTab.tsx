@@ -191,21 +191,6 @@ export function EngagementTab({
     }));
   };
 
-  const getSectionSubtitle = () => {
-    switch (section) {
-      case 'COMMERCIAL':
-        return "Logiclever se définit comme une société de conseil. Nous serons reconduits si nous comprenons où est la valeur pour le client et ce qu’il faut faire pour apporter davantage de valeur.";
-      case 'VIE_LOGICLEVER':
-        return "La vie Logiclever, c’est du fun mais aussi de l’amélioration continue dans nos processus internes. Toujours avoir en tête “Qu’est-ce que je fais qui mérite d’être partagé à tous ?”";
-      case 'RECRUTEMENT':
-        return "Recruter n’est pas une fin en soi. On souhaite uniquement convaincre des personnes compétentes avec un bon savoir-être.";
-      case 'ENCADREMENT':
-        return "Logiclever se développe uniquement par bouche à oreille. La qualité des prestations délivrées par les consultants (et donc la qualité de l’encadrement pour faire grandir les consultants) est nécessaire.";
-      default:
-        return undefined;
-    }
-  };
-
   const showGradeCriteriaTable = [
     'AUTONOMIE',
     'COMMERCIAL',
@@ -219,7 +204,6 @@ export function EngagementTab({
       {showGradeCriteriaTable && <GradeCriteriaTable />}
       <Section 
         title={engagementSections.find(item => item.id === section)!.label}
-        subtitle={getSectionSubtitle()}
       >
         <div className="space-y-12">
           {section === 'AUTONOMIE' && (
@@ -289,7 +273,7 @@ export function EngagementTab({
           )}
 
           {section === 'COMMERCIAL' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="space-y-8">
               <FormField label="Avez-vous pu présenter Logiclever (Qui on est ?, nos offres ?, Nos valeurs ?)" value={reportData.commercialPresentation} onChange={v => setReportData(prev => ({ ...prev, commercialPresentation: v }))} />
               <FormField label="Quels conseils avez-vous donnés à vos clients ?" value={reportData.commercialAdvice} onChange={v => setReportData(prev => ({ ...prev, commercialAdvice: v }))} />
               <FormField
@@ -306,39 +290,33 @@ export function EngagementTab({
           )}
 
           {section === 'VIE_LOGICLEVER' && (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <FormField label="Capitalisation de connaissance et Amélioration continue (Drive)" value={reportData.lifeKnowledgeSharing} onChange={v => setReportData(prev => ({ ...prev, lifeKnowledgeSharing: v }))} />
-                <FormField label="Partage d’information (SLACK)" value={reportData.lifeSlack} onChange={v => setReportData(prev => ({ ...prev, lifeSlack: v }))} />
-                <FormField label="Créer du lien entre consultants / Esprit d’équipe (Pot, journée Logiclever, parrainage…)" value={reportData.lifeTeamSpirit} onChange={v => setReportData(prev => ({ ...prev, lifeTeamSpirit: v }))} />
-                <div id="link_business_model" className="p-2 rounded-xl transition-all">
-                  <FormField 
-                    label="Est-ce que je maîtrise le business model de Logiclever (Taux de facturation, marge sur mission…)" 
-                    labelHref="https://docs.google.com/presentation/d/1xSJVxDGK5nmIUUa37jsfGXfXSaYETjqgsHD7o7e2S84/edit?slide=id.p3#slide=id.p3"
-                    value={reportData.lifeBusinessModel} 
-                    onChange={v => setReportData(prev => ({ ...prev, lifeBusinessModel: v }))} 
-                  />
-                </div>
-                <FormField label="Autres" value={reportData.lifeLogiclever} onChange={v => setReportData(prev => ({ ...prev, lifeLogiclever: v }))} />
+            <div className="space-y-8">
+              <FormField label="Capitalisation de connaissance et Amélioration continue (Drive)" value={reportData.lifeKnowledgeSharing} onChange={v => setReportData(prev => ({ ...prev, lifeKnowledgeSharing: v }))} />
+              <FormField label="Partage d’information (SLACK)" value={reportData.lifeSlack} onChange={v => setReportData(prev => ({ ...prev, lifeSlack: v }))} />
+              <FormField label="Créer du lien entre consultants / Esprit d’équipe (Pot, journée Logiclever, parrainage…)" value={reportData.lifeTeamSpirit} onChange={v => setReportData(prev => ({ ...prev, lifeTeamSpirit: v }))} />
+              <div id="link_business_model" className="rounded-xl transition-all">
+                <FormField 
+                  label="Est-ce que je maîtrise le business model de Logiclever (Taux de facturation, marge sur mission…)" 
+                  labelHref="https://docs.google.com/presentation/d/1xSJVxDGK5nmIUUa37jsfGXfXSaYETjqgsHD7o7e2S84/edit?slide=id.p3#slide=id.p3"
+                  value={reportData.lifeBusinessModel} 
+                  onChange={v => setReportData(prev => ({ ...prev, lifeBusinessModel: v }))} 
+                />
               </div>
+              <FormField label="Autres" value={reportData.lifeLogiclever} onChange={v => setReportData(prev => ({ ...prev, lifeLogiclever: v }))} />
             </div>
           )}
 
           {section === 'RECRUTEMENT' && (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <FormField label="Promouvoir Logiclever : Avec qui ?, Comment ?" value={reportData.recruitmentPromotion} onChange={v => setReportData(prev => ({ ...prev, recruitmentPromotion: v }))} tooltip="Points sur votre implication dans la promotion de l'image de marque." />
-                <FormField label="Réseaux sociaux : Avez vous ajouté des collègues sur LinkedIn ?, etc" value={reportData.recruitmentSocial} onChange={v => setReportData(prev => ({ ...prev, recruitmentSocial: v }))} />
-              </div>
+            <div className="space-y-8">
+              <FormField label="Promouvoir Logiclever : Avec qui ?, Comment ?" value={reportData.recruitmentPromotion} onChange={v => setReportData(prev => ({ ...prev, recruitmentPromotion: v }))} tooltip="Points sur votre implication dans la promotion de l'image de marque." />
+              <FormField label="Réseaux sociaux : Avez vous ajouté des collègues sur LinkedIn ?, etc" value={reportData.recruitmentSocial} onChange={v => setReportData(prev => ({ ...prev, recruitmentSocial: v }))} />
             </div>
           )}
 
           {section === 'ENCADREMENT' && (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <FormField label="Ai-je sollicité mon coach pour m’aider à grandir et avoir des conseils pour aider au développement de Logiclever ?" value={reportData.encadrementCoach} onChange={v => setReportData(prev => ({ ...prev, encadrementCoach: v }))} />
-                <FormField label="Ai-je sollicité mon encadrant en mission à chaque fois que nécessaire ? (ex : alerte sur la qualité de mes livrables, j’ai du temps et je pourrai être utile…)" value={reportData.encadrementManager} onChange={v => setReportData(prev => ({ ...prev, encadrementManager: v }))} />
-              </div>
+            <div className="space-y-8">
+              <FormField label="Ai-je sollicité mon coach pour m’aider à grandir et avoir des conseils pour aider au développement de Logiclever ?" value={reportData.encadrementCoach} onChange={v => setReportData(prev => ({ ...prev, encadrementCoach: v }))} />
+              <FormField label="Ai-je sollicité mon encadrant en mission à chaque fois que nécessaire ? (ex : alerte sur la qualité de mes livrables, j’ai du temps et je pourrai être utile…)" value={reportData.encadrementManager} onChange={v => setReportData(prev => ({ ...prev, encadrementManager: v }))} />
             </div>
           )}
 

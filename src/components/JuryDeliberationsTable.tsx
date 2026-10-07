@@ -393,6 +393,14 @@ export function JuryDeliberationsTable({ dossiers, candidates, profile }: JuryDe
                           onClick={() => toggleRow(dossier.id)}
                         >
                           <span>{candidate.displayName}</span>
+                          {(dossier.secondTourRequested || dossier.juryDecision?.secondTourRequested) && (
+                            <span 
+                              className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200"
+                              title={dossier.secondTourReason ? `Motif : ${dossier.secondTourReason}` : "Second tour demandé"}
+                            >
+                              2nd Tour
+                            </span>
+                          )}
                           {!canEdit && (
                             <span 
                               className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"

@@ -20,6 +20,7 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
     const [dummyNotice, setDummyNotice] = useState<string | null>(null);
     const [showMatrixAnalysis, setShowMatrixAnalysis] = useState(false);
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+    const [showExcludedDetails, setShowExcludedDetails] = useState(false);
     const hasDummyUsers = useMemo(() => {
         return dossiers.some(d => d.id.startsWith('DUMMY_DOS_'));
     }, [dossiers]);
@@ -35,19 +36,48 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
         setTimeout(() => setDummyNotice(null), 3500);
     };
     // 1. Build population from actual campaign dossiers & candidates with exact Salaire Formule constants
-    const population: OptimizerUser[] = useMemo(() => {
-        return dossiers
-            .filter((dossier) => {
-            // Exclude orphaned dossiers that don't correspond to any registered user
+    // Strictly validate real economic inputs: no invented currentSalary, no default 650 TJ Vendu.
+    const { population, excludedDossiers } = useMemo(() => {
+        const validPop: OptimizerUser[] = [];
+        const excluded: Array<{ id: string; name: string; matricule?: string; reason: string }> = [];
+
+        dossiers.forEach((dossier) => {
             const candidate = candidates[dossier.candidateId];
-            return Boolean(candidate && (candidate.displayName || candidate.email));
-        })
-            .map((dossier) => {
-            const candidate = candidates[dossier.candidateId]!;
+            if (!candidate || (!candidate.displayName && !candidate.email)) {
+                return;
+            }
             const name = candidate.displayName || candidate.email || 'Consultant';
             const matricule = candidate.matricule || '-';
+
+            // 1. Strict real currentSalary check (no fabrication)
+            const rawCurrentSalary = candidate.currentSalary ?? dossier.annualReport?.currentSalary;
+            if (typeof rawCurrentSalary !== 'number' || !Number.isFinite(rawCurrentSalary) || rawCurrentSalary <= 0) {
+                excluded.push({
+                    id: dossier.id,
+                    name,
+                    matricule,
+                    reason: 'Salaire actuel manquant ou invalide (≤ 0)',
+                });
+                return;
+            }
+            const currentSalary = rawCurrentSalary;
+
+            // 2. Strict real TJ Vendu check (do NOT default to 650)
+            const rawTjVendu = candidate.currentTJM ?? dossier.annualReport?.currentTJM;
+            if (typeof rawTjVendu !== 'number' || !Number.isFinite(rawTjVendu) || rawTjVendu <= 0) {
+                excluded.push({
+                    id: dossier.id,
+                    name,
+                    matricule,
+                    reason: 'TJ Vendu manquant ou invalide (≤ 0)',
+                });
+                return;
+            }
+            const tjVendu = rawTjVendu;
+
             const currentM = snapMission(dossier.juryDecision?.missionPercentage ?? 98);
             const currentI = snapInvestment(dossier.juryDecision?.investmentPercentage ?? 60);
+
             // Compute exact Salaire Formule parameters a and b
             const effectiveGrade = candidate?.currentGrade || dossier.annualReport?.currentGrade || 'Junior';
             const entryDate = candidate?.entryDate;
@@ -59,7 +89,6 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
                 ? candidate.yearsExpert
                 : (effectiveGrade === 'Expert' ? calculateYears(expertGradeDate) : 0);
             const prime = getPrimeAnciennete(yearsLL);
-            const tjVendu = candidate?.currentTJM || dossier.annualReport?.currentTJM || 650;
             const tjCible = dossier.juryDecision?.tjCibleDecision || dossier.annualReport?.targetTJM || tjVendu;
             const targetGrade = resolveTargetGrade(effectiveGrade, dossier.annualReport?.wishedGrade);
             const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(expertGradeDate) : 0;
@@ -67,26 +96,12 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
             const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, effectiveGrade, yearsExpert, prime);
             const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
             const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
-            /*
-             * Revised economic model:
-             *
-             * - currentSalary is the fixed lower bound (b / Salaire Actuel)
-             * - salaireVendu is the fixed upper bound produced by TJ Vendu
-             * - a stays dossier-specific and is the theoretical formula ceiling
-             *
-             * The optimizer itself clamps the formula between currentSalary and
-             * soldSalary and derives each dossier's plateau-aware economic scales.
-             */
-            const fallbackCurrentSalary = Math.min(salaireCible, salaireVendu);
-            const currentSalary = candidate?.currentSalary ||
-                dossier.annualReport?.currentSalary ||
-                fallbackCurrentSalary;
+
             const soldSalary = Math.max(currentSalary, salaireVendu);
             const a = Math.max(salaireCible100, salaireVendu100, soldSalary + 0.01, currentSalary + 0.01);
-            // Kept because OptimizerUser historically exposed b.
-            // In the revised model b is exactly Salaire Actuel.
             const b = currentSalary;
-            return {
+
+            validPop.push({
                 id: candidate?.id || dossier.candidateId,
                 name,
                 mission: currentM,
@@ -99,8 +114,10 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
                 b,
                 currentSalary,
                 soldSalary,
-            };
+            });
         });
+
+        return { population: validPop, excludedDossiers: excluded };
     }, [dossiers, candidates]);
     // 2. Deterministic mathematical optimization
     const optimizationResult = useMemo(() => {
@@ -320,13 +337,19 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
 
               <div className="text-lg font-black text-accent/80 tabular-nums">{TARGET_M}%</div>
 
-              <div className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block", Math.abs(effectiveSimulation.meanM - TARGET_M) < 0.05
-            ? "bg-emerald-100 text-emerald-800"
-            : "bg-amber-100 text-amber-800")}>
-
-                Δ {(effectiveSimulation.meanM - TARGET_M) > 0 ? '+' : ''}{(effectiveSimulation.meanM - TARGET_M).toFixed(1)}%
-
-              </div>
+              {Math.abs(effectiveSimulation.meanM - TARGET_M) < 0.05 ? (
+                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block bg-emerald-100 text-emerald-800">
+                  Cible atteinte
+                </div>
+              ) : !optimizationResult.targetMReached && selectedUserIds.size === optimizationResult.recommendations.length ? (
+                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block bg-purple-100 text-purple-800" title="Arrêt volontaire de l'optimiseur pour éviter toute modification fictive sur plateau salarial">
+                  Cible non atteignable sans modif. fictive
+                </div>
+              ) : (
+                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block bg-amber-100 text-amber-800">
+                  Δ {(effectiveSimulation.meanM - TARGET_M) > 0 ? '+' : ''}{(effectiveSimulation.meanM - TARGET_M).toFixed(1)}%
+                </div>
+              )}
 
             </div>
 
@@ -368,13 +391,19 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
 
               <div className="text-lg font-black text-accent/80 tabular-nums">{TARGET_I}%</div>
 
-              <div className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block", Math.abs(effectiveSimulation.meanI - TARGET_I) < 0.05
-            ? "bg-emerald-100 text-emerald-800"
-            : "bg-amber-100 text-amber-800")}>
-
-                Δ {(effectiveSimulation.meanI - TARGET_I) > 0 ? '+' : ''}{(effectiveSimulation.meanI - TARGET_I).toFixed(1)}%
-
-              </div>
+              {Math.abs(effectiveSimulation.meanI - TARGET_I) < 0.05 ? (
+                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block bg-emerald-100 text-emerald-800">
+                  Cible atteinte
+                </div>
+              ) : !optimizationResult.targetIReached && selectedUserIds.size === optimizationResult.recommendations.length ? (
+                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block bg-purple-100 text-purple-800" title="Arrêt volontaire de l'optimiseur pour éviter toute modification fictive sur plateau salarial">
+                  Cible non atteignable sans modif. fictive
+                </div>
+              ) : (
+                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block bg-amber-100 text-amber-800">
+                  Δ {(effectiveSimulation.meanI - TARGET_I) > 0 ? '+' : ''}{(effectiveSimulation.meanI - TARGET_I).toFixed(1)}%
+                </div>
+              )}
 
             </div>
 
@@ -425,6 +454,47 @@ export function OptimizerSuggestionsModal({ isOpen, onClose, dossiers, candidate
           </div>
 
         </div>
+
+        {/* Informative notice if targets are unreachable without economically fictional plateau moves */}
+        {(!optimizationResult.targetMReached || !optimizationResult.targetIReached) && (
+          <div className="px-6 py-2.5 bg-purple-50/80 border-b border-purple-200/60 text-purple-900 text-xs flex items-center gap-2">
+            <Activity className="w-4 h-4 text-purple-700 shrink-0"/>
+            <span>
+              <strong>Note d'arbitrage économique :</strong> L'une des cibles ({!optimizationResult.targetMReached ? `${TARGET_M}% Mission` : ''}{!optimizationResult.targetMReached && !optimizationResult.targetIReached ? ' et ' : ''}{!optimizationResult.targetIReached ? `${TARGET_I}% Investissement` : ''}) est non atteignable sans modification économiquement fictive. L'optimiseur a volontairement stoppé les ajustements pour interdire les mouvements plats sur plateau sans effet salarial réel.
+            </span>
+          </div>
+        )}
+
+        {/* Informative alert for excluded dossiers with missing / invalid economic data */}
+        {excludedDossiers.length > 0 && (
+          <div className="px-6 py-2.5 bg-amber-50/90 border-b border-amber-200 text-amber-900 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0"/>
+                <span>
+                  <strong>{excludedDossiers.length} dossier(s) exclu(s) de l'optimisation :</strong> Données économiques manquantes (Salaire actuel ou TJ Vendu non renseigné ou ≤ 0).
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExcludedDetails(!showExcludedDetails)}
+                className="text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer shrink-0 text-[11px]"
+              >
+                {showExcludedDetails ? 'Masquer le détail' : 'Voir le détail'}
+              </button>
+            </div>
+            {showExcludedDetails && (
+              <div className="mt-2 pt-2 border-t border-amber-200/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {excludedDossiers.map((ex) => (
+                  <div key={ex.id} className="p-2 bg-white/70 rounded-lg border border-amber-200/80 text-[11px]">
+                    <div className="font-bold text-amber-950">{ex.name} {ex.matricule && ex.matricule !== '-' ? `(${ex.matricule})` : ''}</div>
+                    <div className="text-amber-700">{ex.reason}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Collapsible Matrix Analysis */}
 

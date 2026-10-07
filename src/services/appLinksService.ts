@@ -293,10 +293,72 @@ export const INITIAL_APP_LINKS: AppLinkItem[] = [
     inAppDetails: 'Interrogation automatique de l’API Drive pour lier le bilan N-1',
     targetView: 'CANDIDATE',
     targetTab: 'DOCUMENTS'
+  },
+
+  // 4. Sources Rattrapage Campagnes & Référentiels BDD
+  {
+    id: 'link_bdd_ll_new_drive',
+    libelle: 'BDD_LL_New_Drive (Profils & Référentiel)',
+    url: 'https://docs.google.com/spreadsheets/d/1Ez9VFazCY3TcIoZcAp3Ec60vDfSutgfi4h1HLrH44z4/edit?gid=2039097584#gid=2039097584',
+    category: 'BDD_SHEETS',
+    description: 'Feuille Profil : Id_Profil (Col A), Nom (Col B), Prénom (Col C), Email (Col D), Matricule (Col H)',
+    appLocation: 'Gestion des Campagnes > Rattrapage Automatique',
+    inAppAccessType: 'BACKGROUND_API',
+    inAppDetails: 'Extraction automatique des identités et comptes des participants'
+  },
+  {
+    id: 'link_analyse_jury_2024',
+    libelle: 'Analyse Jury Salaire 2024',
+    url: 'https://docs.google.com/spreadsheets/d/1G1rBLNz1IAw0ct7Zc8qTnV-5BGP3tt_bX7m8EOf2rUU/edit?gid=640745950#gid=640745950',
+    category: 'BDD_SHEETS',
+    description: 'Délibérations et TJ Cible pour la campagne 2024',
+    appLocation: 'Gestion des Campagnes > Rattrapage Automatique',
+    inAppAccessType: 'BACKGROUND_API',
+    inAppDetails: 'Extraction automatique des dossiers 2024 scellés'
+  },
+  {
+    id: 'link_analyse_jury_2025',
+    libelle: 'Analyse Jury Salaire 2025',
+    url: 'https://docs.google.com/spreadsheets/d/1DgkpCkCzj2_LGdH_BjnRScxatIidzVBj0ASwzJhD0zU/edit?gid=640745950#gid=640745950',
+    category: 'BDD_SHEETS',
+    description: 'Délibérations et TJ Cible pour la campagne 2025 (avec Ancienneté Col G)',
+    appLocation: 'Gestion des Campagnes > Rattrapage Automatique',
+    inAppAccessType: 'BACKGROUND_API',
+    inAppDetails: 'Extraction automatique des dossiers 2025 scellés'
+  },
+  {
+    id: 'link_vues_ll_new_drive',
+    libelle: 'Vues_LL_NEW_DRIVE (Vues Météo & Activités)',
+    url: 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit?gid=18715670#gid=18715670',
+    category: 'BDD_SHEETS',
+    description: 'Feuille Vue_Meteo : liens météo en Col Q, année de la campagne en Col Z',
+    appLocation: 'Gestion des Campagnes > Rattrapage Automatique',
+    inAppAccessType: 'BACKGROUND_API',
+    inAppDetails: 'Extraction automatique des liens météos par année'
+  },
+  {
+    id: 'link_drive_primes_folders',
+    libelle: 'Drive – Dossiers des Primes par Année',
+    url: 'https://drive.google.com/drive/u/1/folders/1_mrGq_Ym-i6LuzHHmtBFUkDyvJ0oLAZh',
+    category: 'DRIVE',
+    description: 'Contient les dossiers par année et fichiers "[campaign_year]_Primes_Freelance et Salariés"',
+    appLocation: 'Gestion des Campagnes > Rattrapage Automatique',
+    inAppAccessType: 'BACKGROUND_API',
+    inAppDetails: 'Récupération automatique des primes annuelles'
+  },
+  {
+    id: 'link_drive_bilans_annuels_root',
+    libelle: 'Drive – Bilans Annuels par Année',
+    url: 'https://drive.google.com/drive/u/1/folders/1A2DLQku7fGLkV3XthSIi34pJ9TC-_2Bv',
+    category: 'DRIVE',
+    description: 'Dossiers nommés par année de campagne, fichiers identifiés par le Matricule à 3 lettres',
+    appLocation: 'Espace Personnel > Bilans Annuels Archivés',
+    inAppAccessType: 'CLICKABLE',
+    inAppDetails: 'Accès direct aux bilans annuels originaux des candidats'
   }
 ];
 
-const STORAGE_KEY = 'app_hyperlinks_registry_v9';
+const STORAGE_KEY = 'app_hyperlinks_registry_v10';
 
 export class AppLinksService {
   private static listeners: Array<() => void> = [];

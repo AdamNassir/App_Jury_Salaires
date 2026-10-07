@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Dossier, UserProfile, JuryDecision, JuryMemberReview } from '../../types';
 import { LocalDatabaseService } from '../../services/localDatabaseService';
-import { Gavel, CheckCircle2, Info, Lock } from 'lucide-react';
+import { Gavel, CheckCircle2, Info, Lock, RotateCcw } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 import { 
   calculateYears, 
@@ -48,6 +48,7 @@ export function JuryDecisionForm({
     whatToDoMore: existingMyReview?.whatToDoMore || dossier.juryDecision?.whatToDoMore || '',
     referentJury: dossier.juryDecision?.referentJury || profile?.displayName || '',
     consultantFeeling: dossier.juryDecision?.consultantFeeling || '',
+    secondTourFeedback: existingMyReview?.secondTourFeedback || dossier.secondTourFeedback || dossier.juryDecision?.secondTourFeedback || '',
     percentage: existingMyReview?.percentage || dossier.juryDecision?.percentage || 0,
     advice: dossier.juryDecision?.advice || '',
     conclusion: dossier.juryDecision?.conclusion || '',
@@ -180,12 +181,16 @@ export function JuryDecisionForm({
 
       const consolidatedDecision: JuryDecision = {
         ...formData as JuryDecision,
+        secondTourStatus: (dossier.secondTourRequested || dossier.juryDecision?.secondTourRequested) ? 'TRAITE' : undefined,
+        secondTourFeedback: formData.secondTourFeedback || dossier.secondTourFeedback,
         date: now
       };
 
       LocalDatabaseService.updateDossier(dossier.id, {
         juryMemberReviews: updatedJuryMemberReviews,
         juryDecision: consolidatedDecision,
+        secondTourStatus: (dossier.secondTourRequested || dossier.juryDecision?.secondTourRequested) ? 'TRAITE' : undefined,
+        secondTourFeedback: formData.secondTourFeedback || dossier.secondTourFeedback,
         status: 'VALIDE',
         updatedAt: now
       });
@@ -215,6 +220,51 @@ export function JuryDecisionForm({
       )}
 
       <div className={cn("space-y-12", readOnly && "opacity-90 pointer-events-none")}>
+        {/* Section Second Tour si demandée par le candidat */}
+        {(dossier.secondTourRequested || dossier.juryDecision?.secondTourRequested) && (
+          <div className="p-6 rounded-2xl bg-purple-50 border border-purple-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-200/60 pb-3">
+              <span className="text-xs font-black uppercase tracking-widest text-purple-800 flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-purple-700" />
+                Demande de Second Tour Déposée par le Candidat
+              </span>
+              <span className="text-[11px] text-purple-600/80 font-medium">
+                Demandé le {new Date(dossier.secondTourRequestedAt || dossier.juryDecision?.secondTourRequestedAt || Date.now()).toLocaleDateString()}
+              </span>
+            </div>
+            
+            <div className="text-xs text-purple-950 bg-white/80 p-4 rounded-xl border border-purple-200/60 space-y-1">
+              <div className="text-[10px] font-black uppercase tracking-wider text-purple-800/60">Motifs et arguments du candidat :</div>
+              <div className="text-sm font-normal leading-relaxed whitespace-pre-wrap">
+                {dossier.secondTourReason || dossier.juryDecision?.secondTourReason || 'Non renseigné'}
+              </div>
+            </div>
+
+            {formData.consultantFeeling && (
+              <div className="text-xs text-accent/80 bg-white/80 p-4 rounded-xl border border-purple-200/60 space-y-1">
+                <div className="text-[10px] font-black uppercase tracking-wider text-accent/50">Ressenti du consultant :</div>
+                <div className="text-sm font-normal leading-relaxed whitespace-pre-wrap">
+                  {formData.consultantFeeling}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-[10px] font-black uppercase text-purple-900 tracking-wider mb-2 block">
+                Retour / Arbitrage du Jury (Second Tour) :
+              </label>
+              <textarea
+                disabled={readOnly}
+                rows={3}
+                className="w-full bg-white border border-purple-200 rounded-xl p-4 text-sm font-normal outline-none focus:ring-2 focus:ring-purple-300 shadow-sm disabled:bg-gray-50 disabled:text-accent/70"
+                value={formData.secondTourFeedback || ''}
+                onChange={e => setFormData({ ...formData, secondTourFeedback: e.target.value })}
+                placeholder="Indiquez ici les conclusions ou la décision rendue suite à cette demande de second tour..."
+              />
+            </div>
+          </div>
+        )}
+
         {/* Analytical Section */}
         <div className="bg-accent/5 p-8 rounded-2xl border border-accent/10 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-6">

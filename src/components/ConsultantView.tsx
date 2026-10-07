@@ -4,9 +4,10 @@ import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, ConsultantFeedback, ConsultationType, EvaluationRelationType, Campaign } from '../types';
 import { UserDirectoryService } from '../services/userDirectoryService';
 import { LocalDatabaseService } from '../services/localDatabaseService';
-import { User, MessageSquare, CheckCircle2, Search, AlertCircle, Building2, Briefcase, Plus, ShieldCheck, History, Clock, FileEdit, Check, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
+import { User, MessageSquare, CheckCircle2, Search, AlertCircle, Building2, Briefcase, Plus, ShieldCheck, History, Clock, FileEdit, Check, AlertTriangle, Trash2, Loader2, Eye, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { JuryZoomModal } from './jury/JuryUI';
+import { CandidateView } from './CandidateView';
 
 interface ConsultantViewProps {
   dossiers: Dossier[];
@@ -31,6 +32,7 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [candidates, setCandidates] = useState<Record<string, UserProfile>>({});
   const [zoomData, setZoomData] = useState<{ title: string; content: string } | null>(null);
+  const [showDossierModal, setShowDossierModal] = useState(false);
 
   // Load campaigns from LocalStorage
   useEffect(() => {
@@ -401,6 +403,15 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDossierModal(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary/90 transition-all font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow-md cursor-pointer group active:scale-[0.98]"
+                      title="Consulter l'ensemble du dossier candidat"
+                    >
+                      <Eye className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                      <span>Visualiser le dossier</span>
+                    </button>
                     <StatusBadge status={selectedDossier.status} />
                   </div>
                 </div>
@@ -488,6 +499,63 @@ export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
 
       {/* Zoom Modal */}
       <JuryZoomModal zoomData={zoomData} onClose={() => setZoomData(null)} />
+
+      {/* Modal Dossier Candidat en lecture seule pour l'évaluateur */}
+      {showDossierModal && selectedDossier && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 md:p-6 animate-in fade-in duration-200"
+          onClick={() => setShowDossierModal(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-7xl h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-black/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-accent/10 bg-slate-50 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  {selectedDossier.candidateName?.[0] || 'C'}
+                </div>
+                <div>
+                  <h3 className="font-bold text-accent text-base sm:text-lg flex items-center gap-2">
+                    Dossier de {selectedDossier.candidateName}
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                      Mode Consultation Évaluateur
+                    </span>
+                  </h3>
+                  <p className="text-xs text-accent/60">
+                    Campagne {selectedDossier.campaignYear} • {candidates[selectedDossier.candidateId]?.currentGrade || selectedDossier.annualReport?.currentGrade || 'Grade non spécifié'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDossierModal(false)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/5 hover:bg-accent/10 text-accent font-semibold text-sm transition-colors cursor-pointer"
+                title="Fermer (Échap)"
+              >
+                <X className="w-5 h-5" />
+                <span className="hidden sm:inline">Fermer</span>
+              </button>
+            </div>
+
+            {/* Modal Body: CandidateView en lecture seule */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 bg-slate-50/50">
+              <CandidateView
+                profile={candidates[selectedDossier.candidateId] || {
+                  id: selectedDossier.candidateId,
+                  displayName: selectedDossier.candidateName,
+                  email: selectedDossier.candidateEmail,
+                  roles: ['CANDIDATE']
+                }}
+                dossier={selectedDossier}
+                currentUser={profile}
+                readOnly={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

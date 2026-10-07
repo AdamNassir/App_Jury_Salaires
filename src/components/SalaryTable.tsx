@@ -1186,7 +1186,9 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                                   <div className="text-center px-2">
                                     <div className="text-[9px] font-bold text-accent/40 uppercase">Confiance</div>
                                     <div className="text-xs font-black text-amber-600">
-                                      {fb.confidenceIndex !== undefined && fb.confidenceIndex !== null ? `${fb.confidenceIndex}/5` : '-'}
+                                      {fb.confidenceIndex !== undefined && fb.confidenceIndex !== null && Number(fb.confidenceIndex) > 0
+                                        ? `${Number(fb.confidenceIndex) > 5 ? Math.round(Number(fb.confidenceIndex) / 2) : fb.confidenceIndex}/5`
+                                        : '—'}
                                     </div>
                                   </div>
                                 </div>

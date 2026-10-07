@@ -115,8 +115,14 @@ export class DriveObjectivesService {
     const data = await res.json();
     const files: Array<{ id: string; name: string; mimeType: string; webViewLink?: string }> = data.files || [];
 
-    // Recherche par matricule dans le nom du fichier
-    const candidateFiles = files.filter(f => f.name.toLowerCase().includes(cleanMatricule));
+    // Recherche par matricule : nom découpé par '_' avec un élément de longueur 3 en majuscules (ou substring)
+    const upperMatricule = matricule.trim().toUpperCase();
+    const candidateFiles = files.filter(f => {
+      const parts = f.name.split('_').map(p => p.trim());
+      const hasExactPart = parts.some(p => p.toUpperCase() === upperMatricule);
+      if (hasExactPart) return true;
+      return f.name.toLowerCase().includes(cleanMatricule);
+    });
 
     if (candidateFiles.length === 0) {
       throw new Error(

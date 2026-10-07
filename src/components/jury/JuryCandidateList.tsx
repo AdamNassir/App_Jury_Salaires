@@ -37,6 +37,19 @@ export function JuryCandidateList({
                 )}>
                   {d.status === 'COMPLET' ? 'À STATUER' : d.status === 'OUVERT' ? 'OUVERT' : 'VALIDÉ'}
                 </span>
+                {(d.secondTourRequested || d.juryDecision?.secondTourRequested) && (
+                  <>
+                    <span className={cn("w-1 h-1 rounded-full", selectedDossierId === d.id ? "bg-white/40" : "bg-purple-300")} />
+                    <span className={cn(
+                      "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                      selectedDossierId === d.id 
+                        ? "bg-purple-500 text-white" 
+                        : "bg-purple-100 text-purple-800 border border-purple-200"
+                    )}>
+                      2nd Tour
+                    </span>
+                  </>
+                )}
                 {d.juryDecision?.referentJury && (
                   <>
                     <span className={cn("w-1 h-1 rounded-full", selectedDossierId === d.id ? "bg-white/40" : "bg-accent/20")} />

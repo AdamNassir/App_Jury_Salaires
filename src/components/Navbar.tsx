@@ -6,11 +6,12 @@ interface NavbarProps {
   profile: UserProfile;
   onLogout: () => void;
   onHome: () => void;
+  onOpenPersonalSpace?: () => void;
   onBack?: () => void;
   canGoBack?: boolean;
 }
 
-export function Navbar({ profile, onLogout, onHome, onBack, canGoBack }: NavbarProps) {
+export function Navbar({ profile, onLogout, onHome, onOpenPersonalSpace, onBack, canGoBack }: NavbarProps) {
   return (
     <nav className="bg-white border-b border-accent/10 py-6 px-4 fixed top-0 w-full z-50 shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -40,15 +41,26 @@ export function Navbar({ profile, onLogout, onHome, onBack, canGoBack }: NavbarP
           </div>
         </div>
 
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-6">
           <button 
             onClick={onHome} 
-            className="flex items-center gap-3 px-6 py-3 bg-secondary/5 rounded-base text-base font-bold text-secondary hover:bg-secondary/10 transition-all border border-secondary/10"
+            className="flex items-center gap-2.5 px-5 py-2.5 bg-secondary/5 rounded-base text-sm font-bold text-secondary hover:bg-secondary/10 transition-all border border-secondary/10 cursor-pointer"
             title="Retour au menu principal"
           >
-            <Building2 className="w-5 h-5" />
+            <Building2 className="w-4 h-4" />
             Accueil
           </button>
+
+          {onOpenPersonalSpace && (
+            <button
+              onClick={onOpenPersonalSpace}
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-base text-sm font-bold transition-all shadow-xs cursor-pointer"
+              title="Accéder à votre Espace Personnel (Historique des dossiers, décisions, primes et bilans annuels)"
+            >
+              <UserIcon className="w-4 h-4" />
+              Espace Personnel
+            </button>
+          )}
 
           <div className="flex items-center gap-4 text-right">
             <div>

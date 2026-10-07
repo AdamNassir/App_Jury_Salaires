@@ -90,42 +90,62 @@ export function PeerFeedbacksTab({ dossier }: PeerFeedbacksTabProps) {
 
                     {/* Mission et Client */}
                     <div className="flex flex-wrap items-center gap-3">
-                      {fb.client && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/10 text-xs font-bold text-accent/80">
-                          <Building2 className="w-3.5 h-3.5 text-primary" />
-                          <span>Client : <strong className="text-accent">{fb.client}</strong></span>
-                        </div>
-                      )}
-                      {fb.project && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/10 text-xs font-bold text-accent/80">
-                          <Briefcase className="w-3.5 h-3.5 text-secondary" />
-                          <span>Mission : <strong className="text-accent">{fb.project}</strong></span>
-                        </div>
-                      )}
+                      {(() => {
+                        const c = (fb.client || '').trim();
+                        const p = (fb.project || '').trim();
+                        const isGenericClient = !c || c === 'Client Historique' || c === 'Client';
+                        const isGenericProject = !p || p === 'Mission Historique' || p === 'Projet';
+
+                        if (isGenericClient && isGenericProject) {
+                          return (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/10 text-xs font-bold text-accent/80">
+                              <Briefcase className="w-3.5 h-3.5 text-secondary" />
+                              <span>Mission : <strong className="text-accent">—</strong></span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <>
+                            {!isGenericClient && (
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/10 text-xs font-bold text-accent/80">
+                                <Building2 className="w-3.5 h-3.5 text-primary" />
+                                <span>Client : <strong className="text-accent">{c}</strong></span>
+                              </div>
+                            )}
+                            {!isGenericProject && (
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/10 text-xs font-bold text-accent/80">
+                                <Briefcase className="w-3.5 h-3.5 text-secondary" />
+                                <span>Mission : <strong className="text-accent">{p}</strong></span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
                   {/* Préconisation TJM & Confiance */}
-                  {((fb.targetTJMin && fb.targetTJMin > 0) || (fb.targetTJMax && fb.targetTJMax > 0) || fb.confidenceIndex) && (
+                  {((fb.targetTJMin && fb.targetTJMin > 0) || (fb.targetTJMax && fb.targetTJMax > 0) || (fb.confidenceIndex !== undefined)) && (
                     <div className="flex flex-wrap items-center gap-6 p-4 rounded-xl bg-accent/[0.03] border border-accent/10">
-                      {((fb.targetTJMin && fb.targetTJMin > 0) || (fb.targetTJMax && fb.targetTJMax > 0)) && (
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4 text-primary" />
-                          <span className="text-xs text-accent/50 uppercase font-black tracking-wider">TJM Préconisé :</span>
-                          <span className="text-sm font-black text-accent">
-                            {fb.targetTJMin || 0}€ - {fb.targetTJMax || 0}€
-                          </span>
-                        </div>
-                      )}
-                      {fb.confidenceIndex !== undefined && (
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-secondary" />
-                          <span className="text-xs text-accent/50 uppercase font-black tracking-wider">Indice de Confiance :</span>
-                          <span className="text-sm font-black text-secondary">
-                            {fb.confidenceIndex > 5 ? Math.round(fb.confidenceIndex / 2) : fb.confidenceIndex} / 5
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-primary" />
+                        <span className="text-xs text-accent/50 uppercase font-black tracking-wider">TJM Préconisé :</span>
+                        <span className="text-sm font-black text-accent">
+                          {(fb.targetTJMin && fb.targetTJMin > 0) || (fb.targetTJMax && fb.targetTJMax > 0)
+                            ? `${fb.targetTJMin || '—'}€ - ${fb.targetTJMax || '—'}€`
+                            : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-secondary" />
+                        <span className="text-xs text-accent/50 uppercase font-black tracking-wider">Indice de Confiance :</span>
+                        <span className="text-sm font-black text-secondary">
+                          {fb.confidenceIndex !== undefined && fb.confidenceIndex > 0
+                            ? `${fb.confidenceIndex > 5 ? Math.round(fb.confidenceIndex / 2) : fb.confidenceIndex} / 5`
+                            : '—'}
+                        </span>
+                      </div>
                     </div>
                   )}
 

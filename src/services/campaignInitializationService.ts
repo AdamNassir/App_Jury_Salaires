@@ -689,44 +689,47 @@ export class CampaignInitializationService {
     if (!rawMatrix || rawMatrix.length === 0) return [];
 
     let headerRowIndex = -1;
-    let colProfilIndex = 1; // Col B (1) par défaut
-    const colDateIndex = 5; // Col F (index 5), imposée par le format Vues_Meteos
-    const colLienIndex = 16; // Col Q (index 16), imposée par le format Vues_Meteos
-    const periodStart = new Date(campaignYear - 1, 6, 1);
-    const periodEnd = new Date(campaignYear, 5, 30, 23, 59, 59, 999);
+    const colProfilIndex = 1; // STRICTEMENT Colonne B (index 1) : IdProfil du consultant évalué
+    const colDateIndex = 5; // Col F (index 5)
+    const colLienIndex = 16; // Col Q (index 16) : Liens_Meteo
+    const colYearIndex = 25; // Col Z (index 25) : Année Jury
 
     for (let i = 0; i < Math.min(10, rawMatrix.length); i++) {
       const row = (rawMatrix[i] || []).map(c => normalizeHeader(String(c)));
       if (row.some(h => h.includes('id_profil') || h.includes('lien') || h.includes('meteo'))) {
         headerRowIndex = i;
-        row.forEach((h, colIdx) => {
-          if (h.includes('id_profil') || (h.includes('profil') && h.includes('id'))) {
-            colProfilIndex = colIdx;
-          }
-        });
         break;
       }
     }
 
     const items: MeteoLinkItem[] = [];
     const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
+    const targetYearStr = String(campaignYear).trim();
+    const targetYearShort = targetYearStr.slice(-2);
 
     for (let i = startIndex; i < rawMatrix.length; i++) {
       const row = rawMatrix[i];
       if (!row || row.length === 0) continue;
 
-      // Col B (ou colProfilIndex) : Id_Profil
+      // Col B STRICTEMENT (index 1) : Id_Profil
       const idProfil = cleanString(row[colProfilIndex]).toUpperCase();
 
-      // Col F : seules les météos de la période de campagne sont retenues.
+      // Col Z STRICTEMENT (index 25) : Année de la campagne
+      const anneeColZ = cleanString(row[colYearIndex]);
+      const matchesYear = Boolean(
+        anneeColZ &&
+        (anneeColZ === targetYearStr ||
+         anneeColZ.includes(targetYearStr) ||
+         anneeColZ === targetYearShort)
+      );
+      if (!matchesYear) continue;
+
       const meteoDate = parseExcelDate(row[colDateIndex]);
-      if (!meteoDate || meteoDate < periodStart || meteoDate > periodEnd) continue;
-      
-      const dateStr = meteoDate.toLocaleDateString('fr-FR', {
+      const dateStr = meteoDate ? meteoDate.toLocaleDateString('fr-FR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
-      });
+      }) : undefined;
       
       // Col Q : conserver le texte affiché dans la cellule, sans lire la cible hypertexte sous-jacente.
       let linkValue = '';

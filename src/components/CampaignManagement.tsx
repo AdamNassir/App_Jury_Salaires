@@ -9,10 +9,12 @@ import {
   CheckCircle2, 
   Lock, 
   AlertTriangle, 
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { requestGoogleSheetsAccess, requestGoogleDriveAccess } from '../lib/firebase';
 
 // Subcomponents
 import { CampaignCard } from './campaigns/CampaignCard';
@@ -37,6 +39,7 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCatchupModalOpen, setIsCatchupModalOpen] = useState(false);
+  const [isAuthenticatingGoogle, setIsAuthenticatingGoogle] = useState(false);
   const [campaignToClose, setCampaignToClose] = useState<Campaign | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
@@ -45,6 +48,23 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleOpenCatchup = async () => {
+    setIsAuthenticatingGoogle(true);
+    showToast('info', "Vérification et rafraîchissement des autorisations Google (Sheets & Drive)...");
+    try {
+      await requestGoogleSheetsAccess();
+      await requestGoogleDriveAccess(true);
+      showToast('success', "Jetons Google renouvelés avec succès.");
+      setIsCatchupModalOpen(true);
+    } catch (err: any) {
+      console.warn("Google authentication refresh notification:", err);
+      // Même en cas de fermeture du popup, ouvrir la modale afin que l'utilisateur puisse poursuivre ou réessayer
+      setIsCatchupModalOpen(true);
+    } finally {
+      setIsAuthenticatingGoogle(false);
+    }
   };
 
   useEffect(() => {
@@ -135,11 +155,16 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
 
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={() => setIsCatchupModalOpen(true)}
-            className="px-5 py-4 rounded-xl bg-white border border-accent/20 text-accent font-bold text-sm hover:bg-accent/5 hover:border-accent/30 transition-all flex items-center gap-2.5 shadow-sm cursor-pointer active:scale-95"
+            onClick={handleOpenCatchup}
+            disabled={isAuthenticatingGoogle}
+            className="px-5 py-4 rounded-xl bg-white border border-accent/20 text-accent font-bold text-sm hover:bg-accent/5 hover:border-accent/30 transition-all flex items-center gap-2.5 shadow-sm cursor-pointer active:scale-95 disabled:opacity-60"
           >
-            <History className="w-5 h-5 text-primary" />
-            Rattrapage / Compléter une campagne
+            {isAuthenticatingGoogle ? (
+              <Loader2 className="w-5 h-5 text-primary animate-spin" />
+            ) : (
+              <History className="w-5 h-5 text-primary" />
+            )}
+            <span>{isAuthenticatingGoogle ? "Renouvellement Google..." : "Rattrapage / Compléter une campagne"}</span>
           </button>
 
           <button

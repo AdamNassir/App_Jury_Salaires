@@ -363,6 +363,10 @@ export interface JuryDecision {
   whatToDoMore?: string;
   consultantFeeling?: string;
   secondTourFeedback?: string;
+  secondTourRequested?: boolean;
+  secondTourRequestedAt?: string;
+  secondTourReason?: string;
+  secondTourStatus?: 'DEMANDE' | 'EN_COURS' | 'TRAITE';
   investmentPercentage?: number; // % Investissement (objectif 60)
   missionPercentage?: number;    // % Mission (objectif 98)
   primeBefore?: number;
@@ -414,6 +418,13 @@ export interface Dossier {
   // Decision
   juryDecision?: JuryDecision;
   juryMemberReviews?: Record<string, JuryMemberReview>; // Key is juryUid or email
+  
+  // Second Tour (Demande de réévaluation / deuxième avis)
+  secondTourRequested?: boolean;
+  secondTourRequestedAt?: string;
+  secondTourReason?: string;
+  secondTourStatus?: 'DEMANDE' | 'EN_COURS' | 'TRAITE';
+  secondTourFeedback?: string;
   
   createdAt: any;
   updatedAt: any;

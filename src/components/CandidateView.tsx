@@ -963,7 +963,11 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
           )}
 
           {activeTab === 'AVIS_JURY' && (
-            <JuryFeedbacksTab dossier={dossier} />
+            <JuryFeedbacksTab 
+              dossier={dossier} 
+              candidate={profile}
+              onReviewDossier={() => handleTabChange('BILAN_INTRO')}
+            />
           )}
 
           {activeTab === 'PRETENTIONS' && (
