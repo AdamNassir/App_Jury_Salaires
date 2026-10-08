@@ -17,8 +17,7 @@ import { UserManagement } from './components/UserManagement';
 import { CampaignManagement } from './components/CampaignManagement';
 import { AdminLinksTable } from './components/admin/AdminLinksTable';
 import { PersonalSpaceView } from './components/personal/PersonalSpaceView';
-import { TicketModal } from './components/common/TicketModal';
-import { LogIn, ShieldAlert, Loader2, Settings, User as UserIcon, FolderKanban, ShieldCheck, Calendar, Link as LinkIcon, ArrowRight, LogOut, Award, MessageSquarePlus } from 'lucide-react';
+import { LogIn, ShieldAlert, Loader2, Settings, User as UserIcon, FolderKanban, ShieldCheck, Calendar, Link as LinkIcon, ArrowRight, LogOut, Award } from 'lucide-react';
 
 type ActiveViewType = 'PERSONAL_SPACE' | 'CANDIDATE' | 'EVALUATIONS' | 'JURY' | 'CAMPAIGNS' | 'ADMIN' | 'LINKS';
 
@@ -53,7 +52,6 @@ export default function App() {
   const signInPending = useRef(false);
   const hasAttemptedSignIn = useRef(false);
   const [canGoBackState, setCanGoBackState] = useState(false);
-  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const previousStateRef = useRef<{
     sourceView: ActiveViewType | null;
     tab: string | null;
@@ -628,7 +626,6 @@ export default function App() {
         onLogout={handleLogout} 
         onHome={goHome} 
         onOpenPersonalSpace={() => handleViewSelection('PERSONAL_SPACE')}
-        onOpenTicketModal={() => setIsTicketModalOpen(true)}
         onBack={handleGoBack}
         canGoBack={canGoBackState || !showRoleSelection}
       />
@@ -686,12 +683,12 @@ export default function App() {
               const m = d.campaignId.match(/\d{4}/);
               if (m) return parseInt(m[0]);
             }
-            return 2025;
+            return 0;
           };
 
           // Répertorier les années de campagnes disponibles (priorité aux dossiers du candidat)
-          const candidateYears: number[] = Array.from(new Set(candidateDossiers.map(d => getDossierYear(d))));
-          const dossierYears: number[] = Array.from(new Set(allDossiers.map(d => getDossierYear(d))));
+          const candidateYears: number[] = Array.from(new Set(candidateDossiers.map(d => getDossierYear(d)).filter(year => year > 0)));
+          const dossierYears: number[] = Array.from(new Set(allDossiers.map(d => getDossierYear(d)).filter(year => year > 0)));
           const systemYears: number[] = allCampaigns.map(c => Number(c.year)).filter(y => !isNaN(y));
           const combinedYears: number[] = Array.from(new Set([...candidateYears, ...systemYears]));
           const availableYears: number[] = combinedYears.sort((a: number, b: number) => b - a);
@@ -938,7 +935,8 @@ export default function App() {
                   <motion.div key={`jury_${activeJuryCampaignYear}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                     <JuryView 
                       dossiers={juryDossiers}
-                      profile={profile} 
+                      profile={profile}
+                      campaignYear={activeJuryCampaignYear}
                     />
                   </motion.div>
                 )}
@@ -968,24 +966,6 @@ export default function App() {
         })()}
       </main>
 
-      {/* Bouton Flottant d'Assistance / Ticket */}
-      <button
-        type="button"
-        onClick={() => setIsTicketModalOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-secondary hover:bg-secondary/90 text-white p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xl hover:shadow-2xl border border-white/20 transition-all flex items-center gap-2 group cursor-pointer"
-        title="Envoyer un ticket / Demande d'évolution à adam.nassir@logiclever.com"
-      >
-        <MessageSquarePlus className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
-        <span className="hidden sm:inline text-xs font-bold">Un problème ? Envoyer un ticket</span>
-      </button>
-
-      {/* Modale d'envoi de ticket à adam.nassir@logiclever.com */}
-      <TicketModal
-        isOpen={isTicketModalOpen}
-        onClose={() => setIsTicketModalOpen(false)}
-        currentUser={profile}
-        currentView={activeView || 'Accueil'}
-      />
     </div>
   );
 }

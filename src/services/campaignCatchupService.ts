@@ -24,6 +24,7 @@ import {
 import { cleanString, normalizeHeader, parseFrenchNumber, readImportWorkbook } from './campaignInitializationService';
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
+import { CampaignColumnsSpecificationService } from './campaignColumnsSpecificationService';
 
 // Relations canoniques strictes incluant Coach et Logiclever
 export const VALID_RELATION_TYPES: EvaluationRelationType[] = [
@@ -48,6 +49,8 @@ export interface ProfileReferenceItem {
   idProfilBoond?: string;
   entryDate?: string;
   expertGradeDate?: string;
+  isObsolete: boolean;
+  obsoleteValue?: string;
 }
 
 export interface DeliberationParsedRow {
@@ -278,18 +281,25 @@ export class CampaignCatchupService {
       if (!rowArr || rowArr.length === 0) continue;
 
       // Col A (index 0) : Id_Profil
-      const idProfil = cleanString(rowArr[0]);
+      const idProfilIndex = CampaignColumnsSpecificationService.getStaticColumnIndex('BDD_LL_New_Drive', 'Profil', 'idProfil');
+      const nomIndex = CampaignColumnsSpecificationService.getStaticColumnIndex('BDD_LL_New_Drive', 'Profil', 'nom');
+      const prenomIndex = CampaignColumnsSpecificationService.getStaticColumnIndex('BDD_LL_New_Drive', 'Profil', 'prenom');
+      const emailIndex = CampaignColumnsSpecificationService.getStaticColumnIndex('BDD_LL_New_Drive', 'Profil', 'email');
+      const matriculeIndex = CampaignColumnsSpecificationService.getStaticColumnIndex('BDD_LL_New_Drive', 'Profil', 'matricule');
+      const obsoleteIndex = CampaignColumnsSpecificationService.getStaticColumnIndex('BDD_LL_New_Drive', 'Profil', 'obsoleteValue');
+      const idProfil = cleanString(rowArr[idProfilIndex]);
       if (!idProfil) continue;
 
       // Col B (index 1) : Nom_Profil
-      const nom = cleanString(rowArr[1]);
+      const nom = cleanString(rowArr[nomIndex]);
       // Col C (index 2) : Prenom_Profil
-      const prenom = cleanString(rowArr[2]);
+      const prenom = cleanString(rowArr[prenomIndex]);
 
       // Col H (index 7) : Matricule (selon classeur BDD_Profils, onglet Profils)
-      let matricule = cleanString(rowArr[7]);
+      let matricule = cleanString(rowArr[matriculeIndex]);
       // Col D (index 3) : Email direct dans BDD_LL_New_Drive (onglet Profil)
-      let email = cleanString(rowArr[3]).toLowerCase();
+      let email = cleanString(rowArr[emailIndex]).toLowerCase();
+      const obsoleteValue = cleanString(rowArr[obsoleteIndex]);
 
       for (let c = 3; c < rowArr.length; c++) {
         const val = cleanString(rowArr[c]);
@@ -318,7 +328,9 @@ export class CampaignCatchupService {
         nom,
         prenom,
         displayName,
-        email: email || undefined
+        email: email || undefined,
+        isObsolete: Boolean(obsoleteValue),
+        obsoleteValue: obsoleteValue || undefined
       });
     }
 
@@ -512,6 +524,38 @@ export class CampaignCatchupService {
       if (colConsultantFeeling === -1) colConsultantFeeling = 31;
     }
 
+    // When the year is known, the specification is authoritative over header guesses.
+    if (campaignYear) {
+      const configured = (field: string, fallback: number) => {
+        const index = CampaignColumnsSpecificationService.getColumnIndex('Analyse_Jury', campaignYear, field);
+        return index >= 0 ? index : fallback;
+      };
+      colMatricule = configured('matricule', colMatricule);
+      colPrenom = configured('prenom', colPrenom);
+      colNom = configured('nom', colNom);
+      colExperience = configured('experience', colExperience);
+      colEntryDate = configured('entryDate', colEntryDate);
+      colExpertGradeDate = configured('expertGradeDate', colExpertGradeDate);
+      colAncienneteLL = configured('ancienneteLL', colAncienneteLL);
+      colYearsExpert = configured('yearsExpert', colYearsExpert);
+      colNewGrade = configured('newGrade', colNewGrade);
+      colTjVendu = configured('tjVendu0107', colTjVendu);
+      colTjCible = configured('tjCible', colTjCible);
+      colSalaire3006 = configured('salaire3006', colSalaire3006);
+      colWishedSalary = configured('wishedSalary0107', colWishedSalary);
+      colGradeChange = configured('gradeChange', colGradeChange);
+      colInvest = configured('investPercent', colInvest);
+      colMission = configured('missionPercent', colMission);
+      colCoachName = configured('coachName', colCoachName);
+      colProposedSalary = configured('proposedSalary0107', colProposedSalary);
+      colProposedPercent = configured('proposedSalaryPercent0107', colProposedPercent);
+      colMaxSalary = configured('maxSalaryIfTjVenduIncreases', colMaxSalary);
+      colWhyThisSalary = configured('whyThisSalary', colWhyThisSalary);
+      colWhatToDoMore = configured('whatToDoMore', colWhatToDoMore);
+      colReferentJury = configured('referentJury', colReferentJury);
+      colConsultantFeeling = configured('consultantFeeling', colConsultantFeeling);
+    }
+
     const rows: DeliberationParsedRow[] = [];
 
     for (let i = headerRowIndex + 1; i < rawMatrix.length; i++) {
@@ -657,7 +701,7 @@ export class CampaignCatchupService {
    * - Col I (8) : Evaluateur
    * - Col J à P : Relations (Auto_Evaluation, Commerciale, Encadrement, Meteo_Client, Coach, Logiclever, Collégue_Mission)
    */
-  static async parseEvaluationsFile(file: File): Promise<EvaluationParsedRow[]> {
+  static async parseEvaluationsFile(file: File, campaignYear?: number): Promise<EvaluationParsedRow[]> {
     const workbook = await readImportWorkbook(file);
 
     let targetSheetName = workbook.SheetNames.find(s => {
@@ -671,6 +715,7 @@ export class CampaignCatchupService {
 
     const worksheet = workbook.Sheets[targetSheetName];
     const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+    if (campaignYear) return this.parseEvaluationsFromMatrix(rawMatrix, campaignYear);
     if (!rawMatrix || rawMatrix.length === 0) return [];
 
     let headerRowIndex = 0;
@@ -873,7 +918,8 @@ export class CampaignCatchupService {
             nom: p.nom,
             prenom: p.prenom,
             displayName: p.displayName || `${p.prenom} ${p.nom}`,
-            email: p.email
+            email: p.email,
+            isObsolete: p.statut === 'INACTIF' || p.statut === 'SORTI'
           };
           profileByIdProfil.set(normId, item);
           if (p.matricule) {
@@ -1157,6 +1203,14 @@ export class CampaignCatchupService {
       return participantIdProfils.has(idUpper) || (matUpper && participantIdProfils.has(matUpper));
     });
 
+    // Profiles marked unavailable in column L remain in historical records only.
+    activeParticipantsProfiles.filter(p => p.isObsolete).forEach(p => {
+      const existingUser = UserDirectoryService.getUserById(p.idProfil) ||
+        UserDirectoryService.getUserByMatricule(p.matricule) ||
+        UserDirectoryService.getUserByEmail(p.email);
+      if (existingUser) UserDirectoryService.deleteUser(existingUser.id);
+    });
+
     if (activeParticipantsProfiles.length > 0) {
       for (let i = 0; i < activeParticipantsProfiles.length; i += 250) {
         const batch = writeBatch(db);
@@ -1170,7 +1224,7 @@ export class CampaignCatchupService {
             prenom: p.prenom || '',
             displayName: p.displayName || `${p.prenom} ${p.nom}`,
             email: p.email || '',
-            statut: 'ACTIF',
+            statut: p.isObsolete ? 'SORTI' : 'ACTIF',
             type: 'COLLABORATEUR',
             updatedAt: serverTimestamp()
           }, { merge: true });
@@ -1225,10 +1279,10 @@ export class CampaignCatchupService {
           : [];
         const juryProfile = matchingJuryProfiles.length === 1 ? matchingJuryProfiles[0] : undefined;
         const resolvedReferentName = juryProfile?.displayName || referentSourceName;
-        let juryUser = juryProfile
+        let juryUser = juryProfile && !juryProfile.isObsolete
           ? UserDirectoryService.getUserById(juryProfile.idProfil) || UserDirectoryService.getUserByEmail(juryProfile.email)
           : undefined;
-        if (juryProfile && !juryUser) {
+        if (juryProfile && !juryProfile.isObsolete && !juryUser) {
           juryUser = UserDirectoryService.addUser({
             id: juryProfile.idProfil,
             idProfil: juryProfile.idProfil,
@@ -1245,19 +1299,35 @@ export class CampaignCatchupService {
 
         const profileItem = profileMap.get(idProfilNorm);
         const existingDossier = allDossiersMap.get(idProfilNorm);
+        const isObsoleteCandidate = profileItem?.isObsolete === true;
 
         // 1. Rattachement ou création du compte utilisateur CANDIDAT
-        let candidateUser = UserDirectoryService.getUserById(idProfilNorm) ||
+        let candidateUser = isObsoleteCandidate ? undefined : (
+          UserDirectoryService.getUserById(idProfilNorm) ||
           (profileItem?.matricule ? UserDirectoryService.getUserByMatricule(profileItem.matricule) : undefined) ||
           (conflict.matricule ? UserDirectoryService.getUserByMatricule(conflict.matricule) : undefined) ||
-          (profileItem?.email ? UserDirectoryService.getUserByEmail(profileItem.email) : undefined);
+          (profileItem?.email ? UserDirectoryService.getUserByEmail(profileItem.email) : undefined)
+        );
 
         const candidateGrade = (['Junior', 'Confirmé', 'Senior', 'Expert'].includes(deliberation?.newGrade || '') ? deliberation?.newGrade as Grade : (profileItem?.grade as Grade) || 'Confirmé');
         const expNum = deliberation?.experience ? Number(deliberation.experience) || undefined : undefined;
         const ancienneteNum = deliberation?.ancienneteLL ? Number(deliberation.ancienneteLL) || undefined : undefined;
         const yearsExpertNum = deliberation?.yearsExpert ? Number(deliberation.yearsExpert) || undefined : undefined;
 
-        if (!candidateUser) {
+        if (isObsoleteCandidate) {
+          candidateUser = {
+            id: idProfilNorm,
+            idProfil: idProfilNorm,
+            matricule: profileItem?.matricule || conflict.matricule || deliberation?.matricule || '',
+            displayName: profileItem?.displayName || conflict.candidateName,
+            email: profileItem?.email || '',
+            roles: ['CANDIDATE'],
+            currentGrade: candidateGrade,
+            currentSalary: deliberation?.salaire3006 || 0,
+            currentTJM: deliberation?.tjVendu0107 || 0,
+            createdAt: null
+          };
+        } else if (!candidateUser) {
           const defaultEmail = profileItem?.email || (profileItem ? `${profileItem.prenom.toLowerCase().replace(/[^a-z0-9]/g, '')}.${profileItem.nom.toLowerCase().replace(/[^a-z0-9]/g, '')}@logiclever.com` : `candidat_${idProfilNorm.toLowerCase()}@logiclever.com`);
           candidateUser = UserDirectoryService.addUser({
             id: idProfilNorm,
@@ -1355,7 +1425,9 @@ export class CampaignCatchupService {
           const evalProfileItem = (e.evaluatorIdProfil ? profileMap.get(e.evaluatorIdProfil.trim().toUpperCase()) : undefined) ||
             (e.evaluatorMatricule ? Array.from(profileMap.values()).find(p => p.matricule === e.evaluatorMatricule) : undefined);
 
-          if (!evaluatorUser && evalProfileItem) {
+          if (evalProfileItem?.isObsolete) evaluatorUser = undefined;
+
+          if (!evaluatorUser && evalProfileItem && !evalProfileItem.isObsolete) {
             const evalEmail = evalProfileItem.email || `${evalProfileItem.prenom.toLowerCase().replace(/[^a-z0-9]/g, '')}.${evalProfileItem.nom.toLowerCase().replace(/[^a-z0-9]/g, '')}@logiclever.com`;
             evaluatorUser = UserDirectoryService.addUser({
               id: evalProfileItem.idProfil,
@@ -1600,17 +1672,19 @@ export class CampaignCatchupService {
       if (!rowArr || rowArr.length === 0) continue;
 
       // Col A (index 0) : Id_Profil
-      const idProfil = cleanString(rowArr[0]);
+      const getIndex = (field: string) => CampaignColumnsSpecificationService.getStaticColumnIndex('BDD_LL_New_Drive', 'Profil', field);
+      const idProfil = cleanString(rowArr[getIndex('idProfil')]);
       if (!idProfil) continue;
 
       // Col B (index 1) : Nom_Profil
-      const nom = cleanString(rowArr[1]);
+      const nom = cleanString(rowArr[getIndex('nom')]);
       // Col C (index 2) : Prenom_Profil
-      const prenom = cleanString(rowArr[2]);
+      const prenom = cleanString(rowArr[getIndex('prenom')]);
       // Col H (index 7) : Matricule
-      let matricule = cleanString(rowArr[7]);
+      let matricule = cleanString(rowArr[getIndex('matricule')]);
       // Col D (index 3) : Email direct
-      let email = cleanString(rowArr[3]).toLowerCase();
+      let email = cleanString(rowArr[getIndex('email')]).toLowerCase();
+      const obsoleteValue = cleanString(rowArr[getIndex('obsoleteValue')]);
 
       for (let c = 3; c < rowArr.length; c++) {
         const val = cleanString(rowArr[c]);
@@ -1639,7 +1713,9 @@ export class CampaignCatchupService {
         nom,
         prenom,
         displayName,
-        email: email || undefined
+        email: email || undefined,
+        isObsolete: Boolean(obsoleteValue),
+        obsoleteValue: obsoleteValue || undefined
       });
     }
 
@@ -1679,21 +1755,27 @@ export class CampaignCatchupService {
       colIHeader === 'date_fin' || colIHeader.includes('date') ||
       colKHeader.includes('evaluat');
 
+    const columnIndex = (field: string, fallback: number) => {
+      if (!campaignYear) return fallback;
+      const configured = CampaignColumnsSpecificationService.getColumnIndex('TJ_Cible', campaignYear, field);
+      return configured >= 0 ? configured : fallback;
+    };
+
     const rows: EvaluationParsedRow[] = [];
 
     for (let i = headerRowIndex + 1; i < rawMatrix.length; i++) {
       const rowArr = rawMatrix[i];
       if (!rowArr || rowArr.length === 0) continue;
 
-      const matricule = cleanString(rowArr[0]);
-      const experience = cleanString(rowArr[1]);
-      const tjVendu0107 = parseFrenchNumber(rowArr[2]);
-      const candidatePrenom = cleanString(rowArr[3]);
-      const candidateNom = cleanString(rowArr[4]);
+      const matricule = cleanString(rowArr[columnIndex('matricule', 0)]);
+      const experience = cleanString(rowArr[columnIndex('experience', 1)]);
+      const tjVendu0107 = parseFrenchNumber(rowArr[columnIndex('tjVendu0107', 2)]);
+      const candidatePrenom = cleanString(rowArr[columnIndex('candidatePrenom', 3)]);
+      const candidateNom = cleanString(rowArr[columnIndex('candidateNom', 4)]);
       const candidateName = `${candidatePrenom} ${candidateNom}`.trim() || candidateNom || candidatePrenom || '';
       if (!candidateName && !matricule) continue;
 
-      const grade = cleanString(rowArr[5]);
+      const grade = cleanString(rowArr[columnIndex('grade', 5)]);
 
       let client: string = '';
       let project: string = '';
@@ -1742,6 +1824,16 @@ export class CampaignCatchupService {
         // Col W (22) : "Indice de confiance"
         confidenceIndex = parseFrenchNumber(rowArr[22]);
       }
+
+      client = cleanString(rowArr[columnIndex('client', is2022_2023Format ? 7 : 6)]);
+      project = cleanString(rowArr[columnIndex('project', is2022_2023Format ? 9 : 7)]);
+      rawEvaluator = cleanString(rowArr[columnIndex('evaluatorName', is2022_2023Format ? 10 : 8)]);
+      relationStartIndex = columnIndex('relAutoEvaluation', is2022_2023Format ? 11 : 9);
+      tjCibleMin = parseFrenchNumber(rowArr[columnIndex('tjCibleMin', is2022_2023Format ? 20 : 18)]);
+      tjCibleMax = parseFrenchNumber(rowArr[columnIndex('tjCibleMax', is2022_2023Format ? 21 : 19)]);
+      justification = cleanString(rowArr[columnIndex('justification', is2022_2023Format ? 22 : 20)]);
+      improvementAxes = cleanString(rowArr[columnIndex('improvementAxes', is2022_2023Format ? 23 : 21)]);
+      confidenceIndex = parseFrenchNumber(rowArr[columnIndex('confidenceIndex', is2022_2023Format ? 24 : 22)]);
 
       const evaluatorMatricule = rawEvaluator;
       const evaluatorName = rawEvaluator;
@@ -1812,15 +1904,17 @@ export class CampaignCatchupService {
    */
   static parseMeteosFromMatrix(rawMatrix: any[][]): CatchupMeteoItem[] {
     if (!rawMatrix || rawMatrix.length === 0) return [];
+    const columnIndex = (field: string) =>
+      CampaignColumnsSpecificationService.getStaticColumnIndex('Vues_LL_NEW_DRIVE', 'Vue_Meteo', field);
     const items: CatchupMeteoItem[] = [];
     for (let i = 1; i < rawMatrix.length; i++) {
       const row = rawMatrix[i];
       if (!row || row.length === 0) continue;
-      const idProfil = cleanString(row[1]).toUpperCase();
-      const year = cleanString(row[25]);
-      const link = cleanString(row[16]);
-      const date = cleanString(row[5]);
-      const client = cleanString(row[18]);
+      const idProfil = cleanString(row[columnIndex('idProfil')]).toUpperCase();
+      const year = cleanString(row[columnIndex('year')]);
+      const link = cleanString(row[columnIndex('link')]);
+      const date = cleanString(row[columnIndex('date')]);
+      const client = cleanString(row[columnIndex('client')]);
       if (idProfil && link && link.startsWith('http')) {
         items.push({ idProfil, year, link, date: date || undefined, client: client || undefined });
       }

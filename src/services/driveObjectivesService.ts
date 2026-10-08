@@ -89,8 +89,8 @@ export class DriveObjectivesService {
     folderId: string,
     matricule: string
   ): Promise<{ id: string; name: string; mimeType: string; webViewLink?: string }> {
-    const cleanMatricule = matricule.trim().toLowerCase();
-    if (!cleanMatricule) {
+    const upperMatricule = matricule.trim().toUpperCase();
+    if (!upperMatricule) {
       throw new Error("Le matricule du collaborateur n'est pas renseigné sur son profil.");
     }
 
@@ -116,12 +116,12 @@ export class DriveObjectivesService {
     const files: Array<{ id: string; name: string; mimeType: string; webViewLink?: string }> = data.files || [];
 
     // Recherche par matricule : nom découpé par '_' avec un élément de longueur 3 en majuscules (ou substring)
-    const upperMatricule = matricule.trim().toUpperCase();
     const candidateFiles = files.filter(f => {
-      const parts = f.name.split('_').map(p => p.trim());
-      const hasExactPart = parts.some(p => p.toUpperCase() === upperMatricule);
-      if (hasExactPart) return true;
-      return f.name.toLowerCase().includes(cleanMatricule);
+      const fileMatricule = f.name
+        .split('_')
+        .map(part => part.trim())
+        .find(part => /^[A-Z]{3}$/.test(part));
+      return fileMatricule === upperMatricule;
     });
 
     if (candidateFiles.length === 0) {
@@ -180,206 +180,55 @@ export class DriveObjectivesService {
     const debugTables: DebugTableInfo[] = [];
     const headingsFound: string[] = [];
 
-    let isInsideTargetSection = false;
-    let hasFoundSmartTable = false;
-    let activeSmartCol = 0; // Par défaut colonne 0 (première colonne)
-
+    // Only the table directly after the exact annual-objectives heading is relevant.
+    let awaitingObjectivesTable = false;
     let tableCounter = 0;
+    const targetHeading = 'les objectifs pour lannee prochaine';
 
-    for (let i = 0; i < content.length; i++) {
-      const element = content[i];
+    const readCellText = (parts: any[]): string => parts.map((part: any) => {
+      if (part.paragraph) {
+        return (part.paragraph.elements || []).map((run: any) => run.textRun?.content || '').join('');
+      }
+      return '';
+    }).join('\n').trim();
 
-      // Détection des paragraphes et titres
+    for (const element of content) {
       if (element.paragraph) {
-        const rawText = element.paragraph.elements
-          ?.map((e: any) => e.textRun?.content || '')
-          .join('')
-          .trim() || '';
-
-        const normText = DriveObjectivesService.normalizeText(rawText);
-
-        if (normText.includes('objectif')) {
-          headingsFound.push(rawText);
-        }
-
-        // Ignorer explicitement la section Vision / Carrière moyen-terme
-        if (
-          normText.includes('moyen terme') ||
-          normText.includes('vision carriere')
-        ) {
-          isInsideTargetSection = false;
-        }
-
-        // Détection de la section des objectifs de l'année prochaine (tolère ponctuation, deux-points, etc.)
-        if (
-          normText.includes('objectifs pour lannee prochaine') ||
-          normText.includes('objectifs de lannee prochaine') ||
-          normText.includes('objectifs lannee prochaine') ||
-          normText.includes('objectifs pour lannee a venir')
-        ) {
-          isInsideTargetSection = true;
-        }
-
-        // Si une section terminale commence après la table
-        if (
-          hasFoundSmartTable &&
-          (normText.includes('commentaires generaux') ||
-            normText.includes('avis du manager') ||
-            normText.includes('visa du collaborateur') ||
-            normText.includes('synthese'))
-        ) {
-          break;
+        const rawText = readCellText([element]);
+        const normalized = DriveObjectivesService.normalizeText(rawText);
+        if (normalized.includes('objectif')) headingsFound.push(rawText);
+        if (normalized.includes(targetHeading)) {
+          awaitingObjectivesTable = true;
+        } else if (awaitingObjectivesTable && normalized &&
+          /^(visa|synthese|commentaires generaux|avis du manager)/.test(normalized)) {
+          awaitingObjectivesTable = false;
         }
       }
-
-      // Analyse des tableaux Google Docs
-      if (element.table) {
-        tableCounter++;
-        const tableRows = element.table.tableRows || [];
-        const currentTableIndex = tableCounter;
-
-        if (tableRows.length > 0) {
-          // Extraire toutes les cellules pour le diagnostic et l'analyse
-          const extractedGrid: string[][] = [];
-          for (let r = 0; r < tableRows.length; r++) {
-            const cells = tableRows[r].tableCells || [];
-            const rowCells: string[] = [];
-            for (let c = 0; c < cells.length; c++) {
-              const cellText = (cells[c].content || [])
-                .map((p: any) => (p.paragraph?.elements || []).map((e: any) => e.textRun?.content || '').join(''))
-                .join('\n')
-                .trim();
-              rowCells.push(cellText);
-            }
-            extractedGrid.push(rowCells);
-          }
-
-          const headerRow = extractedGrid[0] || [];
-          const colCount = headerRow.length;
-
-          debugTables.push({
-            index: currentTableIndex,
-            rowCount: tableRows.length,
-            colCount,
-            headers: headerRow,
-            rows: extractedGrid.slice(0, 10) // Échantillon des 10 premières lignes
-          });
-
-          // Détecter si cette table est la table d'objectifs SMART
-          let tableSmartCol = -1;
-
-          // Vérifier d'abord si une cellule d'en-tête (ligne 0 ou 1) contient les mots-clés SMART
-          for (let r = 0; r < Math.min(2, extractedGrid.length); r++) {
-            for (let c = 0; c < extractedGrid[r].length; c++) {
-              const normCell = DriveObjectivesService.normalizeText(extractedGrid[r][c]);
-              if (
-                normCell.includes('specifique') ||
-                normCell.includes('s de smart') ||
-                normCell.includes('doivent etre specifiques') ||
-                (normCell.includes('objectif') && normCell.includes('smart'))
-              ) {
-                tableSmartCol = c;
-                break;
-              }
-            }
-            if (tableSmartCol !== -1) break;
-          }
-
-          // Si on est dans la section "objectifs pour l'année prochaine" et qu'aucune colonne n'a le label SMART explicite
-          if (tableSmartCol === -1 && isInsideTargetSection) {
-            // Dans ce tableau, chercher la colonne dont l'en-tête parle d'objectif (sans moyen terme)
-            for (let c = 0; c < headerRow.length; c++) {
-              const normCell = DriveObjectivesService.normalizeText(headerRow[c]);
-              if (normCell.includes('objectif') && !normCell.includes('moyen terme') && !normCell.includes('vision')) {
-                tableSmartCol = c;
-                break;
-              }
-            }
-            // Par défaut dans cette section, si au moins 2 colonnes, la colonne 0 est la numérotation et la colonne 1 est l'objectif
-            if (tableSmartCol === -1 && colCount >= 2) {
-              tableSmartCol = 1;
-            } else if (tableSmartCol === -1) {
-              tableSmartCol = 0;
-            }
-          }
-
-          // Vérification supplémentaire : si tableSmartCol pointe sur la colonne 0 mais que la colonne 0 ne contient
-          // que la numérotation (1, 2, 3...) et que la colonne 1 contient le libellé des objectifs
-          if (tableSmartCol === 0 && colCount >= 2) {
-            let col0IsNumbering = true;
-            let col1HasText = false;
-            for (let r = 1; r < extractedGrid.length; r++) {
-              const c0 = (extractedGrid[r][0] || '').trim();
-              const c1 = (extractedGrid[r][1] || '').trim();
-              if (c0 && !/^\d+[\.\)\:\-]?$/.test(c0)) {
-                col0IsNumbering = false;
-              }
-              if (c1 && c1.length > 3 && !/^\d+$/.test(c1)) {
-                col1HasText = true;
-              }
-            }
-            if (col0IsNumbering && col1HasText) {
-              tableSmartCol = 1;
-            }
-          }
-
-          // Extraction des données
-          if (tableSmartCol !== -1) {
-            hasFoundSmartTable = true;
-            activeSmartCol = tableSmartCol;
-
-            for (let r = 1; r < extractedGrid.length; r++) {
-              let rawCellText = extractedGrid[r][activeSmartCol] || '';
-              // Si la cellule sélectionnée est un simple numéro et que la colonne 1 existe avec du texte
-              if ((/^\d+[\.\)\:\-]?$/.test(rawCellText.trim()) || !rawCellText.trim()) && extractedGrid[r].length > 1) {
-                const altText = (extractedGrid[r][1] || '').trim();
-                if (altText.length > 3 && !/^\d+$/.test(altText)) {
-                  rawCellText = altText;
-                }
-              }
-
-              const cleanObjective = rawCellText.replace(/^[\s\d]+[\.\)\:\-\n\s]+/, '').trim();
-              const normClean = DriveObjectivesService.normalizeText(cleanObjective);
-              if (
-                cleanObjective &&
-                cleanObjective.length > 3 &&
-                !/^\d+$/.test(cleanObjective) &&
-                !normClean.startsWith('objectif') &&
-                !normClean.includes('specifique') &&
-                !normClean.includes('moyen terme') &&
-                !normClean.includes('vision carriere')
-              ) {
-                objectives.push(cleanObjective);
-              }
-            }
-          } else if (hasFoundSmartTable && activeSmartCol !== -1) {
-            // Continuation multi-pages sur la page suivante sans en-tête
-            for (let r = 0; r < extractedGrid.length; r++) {
-              let rawCellText = extractedGrid[r][activeSmartCol] || '';
-              if ((/^\d+[\.\)\:\-]?$/.test(rawCellText.trim()) || !rawCellText.trim()) && extractedGrid[r].length > 1) {
-                const altText = (extractedGrid[r][1] || '').trim();
-                if (altText.length > 3 && !/^\d+$/.test(altText)) {
-                  rawCellText = altText;
-                }
-              }
-
-              const cleanObjective = rawCellText.replace(/^[\s\d]+[\.\)\:\-\n\s]+/, '').trim();
-              const normClean = DriveObjectivesService.normalizeText(cleanObjective);
-              if (
-                cleanObjective &&
-                cleanObjective.length > 3 &&
-                !/^\d+$/.test(cleanObjective) &&
-                !normClean.startsWith('objectif') &&
-                !normClean.includes('specifique') &&
-                !normClean.includes('moyen terme') &&
-                !normClean.includes('vision carriere')
-              ) {
-                objectives.push(cleanObjective);
-              }
-            }
-          }
+      if (!element.table) continue;
+      tableCounter++;
+      const grid: string[][] = (element.table.tableRows || []).map((row: any) =>
+        (row.tableCells || []).map((cell: any) => readCellText(cell.content || []))
+      );
+      debugTables.push({
+        index: tableCounter, rowCount: grid.length, colCount: grid[0]?.length || 0,
+        headers: grid[0] || [], rows: grid.slice(0, 10)
+      });
+      if (!awaitingObjectivesTable) continue;
+      const header = DriveObjectivesService.normalizeText((grid[0] || []).join(' '));
+      if (!header.includes('objectif') || !header.includes('benefice')) continue;
+      // Row 0 is the SMART header. In this format column 0 is numbering,
+      // column 1 contains the actual objective (not Benefits / Means / Measures).
+      for (const row of grid.slice(1)) {
+        const numberCell = (row[0] || '').trim();
+        const objectiveCell = (row[1] || '').trim();
+        const normalized = DriveObjectivesService.normalizeText(objectiveCell);
+        if (/^\d+[.)\s-]*$/.test(numberCell) && objectiveCell &&
+            !normalized.startsWith('objectifs') && !normalized.includes('specifique')) {
+          objectives.push(objectiveCell);
         }
       }
+      // Never scan unrelated tables after the objectives table.
+      break;
     }
 
     const debugInfo: DriveDebugInfo = {

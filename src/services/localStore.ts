@@ -38,8 +38,8 @@ function readDatabase(): Database {
     if (parsed.campaigns && Array.isArray(parsed.campaigns)) {
       const filteredCampaigns = parsed.campaigns.filter((c: any) => {
         const isDefault2025 = c.id === 'campaign_2025' && c.label === "Campagne d'évaluation 2025" && (!c.files || c.files.length === 0);
-        const isDefault2026 = c.id === 'campaign_2026' && c.title === "Campagne Annuelle 2026" && c.description?.includes("Campagne de jury des salaires pour l'année 2026.");
-        return !isDefault2025 && !isDefault2026;
+        // Never remove a real 2026 campaign: new campaigns use this exact title and description.
+        return !isDefault2025;
       });
       if (filteredCampaigns.length !== parsed.campaigns.length) {
         parsed.campaigns = filteredCampaigns;

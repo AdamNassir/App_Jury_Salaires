@@ -13,9 +13,10 @@ import { JuryDossierViewer } from './jury/JuryDossierViewer';
 interface JuryViewProps {
   dossiers: Dossier[];
   profile: UserProfile;
+  campaignYear: number;
 }
 
-export function JuryView({ dossiers, profile }: JuryViewProps) {
+export function JuryView({ dossiers, profile, campaignYear }: JuryViewProps) {
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'DELIBERATIONS' | 'SALARY_TABLE'>('DELIBERATIONS');
   const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({
@@ -254,6 +255,7 @@ export function JuryView({ dossiers, profile }: JuryViewProps) {
             <SalaryTable 
               dossiers={dossiers} 
               candidates={candidates} 
+              campaignYear={campaignYear}
               profile={profile} 
             />
           </motion.div>

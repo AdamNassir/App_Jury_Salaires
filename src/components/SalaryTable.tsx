@@ -30,11 +30,10 @@ import {
 import { updateDoc, doc, serverTimestamp } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
 import { UserDirectoryService } from '../services/userDirectoryService';
+import { LocalDatabaseService } from '../services/localDatabaseService';
 import { seed50DummyUsers, clearDummyUsers } from '../services/dummyUsersGenerator';
 import { 
   exportDeliberationsToGoogleSheet, 
-  PREDEFINED_EXPORT_SPREADSHEET_ID, 
-  DEFAULT_SHEET_TAB_NAME, 
   SheetExportResult 
 } from '../services/googleSheetsService';
 import { 
@@ -66,11 +65,56 @@ const sanitizeForStorage = (obj: any): any => {
 interface SalaryTableProps {
   dossiers: Dossier[];
   candidates: Record<string, UserProfile>;
+  campaignYear: number;
   referenceDate?: string | Date | null;
   profile?: UserProfile;
 }
 
-export function SalaryTable({ dossiers, candidates, referenceDate, profile }: SalaryTableProps) {
+function resolveDossierYear(dossier: Dossier): number | undefined {
+  if (Number.isFinite(dossier.campaignYear)) return Number(dossier.campaignYear);
+  const match = dossier.campaignId?.match(/\d{4}/);
+  return match ? Number(match[0]) : undefined;
+}
+
+export function SalaryTable({ dossiers: allDossiers, candidates, campaignYear, referenceDate, profile }: SalaryTableProps) {
+  const dossiers = useMemo(
+    () => allDossiers.filter(dossier => resolveDossierYear(dossier) === campaignYear),
+    [allDossiers, campaignYear]
+  );
+  const campaignCandidates = useMemo(() => {
+    const participants = LocalDatabaseService.getParticipants().filter(item => item.campaignYear === campaignYear);
+    const result: Record<string, UserProfile> = {};
+
+    dossiers.forEach(dossier => {
+      const directoryCandidate = candidates[dossier.candidateId] ||
+        (dossier.idProfil ? candidates[dossier.idProfil] : undefined);
+      const participant = participants.find(item =>
+        item.dossierId === dossier.id || item.idProfil === dossier.idProfil || item.idProfil === dossier.candidateId
+      );
+      const candidate = {
+        ...(directoryCandidate || {}),
+        id: dossier.candidateId,
+        idProfil: dossier.idProfil || participant?.idProfil || directoryCandidate?.idProfil,
+        matricule: participant?.matricule || directoryCandidate?.matricule || '',
+        displayName: dossier.candidateName || participant?.displayName || directoryCandidate?.displayName || 'Inconnu',
+        email: dossier.candidateEmail || participant?.email || directoryCandidate?.email || '',
+        roles: directoryCandidate?.roles || ['CANDIDATE'],
+        currentGrade: dossier.annualReport?.currentGrade || participant?.grade || directoryCandidate?.currentGrade || 'Junior',
+        currentSalary: dossier.annualReport?.currentSalary ?? participant?.salary ?? directoryCandidate?.currentSalary ?? 0,
+        currentTJM: dossier.annualReport?.currentTJM ?? participant?.tjm ?? directoryCandidate?.currentTJM ?? 0,
+        currentTJSalaire: dossier.annualReport?.currentTJSalaire ?? participant?.tjSalaire ?? directoryCandidate?.currentTJSalaire ?? 0,
+        entryDate: participant?.entryDate || directoryCandidate?.entryDate,
+        expertGradeDate: participant?.expertGradeDate || directoryCandidate?.expertGradeDate,
+        experienceYears: participant?.totalExperienceYears ?? directoryCandidate?.experienceYears,
+        ancienneteLL: participant?.ancienneteLL ?? directoryCandidate?.ancienneteLL,
+        yearsExpert: participant?.yearsExpert ?? directoryCandidate?.yearsExpert,
+        createdAt: directoryCandidate?.createdAt || null
+      } as UserProfile;
+      result[candidate.id] = candidate;
+      if (candidate.idProfil) result[candidate.idProfil] = candidate;
+    });
+    return result;
+  }, [candidates, dossiers, campaignYear]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
@@ -124,7 +168,13 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
     setExportError(null);
     setExportResult(null);
     try {
-      const result = await exportDeliberationsToGoogleSheet(dossiers, candidates, undefined, DEFAULT_SHEET_TAB_NAME, referenceDate);
+      const result = await exportDeliberationsToGoogleSheet(
+        dossiers,
+        campaignCandidates,
+        undefined,
+        `${campaignYear}_Tableau_Délibérations`,
+        referenceDate
+      );
       setExportResult(result);
     } catch (err: any) {
       console.error("Erreur export Google Sheets:", err);
@@ -183,8 +233,8 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
     }
 
     return uniqueDossiers.map(dossier => {
-      const candidate = candidates[dossier.candidateId] ||
-        (dossier.idProfil ? candidates[dossier.idProfil] : null) ||
+      const candidate = campaignCandidates[dossier.candidateId] ||
+        (dossier.idProfil ? campaignCandidates[dossier.idProfil] : null) ||
         ({
           id: dossier.candidateId,
           idProfil: dossier.idProfil,
@@ -197,7 +247,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
           roles: ['CANDIDATE']
         } as UserProfile);
 
-      const effectiveGrade = candidate.currentGrade || dossier.annualReport?.currentGrade || 'Junior';
+      const effectiveGrade = dossier.annualReport?.currentGrade || candidate.currentGrade || 'Junior';
       const entryDate = candidate.entryDate;
       const expertGradeDate = candidate.expertGradeDate;
 
@@ -212,8 +262,8 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
       const prime = getPrimeAnciennete(yearsLL);
 
       // Calculations
-      const tjSalaire = candidate.currentTJSalaire || dossier.annualReport?.currentTJSalaire || 0;
-      const tjVendu = candidate.currentTJM || dossier.annualReport?.currentTJM || 0;
+      const tjSalaire = dossier.annualReport?.currentTJSalaire ?? candidate.currentTJSalaire ?? 0;
+      const tjVendu = dossier.annualReport?.currentTJM ?? candidate.currentTJM ?? 0;
       const tjCible = dossier.annualReport?.targetTJM || 0;
 
       const salaireVendu = calculateSalaryFormule(tjVendu, effectiveGrade, yearsExpert, prime);
@@ -225,7 +275,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
       const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
       const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
 
-      const currentSalary = candidate.currentSalary || dossier.annualReport?.currentSalary || 0;
+      const currentSalary = dossier.annualReport?.currentSalary ?? candidate.currentSalary ?? 0;
       const realMargin = calculateMargin(tjVendu, currentSalary, prime);
 
       // Jury Decision Data
@@ -313,7 +363,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
         item.otherJuryReviews.some(r => r.juryName?.toLowerCase().includes(search) || r.whyThisSalary?.toLowerCase().includes(search))
       );
     });
-  }, [dossiers, candidates, searchTerm, referenceDate, profile]);
+  }, [dossiers, campaignCandidates, searchTerm, referenceDate, profile]);
 
   // Moyennes calculées directement à partir des dossiers affichés dans la table
   const globalMetrics = useMemo(() => {

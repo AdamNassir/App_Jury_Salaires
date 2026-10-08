@@ -7,6 +7,12 @@
   "files": {
     "Analyse_Jury_Salaires": {
       "description": "Classeur principal de délibération du jury et des évaluations TJ Cible",
+      "campaignYears": {
+        "2022": { "spreadsheetId": "1fPEXX9rlyWbnl1vKAHzRLEAwm4sLDT-4svs6V_W1abk", "gid": "640745950" },
+        "2023": { "spreadsheetId": "1vZPASFJ-3DGf9DyMjY1F1jwK7i3Unkh2KyzvRiMoctI", "gid": "448715688" },
+        "2024": { "spreadsheetId": "1G1rBLNz1IAw0ct7Zc8qTnV-5BGP3tt_bX7m8EOf2rUU", "gid": "640745950" },
+        "2025": { "spreadsheetId": "1DgkpCkCzj2_LGdH_BjnRScxatIidzVBj0ASwzJhD0zU", "gid": "640745950" }
+      },
       "sheets": {
         "Analyse_Jury": {
           "description": "Feuille de délibération officielle contenant les salaires, TJM, évaluations d'investissement/mission et décisions du jury",
@@ -34,8 +40,8 @@
                 "P": { "index": 15, "name": "Salaire au 30/06", "type": "number", "field": "salaire3006" },
                 "Q": { "index": 16, "name": "TJ salaire", "type": "number", "field": "tjSalaire" },
                 "R": { "index": 17, "name": "Salaire souhaité au 01/07", "type": "number", "field": "wishedSalary0107" },
-                "S": { "index": 18, "name": "TJ souhaité", "type": "number", "field": "tjSouhaite" },
-                "T": { "index": 19, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
+                "S": { "index": 18, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
+                "T": { "index": 19, "name": "Marge mission souhaitée", "type": "number", "field": "missionMarginWished" },
                 "U": { "index": 20, "name": "% Investissement", "type": "number", "field": "investPercent" },
                 "V": { "index": 21, "name": "% Mission", "type": "number", "field": "missionPercent" },
                 "W": { "index": 22, "name": "Salaire proposé au 01/07", "type": "number", "field": "proposedSalary0107" },
@@ -73,10 +79,10 @@
                 "N": { "index": 13, "name": "Salaire au 30/06", "type": "number", "field": "salaire3006" },
                 "O": { "index": 14, "name": "TJ salaire", "type": "number", "field": "tjSalaire" },
                 "P": { "index": 15, "name": "Salaire souhaité au 01/07", "type": "number", "field": "wishedSalary0107" },
-                "Q": { "index": 16, "name": "TJ souhaité", "type": "number", "field": "tjSouhaite" },
-                "R": { "index": 17, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
-                "S": { "index": 18, "% Investissement": "number", "type": "number", "field": "investPercent" },
-                "T": { "index": 19, "% Mission": "number", "type": "number", "field": "missionPercent" },
+                "Q": { "index": 16, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
+                "R": { "index": 17, "name": "Marge mission souhaitée", "type": "number", "field": "missionMarginWished" },
+                "S": { "index": 18, "name": "% Investissement", "type": "number", "field": "investPercent" },
+                "T": { "index": 19, "name": "% Mission", "type": "number", "field": "missionPercent" },
                 "U": { "index": 20, "name": "Salaire proposé au 01/07", "type": "number", "field": "proposedSalary0107" },
                 "V": { "index": 21, "name": "TJ proposé formule", "type": "number", "field": "tjProposeFormule" },
                 "W": { "index": 22, "name": "% Augmentation", "type": "number", "field": "proposedSalaryPercent0107" },
@@ -183,8 +189,8 @@
                 "G": { "index": 6, "name": "Client", "type": "string", "field": "client" },
                 "H": { "index": 7, "name": "Projet", "type": "string", "field": "project" },
                 "I": { "index": 8, "name": "Evaluateur", "type": "string", "field": "evaluatorName" },
-                "J": { "index": 9, "name": "Commerciale", "type": "string", "field": "relCommerciale" },
-                "K": { "index": 10, "name": "Auto_Evaluation", "type": "string", "field": "relAutoEvaluation" },
+                "J": { "index": 9, "name": "Auto_Evaluation", "type": "string", "field": "relAutoEvaluation" },
+                "K": { "index": 10, "name": "Commerciale", "type": "string", "field": "relCommerciale" },
                 "L": { "index": 11, "name": "Encadrement", "type": "string", "field": "relEncadrement" },
                 "M": { "index": 12, "name": "Meteo_Client", "type": "string", "field": "relMeteoClient" },
                 "N": { "index": 13, "name": "Coach", "type": "string", "field": "relCoach" },
@@ -214,8 +220,8 @@
                 "I": { "index": 8, "name": "Date fin", "type": "date", "field": "dateFin" },
                 "J": { "index": 9, "name": "Projet", "type": "string", "field": "project" },
                 "K": { "index": 10, "name": "Evaluateur", "type": "string", "field": "evaluatorName" },
-                "L": { "index": 11, "name": "Commerciale", "type": "string", "field": "relCommerciale" },
-                "M": { "index": 12, "name": "Auto_Evaluation", "type": "string", "field": "relAutoEvaluation" },
+                "L": { "index": 11, "name": "Auto_Evaluation", "type": "string", "field": "relAutoEvaluation" },
+                "M": { "index": 12, "name": "Commerciale", "type": "string", "field": "relCommerciale" },
                 "N": { "index": 13, "name": "Encadrement", "type": "string", "field": "relEncadrement" },
                 "O": { "index": 14, "name": "Meteo_Client", "type": "string", "field": "relMeteoClient" },
                 "P": { "index": 15, "name": "Coach", "type": "string", "field": "relCoach" },
@@ -236,6 +242,8 @@
     },
     "BDD_LL_New_Drive": {
       "description": "Référentiel global des collaborateurs et profils",
+      "spreadsheetId": "1Ez9VFazCY3TcIoZcAp3Ec60vDfSutgfi4h1HLrH44z4",
+      "gid": "2039097584",
       "sheets": {
         "Profil": {
           "description": "Feuille maîtresse des identités et identifiants uniques",
@@ -247,13 +255,16 @@
             "E": { "index": 4, "name": "Grade", "type": "string", "field": "grade" },
             "F": { "index": 5, "name": "Date entrée", "type": "date", "field": "entryDate" },
             "G": { "index": 6, "name": "Date passage expert", "type": "date", "field": "expertGradeDate" },
-            "H": { "index": 7, "name": "Matricule", "type": "string", "field": "matricule" }
+            "H": { "index": 7, "name": "Matricule", "type": "string", "field": "matricule" },
+            "L": { "index": 11, "name": "Sortie / indisponibilité", "type": "string", "field": "obsoleteValue" }
           }
         }
       }
     },
     "Vues_LL_NEW_DRIVE": {
       "description": "Vues de suivi d'activité et météos clients",
+      "spreadsheetId": "1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek",
+      "gid": "18715670",
       "sheets": {
         "Vue_Meteo": {
           "description": "Retours météo des clients sur les consultants par campagne",
@@ -267,6 +278,23 @@
             "Z": { "index": 25, "name": "Annee_Campagne", "type": "number", "field": "year" }
           }
         }
+      }
+    },
+    "Primes": {
+      "driveRootFolderId": "1_mrGq_Ym-i6LuzHHmtBFUkDyvJ0oLAZh",
+      "resolution": {
+        "yearFolderName": "[campaign_year]",
+        "fileName": "[campaign_year]_Primes_Freelance et Salariés",
+        "sheetName": "Primes",
+        "reuseParser": "CampaignInitializationService.parsePrimesFile"
+      }
+    },
+    "Bilans_Annuels": {
+      "driveRootFolderId": "1A2DLQku7fGLkV3XthSIi34pJ9TC-_2Bv",
+      "resolution": {
+        "yearFolderName": "[campaign_year]",
+        "fileNameMatriculeRule": "Split on '_' and select an element matching ^[A-Z]{3}$",
+        "matriculePattern": "^[A-Z]{3}$"
       }
     }
   }

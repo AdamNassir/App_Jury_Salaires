@@ -1639,6 +1639,12 @@ export class CampaignInitializationService {
     }
     await batch.commit();
 
+    // Verify persistence before reporting a successful launch to the user.
+    const persistedCampaign = LocalDatabaseService.getCampaignById(campaignId);
+    if (!persistedCampaign || persistedCampaign.year !== preview.year) {
+      throw new Error(`La campagne ${preview.year} n'a pas été enregistrée dans la base locale.`);
+    }
+
     // Synchroniser automatiquement la nouvelle campagne et les nouveaux utilisateurs dans les fichiers JSON
     const createdCampaign: Campaign = {
       id: campaignId,

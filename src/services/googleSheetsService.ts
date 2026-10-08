@@ -205,20 +205,29 @@ export function prepareDeliberationsData(
     if (!dossier.candidateId || candidateIdsSeen.has(dossier.candidateId)) return;
     candidateIdsSeen.add(dossier.candidateId);
 
-    const candidate = candidates[dossier.candidateId];
-    if (!candidate) return;
+    const candidate = candidates[dossier.candidateId] ||
+      (dossier.idProfil ? candidates[dossier.idProfil] : undefined) || ({
+        id: dossier.candidateId,
+        idProfil: dossier.idProfil,
+        matricule: '',
+        displayName: dossier.candidateName || 'Inconnu',
+        email: dossier.candidateEmail || '',
+        roles: ['CANDIDATE'] as UserRole[],
+        createdAt: null
+      } as UserProfile);
 
     const yearsLL = calculateYears(candidate.entryDate, referenceDate);
-    const yearsExpert = candidate.currentGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
+    const currentGrade = dossier.annualReport?.currentGrade || candidate.currentGrade || 'Junior';
+    const yearsExpert = currentGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
     const prime = getPrimeAnciennete(yearsLL);
-    const tjVendu = candidate.currentTJM || 0;
-    const currentSalary = candidate.currentSalary || 0;
+    const tjVendu = dossier.annualReport?.currentTJM ?? candidate.currentTJM ?? 0;
+    const currentSalary = dossier.annualReport?.currentSalary ?? candidate.currentSalary ?? 0;
 
     const tjCible = dossier.annualReport?.targetTJM || 0;
-    const salaireVendu = calculateSalaryFormule(tjVendu, candidate.currentGrade || 'Junior', yearsExpert, prime);
-    const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, candidate.currentGrade || 'Junior', yearsExpert, prime);
+    const salaireVendu = calculateSalaryFormule(tjVendu, currentGrade, yearsExpert, prime);
+    const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, currentGrade, yearsExpert, prime);
 
-    const targetGrade = resolveTargetGrade(candidate.currentGrade, dossier.annualReport?.wishedGrade);
+    const targetGrade = resolveTargetGrade(currentGrade, dossier.annualReport?.wishedGrade);
     const targetYearsExpert = targetGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
     const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
     const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
@@ -255,7 +264,7 @@ export function prepareDeliberationsData(
       candidate.expertGradeDate ? new Date(candidate.expertGradeDate).toLocaleDateString('fr-FR') : '-',
       yearsLL !== null ? yearsLL : '-',
       yearsExpert !== null ? yearsExpert : '-',
-      candidate.currentGrade || 'Junior',
+      currentGrade,
       tjVendu,
       Math.round(salaireVendu),
       Math.round(salaireVendu100),
