@@ -1,11 +1,13 @@
 {
-  "projectId": "projectadbmadam",
-  "appId": "1:742197645955:web:238fb94a7a6a65fc1281b6",
-  "apiKey": "AIzaSyAZQGLj7SLhllQ9IVv6EkRVVpwQ47K7Ob4",
-  "authDomain": "projectadbmadam.firebaseapp.com",
-  "storageBucket": "projectadbmadam.firebasestorage.app",
-  "messagingSenderId": "742197645955",
+  "projectId": "gen-lang-client-0998118766",
+  "appId": "1:307568547339:web:4fcfe32db3a7d3afd9590e",
+  "apiKey": "AIzaSyDsjs2BGthBheIDZDBoJZmg-PAE32NqjRU",
+  "authDomain": "gen-lang-client-0998118766.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-appjurysalaires-7c45a4bb-415a-4e6b-a985-aa74a085032e",
+  "storageBucket": "gen-lang-client-0998118766.firebasestorage.app",
+  "messagingSenderId": "307568547339",
   "measurementId": "",
-  "oAuthClientId": "742197645955-s5tujr0oioq1d2700kh1b8iavc3vkbr9.apps.googleusercontent.com",
+  "oAuthClientId": "307568547339-mc00od3pnmc9nvfqo1f7suoo3q4udikn.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
+
