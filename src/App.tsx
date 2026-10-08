@@ -17,7 +17,8 @@ import { UserManagement } from './components/UserManagement';
 import { CampaignManagement } from './components/CampaignManagement';
 import { AdminLinksTable } from './components/admin/AdminLinksTable';
 import { PersonalSpaceView } from './components/personal/PersonalSpaceView';
-import { LogIn, ShieldAlert, Loader2, Settings, Users, User as UserIcon, FolderKanban, ShieldCheck, Calendar, Link as LinkIcon, ArrowRight, UserCheck, FileText, Scale, LogOut, Award } from 'lucide-react';
+import { TicketModal } from './components/common/TicketModal';
+import { LogIn, ShieldAlert, Loader2, Settings, User as UserIcon, FolderKanban, ShieldCheck, Calendar, Link as LinkIcon, ArrowRight, LogOut, Award, MessageSquarePlus } from 'lucide-react';
 
 type ActiveViewType = 'PERSONAL_SPACE' | 'CANDIDATE' | 'EVALUATIONS' | 'JURY' | 'CAMPAIGNS' | 'ADMIN' | 'LINKS';
 
@@ -52,6 +53,7 @@ export default function App() {
   const signInPending = useRef(false);
   const hasAttemptedSignIn = useRef(false);
   const [canGoBackState, setCanGoBackState] = useState(false);
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const previousStateRef = useRef<{
     sourceView: ActiveViewType | null;
     tab: string | null;
@@ -442,10 +444,7 @@ export default function App() {
                   : "border-accent/15 hover:border-primary/60 hover:bg-primary/[0.02]"
               )}
             >
-              <div className="flex items-start justify-between gap-4 mb-5">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <UserCheck className="w-6 h-6" />
-                </div>
+              <div className="flex items-start justify-end gap-4 mb-5">
                 <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wider font-black">
                   Mon Compte & Historique
                 </span>
@@ -472,18 +471,15 @@ export default function App() {
                     : "border-accent/15 hover:border-secondary/60 hover:bg-secondary/[0.02]"
                 )}
               >
-                <div className="flex items-start justify-between gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <span className="text-[10px] bg-secondary/10 text-secondary px-3 py-1 rounded-full uppercase tracking-wider font-black">
+                <div className="flex items-start justify-end gap-4 mb-5">
+                  <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wider font-black">
                     Mon dossier
                   </span>
                 </div>
                 <div>
-                  <div className="font-bold text-lg text-accent group-hover:text-secondary transition-colors flex items-center justify-between mb-2">
+                  <div className="font-bold text-lg text-secondary group-hover:text-primary transition-colors flex items-center justify-between mb-2">
                     <span>Interface Candidat</span>
-                    <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-secondary group-hover:translate-x-1 transition-all" />
+                    <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                   </div>
                   <p className="text-xs sm:text-sm text-accent/60 font-light leading-relaxed">
                     Gérer votre bilan annuel personnel, votre auto-évaluation et vos pièces justificatives.
@@ -503,11 +499,8 @@ export default function App() {
                     : "border-accent/15 hover:border-primary/60 hover:bg-primary/[0.02]"
                 )}
               >
-                <div className="flex items-start justify-between gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <span className="text-[10px] bg-blue-100 text-blue-700 px-3 py-1 rounded-full uppercase tracking-wider font-black">
+                <div className="flex items-start justify-end gap-4 mb-5">
+                  <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wider font-black">
                     Évaluateur
                   </span>
                 </div>
@@ -534,18 +527,15 @@ export default function App() {
                     : "border-accent/15 hover:border-secondary/60 hover:bg-secondary/[0.02]"
                 )}
               >
-                <div className="flex items-start justify-between gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <Scale className="w-6 h-6" />
-                  </div>
-                  <span className="text-[10px] bg-amber-100 text-amber-800 px-3 py-1 rounded-full uppercase tracking-wider font-black">
+                <div className="flex items-start justify-end gap-4 mb-5">
+                  <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wider font-black">
                     Délibérations
                   </span>
                 </div>
                 <div>
-                  <div className="font-bold text-lg text-secondary group-hover:text-secondary transition-colors flex items-center justify-between mb-2">
+                  <div className="font-bold text-lg text-secondary group-hover:text-primary transition-colors flex items-center justify-between mb-2">
                     <span>Conseil du Jury</span>
-                    <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-secondary group-hover:translate-x-1 transition-all" />
+                    <ArrowRight className="w-4 h-4 text-accent/30 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                   </div>
                   <p className="text-xs sm:text-sm text-accent/60 font-light leading-relaxed">
                     Piloter les décisions finales, barèmes, augmentations salariales et arbitrage global.
@@ -576,10 +566,7 @@ export default function App() {
                         : "border-primary/20 hover:border-primary"
                     )}
                   >
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                      <FolderKanban className="w-5 h-5" />
-                    </div>
-                    <div className="font-bold text-base text-primary mb-1 flex items-center justify-between">
+                    <div className="font-bold text-base text-secondary mb-1 flex items-center justify-between">
                       <span>Gestion des Campagnes</span>
                       <ArrowRight className="w-4 h-4 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                     </div>
@@ -598,9 +585,6 @@ export default function App() {
                       : "border-accent/15 hover:border-primary/50"
                   )}
                 >
-                  <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                    <Settings className="w-5 h-5 opacity-70" />
-                  </div>
                   <div className="font-bold text-base text-secondary mb-1 flex items-center justify-between">
                     <span>Paramétrage Utilisateurs</span>
                     <ArrowRight className="w-4 h-4 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
@@ -619,9 +603,6 @@ export default function App() {
                       : "border-accent/15 hover:border-primary/50"
                   )}
                 >
-                  <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                    <LinkIcon className="w-5 h-5 text-primary" />
-                  </div>
                   <div className="font-bold text-base text-secondary mb-1 flex items-center justify-between">
                     <span>Répertoire des Liens</span>
                     <ArrowRight className="w-4 h-4 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
@@ -647,6 +628,7 @@ export default function App() {
         onLogout={handleLogout} 
         onHome={goHome} 
         onOpenPersonalSpace={() => handleViewSelection('PERSONAL_SPACE')}
+        onOpenTicketModal={() => setIsTicketModalOpen(true)}
         onBack={handleGoBack}
         canGoBack={canGoBackState || !showRoleSelection}
       />
@@ -709,16 +691,28 @@ export default function App() {
 
           // Répertorier les années de campagnes disponibles (priorité aux dossiers du candidat)
           const candidateYears: number[] = Array.from(new Set(candidateDossiers.map(d => getDossierYear(d))));
+          const dossierYears: number[] = Array.from(new Set(allDossiers.map(d => getDossierYear(d))));
           const systemYears: number[] = allCampaigns.map(c => Number(c.year)).filter(y => !isNaN(y));
           const combinedYears: number[] = Array.from(new Set([...candidateYears, ...systemYears]));
-          const availableYears: number[] = (combinedYears.length > 0 ? combinedYears : [2026, 2025, 2024]).sort((a: number, b: number) => b - a);
+          const availableYears: number[] = combinedYears.sort((a: number, b: number) => b - a);
+          const juryAvailableYears: number[] = Array.from(new Set([...dossierYears, ...systemYears]))
+            .sort((a: number, b: number) => b - a);
 
-          // La campagne par défaut est la plus récente en termes d'années
+          // La campagne par défaut est la plus récente en termes d'années (si existante)
           const currentSelectedYear = selectedCampaignId 
             ? parseInt(selectedCampaignId.replace(/[^0-9]/g, '')) 
-            : availableYears[0];
+            : (availableYears[0] || 0);
           
-          const activeCampaignYear = availableYears.includes(currentSelectedYear) ? currentSelectedYear : availableYears[0];
+          const activeCampaignYear = availableYears.includes(currentSelectedYear) ? currentSelectedYear : (availableYears[0] || 0);
+          const activeJuryCampaignYear = juryAvailableYears.includes(currentSelectedYear)
+            ? currentSelectedYear
+            : (juryAvailableYears[0] || 0);
+
+          // Le tableau des salaires et les délibérations doivent rester strictement
+          // isolés par campagne : aucun dossier d'une autre année n'est transmis.
+          const juryDossiers = activeJuryCampaignYear
+            ? allDossiers.filter(d => getDossierYear(d) === activeJuryCampaignYear)
+            : [];
 
           // Dossier correspondant exactement à la campagne / année choisie
           const activeCandidateDossier = candidateDossiers.find(
@@ -811,24 +805,26 @@ export default function App() {
                   {activeView === 'CANDIDATE' && (
                     <div className="flex flex-wrap items-center gap-3">
                       {/* Sélecteur de Campagne (le plus récent par défaut) */}
-                      <div className="flex items-center gap-2.5 bg-accent/5 p-2 px-3.5 rounded-xl border border-accent/10 shadow-sm">
-                        <Calendar className="w-4 h-4 text-primary shrink-0" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-accent/60">Campagne :</span>
-                        <select
-                          value={activeCampaignYear}
-                          onChange={(e) => setSelectedCampaignId(`campaign_${e.target.value}`)}
-                          className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
-                        >
-                          {availableYears.map(yr => {
-                            const campObj = allCampaigns.find(c => c.year === yr);
-                            return (
-                              <option key={yr} value={yr}>
-                                Campagne {yr} {campObj?.status === 'CLÔTURÉE' ? '(Clôturée)' : ''}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
+                      {availableYears.length > 0 && (
+                        <div className="flex items-center gap-2.5 bg-accent/5 p-2 px-3.5 rounded-xl border border-accent/10 shadow-sm">
+                          <Calendar className="w-4 h-4 text-primary shrink-0" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-accent/60">Campagne :</span>
+                          <select
+                            value={activeCampaignYear}
+                            onChange={(e) => setSelectedCampaignId(`campaign_${e.target.value}`)}
+                            className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
+                          >
+                            {availableYears.map(yr => {
+                              const campObj = allCampaigns.find(c => c.year === yr);
+                              return (
+                                <option key={yr} value={yr}>
+                                  Campagne {yr} {campObj?.status === 'CLÔTURÉE' ? '(Clôturée)' : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      )}
 
                       {/* Sélecteur de Candidat pour Jury/Admin */}
                       {(profile?.roles?.includes('JURY') || isAdmin) && (
@@ -848,6 +844,33 @@ export default function App() {
                           </select>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Sélecteur de campagne pour le tableau des salaires et les délibérations */}
+                  {activeView === 'JURY' && juryAvailableYears.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2.5 bg-accent/5 p-2 px-3.5 rounded-xl border border-accent/10 shadow-sm">
+                        <Calendar className="w-4 h-4 text-primary shrink-0" />
+                        <label htmlFor="jury-campaign-year" className="text-xs font-bold uppercase tracking-wider text-accent/60">
+                          Campagne :
+                        </label>
+                        <select
+                          id="jury-campaign-year"
+                          value={activeJuryCampaignYear}
+                          onChange={(e) => setSelectedCampaignId(`campaign_${e.target.value}`)}
+                          className="bg-white border border-accent/20 rounded-lg px-3 py-1.5 text-sm font-bold text-accent focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer"
+                        >
+                          {juryAvailableYears.map(year => {
+                            const campaign = allCampaigns.find(c => Number(c.year) === year);
+                            return (
+                              <option key={year} value={year}>
+                                Campagne {year}{campaign?.status === 'CLÔTURÉE' ? ' (Clôturée)' : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
                     </div>
                   )}
 
@@ -876,7 +899,7 @@ export default function App() {
               
               {activeView === 'JURY' && (
                 <div className="mb-16">
-                  <Dashboard dossiers={allDossiers} roles={profile.roles} />
+                  <Dashboard dossiers={juryDossiers} roles={profile.roles} />
                 </div>
               )}
 
@@ -912,9 +935,9 @@ export default function App() {
                   </motion.div>
                 )}
                 {activeView === 'JURY' && (
-                  <motion.div key="jury" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                  <motion.div key={`jury_${activeJuryCampaignYear}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                     <JuryView 
-                      dossiers={allDossiers} 
+                      dossiers={juryDossiers}
                       profile={profile} 
                     />
                   </motion.div>
@@ -944,6 +967,25 @@ export default function App() {
           );
         })()}
       </main>
+
+      {/* Bouton Flottant d'Assistance / Ticket */}
+      <button
+        type="button"
+        onClick={() => setIsTicketModalOpen(true)}
+        className="fixed bottom-6 right-6 z-40 bg-secondary hover:bg-secondary/90 text-white p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xl hover:shadow-2xl border border-white/20 transition-all flex items-center gap-2 group cursor-pointer"
+        title="Envoyer un ticket / Demande d'évolution à adam.nassir@logiclever.com"
+      >
+        <MessageSquarePlus className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
+        <span className="hidden sm:inline text-xs font-bold">Un problème ? Envoyer un ticket</span>
+      </button>
+
+      {/* Modale d'envoi de ticket à adam.nassir@logiclever.com */}
+      <TicketModal
+        isOpen={isTicketModalOpen}
+        onClose={() => setIsTicketModalOpen(false)}
+        currentUser={profile}
+        currentView={activeView || 'Accueil'}
+      />
     </div>
   );
 }

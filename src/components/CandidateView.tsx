@@ -4,7 +4,7 @@ import { doc, setDoc, collection, getDocs, query, where, getDoc } from '../lib/l
 import { db } from '../lib/localDatabase';
 import { UserProfile, Dossier, AnnualReport, ClientFeedback, Grade, PreviousObjective, NextObjective, Satisfaction, DossierStatus, DossierDocument } from '../types';
 import { LocalDatabaseService } from '../services/localDatabaseService';
-import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, ChevronRight, ChevronDown, Eye, Calculator, LogIn, TrendingUp, Maximize2, X, Download, Undo2, ArrowRight } from 'lucide-react';
+import { FileUp, Save, Send, CheckCircle2, AlertCircle, Loader2, Plus, Trash2, ChevronRight, ChevronDown, Eye, Calculator, LogIn, TrendingUp, Maximize2, X, Download, Undo2, ArrowRight, ArrowLeft, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
@@ -80,16 +80,21 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
   const [pastImportErrorMessage, setPastImportErrorMessage] = useState<string | null>(null);
   const hasUploadedDocsInitial = (dossier?.documents && dossier.documents.length > 0);
   const isDeliberatedOrValide = dossier?.status === 'VALIDE' || Boolean(dossier?.juryDecision?.amount);
+  const [showFullDossier, setShowFullDossier] = useState(false);
 
-  type CandidateTabType = 'DOCUMENTS' | 'BILAN_INTRO' | 'SYNTHESE' | 'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'CALCULATRICE' | 'RETOURS_PAIRS' | 'AVIS_JURY';
+  type CandidateTabType = 'DOCUMENTS' | 'BILAN_INTRO' | 'SYNTHESE' | 'OBJECTIFS_PASSES' | 'SATISFACTION' | 'EXPERTISES' | EngagementSection | 'METEOS' | 'REFERENT' | 'PRETENTIONS' | 'CALCULATRICE' | 'RETOURS_PAIRS';
 
   const [activeTab, setActiveTab] = useState<CandidateTabType>(() => {
-    if (initialTab) return initialTab as CandidateTabType;
-    return isDeliberatedOrValide ? 'AVIS_JURY' : 'DOCUMENTS';
+    if (initialTab && (initialTab as any) !== 'AVIS_JURY') return initialTab as CandidateTabType;
+    return 'DOCUMENTS';
   });
 
   useEffect(() => {
-    if (initialTab) {
+    setShowFullDossier(false);
+  }, [dossier?.id]);
+
+  useEffect(() => {
+    if (initialTab && (initialTab as any) !== 'AVIS_JURY') {
       setActiveTab(initialTab as CandidateTabType);
       if (onTabChange) onTabChange(initialTab);
     }
@@ -138,7 +143,7 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
     return () => clearInterval(timer);
   }, [targetLinkId, activeTab]);
 
-  const visibleTabs: CandidateTabType[] = [
+  const allDossierTabs: CandidateTabType[] = [
     'DOCUMENTS',
     'BILAN_INTRO',
     'SYNTHESE',
@@ -148,11 +153,12 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
     ...engagementSections.map(s => s.id),
     'METEOS',
     ...((readOnly || isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0)
-      ? (['RETOURS_PAIRS', 'AVIS_JURY'] as CandidateTabType[])
+      ? (['RETOURS_PAIRS'] as CandidateTabType[])
       : []),
     'PRETENTIONS',
     'CALCULATRICE'
   ];
+  const visibleTabs: CandidateTabType[] = allDossierTabs;
 
   const handleTabChange = (tab: CandidateTabType) => {
     setActiveTab(tab);
@@ -678,26 +684,106 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
 
   const hasUploadedDocs = (dossier?.documents && dossier.documents.length > 0);
 
+  if (!dossier) {
+    return (
+      <div className="bg-white p-12 rounded-2xl border border-accent/15 text-center max-w-xl mx-auto space-y-4 my-8 shadow-xs">
+        <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mx-auto text-accent/60">
+          <FileText className="w-6 h-6" />
+        </div>
+        <h3 className="text-xl font-bold text-secondary">Aucun dossier pour cette campagne</h3>
+        <p className="text-xs text-accent/60 leading-relaxed">
+          Aucun dossier de candidature n'est associé à votre compte pour cette campagne. Utilisez le sélecteur d'année pour consulter vos autres campagnes ou rendez-vous dans votre Espace Personnel.
+        </p>
+      </div>
+    );
+  }
+
+  if (isDeliberatedOrValide && !showFullDossier) {
+    return (
+      <CandidateReadOnlyContext.Provider value={isLockedForEditing}>
+        <div className="space-y-8 max-w-7xl mx-auto">
+          {/* En-tête de délibération avec bouton pour consulter le dossier complet */}
+          <div className="bg-white p-8 rounded-2xl border border-accent/15 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Décision Finale Validée
+                </span>
+                <span className="text-xs font-bold text-accent/50">
+                  Campagne {dossier?.campaignYear || ''}
+                </span>
+              </div>
+              <h1 className="text-2xl font-black text-secondary">
+                Délibération du Jury & Retours des Évaluateurs
+              </h1>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowFullDossier(true);
+                handleTabChange('DOCUMENTS');
+              }}
+              className="px-6 py-3.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg transition-all cursor-pointer shrink-0"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Consulter l'intégralité du Dossier</span>
+            </button>
+          </div>
+
+          {/* 1. Délibération du Jury (Salaire proposé, justifications, second tour, avis jury) */}
+          <JuryFeedbacksTab 
+            dossier={dossier} 
+            candidate={profile}
+            onReviewDossier={() => {
+              setShowFullDossier(true);
+              handleTabChange('DOCUMENTS');
+            }}
+          />
+
+          {/* 2. Retours des Pairs et Évaluateurs (TJ Cible, Justifications, Axes) */}
+          <PeerFeedbacksTab dossier={dossier} />
+
+          {/* Bouton d'accès au dossier en bas de page */}
+          <div className="flex justify-center pt-4 pb-8">
+            <button
+              type="button"
+              onClick={() => {
+                setShowFullDossier(true);
+                handleTabChange('DOCUMENTS');
+              }}
+              className="px-8 py-4 bg-secondary hover:bg-secondary/90 text-white rounded-xl text-sm font-bold uppercase tracking-wider flex items-center gap-3 shadow-md hover:shadow-lg transition-all cursor-pointer"
+            >
+              <FileText className="w-5 h-5" />
+              <span>Consulter l'intégralité du Dossier</span>
+            </button>
+          </div>
+        </div>
+      </CandidateReadOnlyContext.Provider>
+    );
+  }
+
   return (
     <CandidateReadOnlyContext.Provider value={isLockedForEditing}>
       <div className="space-y-8">
-      {dossierStatus === 'VALIDE' && (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-700 shrink-0">
-              <CheckCircle2 className="w-6 h-6" />
+      {isDeliberatedOrValide && (
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm font-black text-secondary uppercase tracking-wider">Dossier Validé par la Commission</div>
-              <p className="text-xs text-accent/60 mt-0.5">Votre dossier a été délibéré. Vous pouvez consulter l'ensemble de vos rubriques et retrouver la décision complète dans l'onglet « Avis du Jury ».</p>
+              <div className="text-xs font-black text-secondary uppercase tracking-wider">Consultation du Dossier complet</div>
+              <p className="text-xs text-accent/60 mt-0.5">Vous consultez l'ensemble des rubriques et pièces de ce dossier validé.</p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => setActiveTab('AVIS_JURY')}
-            className="shrink-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            onClick={() => setShowFullDossier(false)}
+            className="shrink-0 px-4 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-2"
           >
-            Consulter l'Avis du Jury
+            <ArrowLeft className="w-4 h-4" />
+            <span>Retour à la Délibération</span>
           </button>
         </div>
       )}
@@ -705,10 +791,20 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
       <div className="lg:col-span-1">
         <div className="bg-white p-6 rounded-xl border border-accent/10 sticky top-28 shadow-lg max-h-[calc(100vh-8rem)] flex flex-col">
           <div className="space-y-3 overflow-y-auto pr-2 flex-1">
+            {isDeliberatedOrValide && (
+              <button
+                type="button"
+                onClick={() => setShowFullDossier(false)}
+                className="w-full mb-3 px-3 py-2 bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>← Retour à la Délibération</span>
+              </button>
+            )}
             <TabButton 
               active={activeTab === 'DOCUMENTS'} 
               onClick={() => handleTabChange('DOCUMENTS')} 
-              label="Pièces Jointes & Import" 
+              label="Import Bilan Annuel N-1" 
               count={dossier?.documents?.length || 0} 
               badge={!hasUploadedDocs ? "Recommandé" : undefined}
             />
@@ -732,20 +828,12 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
             ))}
             <TabButton active={activeTab === 'METEOS'} onClick={() => handleTabChange('METEOS')} label="Météos Client" count={meteoLinks.length + feedbacks.length} />
             {(readOnly || isDossierComplet || Boolean(dossier?.juryDecision?.amount) || Object.keys(dossier?.juryMemberReviews || {}).length > 0) && (
-              <>
-                <TabButton 
-                  active={activeTab === 'RETOURS_PAIRS'} 
-                  onClick={() => handleTabChange('RETOURS_PAIRS')} 
-                  label="Retours Pairs" 
-                  count={Object.keys(dossier?.consultantFeedbacks || {}).length} 
-                />
-                <TabButton 
-                  active={activeTab === 'AVIS_JURY'} 
-                  onClick={() => handleTabChange('AVIS_JURY')} 
-                  label="Avis du Jury" 
-                  count={Object.keys(dossier?.juryMemberReviews || {}).length} 
-                />
-              </>
+              <TabButton 
+                active={activeTab === 'RETOURS_PAIRS'} 
+                onClick={() => handleTabChange('RETOURS_PAIRS')} 
+                label="Retours Pairs" 
+                count={Object.keys(dossier?.consultantFeedbacks || {}).length} 
+              />
             )}
             <TabButton active={activeTab === 'PRETENTIONS'} onClick={() => handleTabChange('PRETENTIONS')} label="Objectifs" />
             <TabButton active={activeTab === 'CALCULATRICE'} onClick={() => handleTabChange('CALCULATRICE')} label="Prétentions de carrière et salariales" />
@@ -960,14 +1048,6 @@ export function CandidateView({ profile, dossier, currentUser, initialTab, targe
 
           {activeTab === 'RETOURS_PAIRS' && (
             <PeerFeedbacksTab dossier={dossier} />
-          )}
-
-          {activeTab === 'AVIS_JURY' && (
-            <JuryFeedbacksTab 
-              dossier={dossier} 
-              candidate={profile}
-              onReviewDossier={() => handleTabChange('BILAN_INTRO')}
-            />
           )}
 
           {activeTab === 'PRETENTIONS' && (

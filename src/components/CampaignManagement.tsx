@@ -22,13 +22,15 @@ import { CreateCampaignModal } from './campaigns/CreateCampaignModal';
 import { CloseCampaignModal } from './campaigns/CloseCampaignModal';
 import { DeleteCampaignModal } from './campaigns/DeleteCampaignModal';
 import { CatchupCampaignModal } from './campaigns/CatchupCampaignModal';
-import { History } from 'lucide-react';
+import { DeleteAllDossiersModal } from './campaigns/DeleteAllDossiersModal';
+import { History, Trash2 } from 'lucide-react';
 
 interface CampaignManagementProps {
   currentUser?: UserProfile | null;
 }
 
 export function CampaignManagement({ currentUser }: CampaignManagementProps) {
+  const isOperatingAdmin = currentUser?.roles?.includes('ADMIN') || false;
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'OUVERTE' | 'CLÔTURÉE'>('ALL');
@@ -44,6 +46,7 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
   const [isClosing, setIsClosing] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteAllDossiersModalOpen, setIsDeleteAllDossiersModalOpen] = useState(false);
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     setNotification({ type, message });
@@ -112,6 +115,16 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
     }
   };
 
+  const handleConfirmDeleteAllDossiers = async () => {
+    try {
+      const deletedCount = LocalDatabaseService.deleteAllDossiers();
+      showToast('success', `L'ensemble des dossiers (${deletedCount}) a été définitivement supprimé pour toutes les campagnes.`);
+    } catch (error: any) {
+      console.error("Error deleting all dossiers:", error);
+      showToast('error', `Erreur lors de la suppression totale : ${error.message || String(error)}`);
+    }
+  };
+
   const filteredCampaigns = campaigns.filter(c => {
     if (filterStatus === 'ALL') return true;
     return c.status === filterStatus;
@@ -174,6 +187,17 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
             <Plus className="w-5 h-5" />
             Créer une nouvelle campagne
           </button>
+
+          {isOperatingAdmin && (
+            <button
+              onClick={() => setIsDeleteAllDossiersModalOpen(true)}
+              className="px-5 py-4 rounded-xl bg-white border border-rose-200 text-rose-700 font-bold text-sm hover:bg-rose-50 hover:border-rose-300 transition-all flex items-center gap-2.5 shadow-sm cursor-pointer active:scale-95"
+              title="Supprimer définitivement tous les dossiers existants de toutes les campagnes"
+            >
+              <Trash2 className="w-5 h-5 text-rose-600" />
+              <span>Supprimer tous les dossiers</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -299,6 +323,13 @@ export function CampaignManagement({ currentUser }: CampaignManagementProps) {
           />
         )}
       </AnimatePresence>
+
+      <DeleteAllDossiersModal
+        isOpen={isDeleteAllDossiersModalOpen}
+        onClose={() => setIsDeleteAllDossiersModalOpen(false)}
+        onConfirm={handleConfirmDeleteAllDossiers}
+        dossiersCount={LocalDatabaseService.getDossiers().length}
+      />
     </div>
   );
 }

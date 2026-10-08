@@ -40,10 +40,7 @@ export function DocumentsTab({
         <div className="mb-8 border-b border-accent/10 pb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-secondary text-2xl font-bold">Pièces Jointes & Import</h2>
-              <p className="text-xs text-accent/60 mt-1">
-                Gérez vos documents justificatifs et importez votre Bilan Annuel N-1 pour remplir vos objectifs.
-              </p>
+              <h2 className="text-secondary text-2xl font-bold">Import Bilan Annuel N-1</h2>
             </div>
             <div id="link_drive_evaluation_n1" className="flex flex-wrap items-center gap-3 transition-all rounded-lg p-1">
               {handleImportPastYearObjectives && (

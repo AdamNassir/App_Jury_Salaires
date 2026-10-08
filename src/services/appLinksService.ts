@@ -307,6 +307,26 @@ export const INITIAL_APP_LINKS: AppLinkItem[] = [
     inAppDetails: 'Extraction automatique des identités et comptes des participants'
   },
   {
+    id: 'link_analyse_jury_2022',
+    libelle: 'Analyse Jury Salaire 2022',
+    url: 'https://docs.google.com/spreadsheets/d/1fPEXX9rlyWbnl1vKAHzRLEAwm4sLDT-4svs6V_W1abk/edit?gid=640745950#gid=640745950',
+    category: 'BDD_SHEETS',
+    description: 'Délibérations et TJ Cible pour la campagne 2022',
+    appLocation: 'Gestion des Campagnes > Rattrapage Automatique',
+    inAppAccessType: 'BACKGROUND_API',
+    inAppDetails: 'Extraction automatique des dossiers 2022 scellés'
+  },
+  {
+    id: 'link_analyse_jury_2023',
+    libelle: 'Analyse Jury Salaire 2023',
+    url: 'https://docs.google.com/spreadsheets/d/1vZPASFJ-3DGf9DyMjY1F1jwK7i3Unkh2KyzvRiMoctI/edit?gid=448715688#gid=448715688',
+    category: 'BDD_SHEETS',
+    description: 'Délibérations et TJ Cible pour la campagne 2023 (avec colonnes Coach)',
+    appLocation: 'Gestion des Campagnes > Rattrapage Automatique',
+    inAppAccessType: 'BACKGROUND_API',
+    inAppDetails: 'Extraction automatique des dossiers 2023 scellés'
+  },
+  {
     id: 'link_analyse_jury_2024',
     libelle: 'Analyse Jury Salaire 2024',
     url: 'https://docs.google.com/spreadsheets/d/1G1rBLNz1IAw0ct7Zc8qTnV-5BGP3tt_bX7m8EOf2rUU/edit?gid=640745950#gid=640745950',

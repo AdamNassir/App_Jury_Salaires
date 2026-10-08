@@ -326,41 +326,191 @@ export class CampaignCatchupService {
   }
 
   /**
-   * Parse le classeur Analyse_Jury_Salaire -> feuille "Analyse_Jury"
-   * Supporte la structure 2024 (sans colonne ancienneté en Col G) et 2025 (avec Ancienneté en Col G et Année Expert en Col H).
+   * Cœur de parsing de la feuille "Analyse_Jury" pour n'importe quel millésime (2022 à 2025+)
+   * Combine une détection dynamique par en-têtes réels et un repli strict sur les colonnes documentées par année.
    */
-  static async parseDeliberationFile(file: File): Promise<DeliberationParsedRow[]> {
-    const workbook = await readImportWorkbook(file);
-
-    let targetSheetName = workbook.SheetNames.find(s => {
-      const norm = normalizeHeader(s);
-      return norm === 'analyse_jury' || norm.includes('analyse') || norm.includes('jury');
-    });
-
-    if (!targetSheetName) {
-      targetSheetName = workbook.SheetNames[0];
-    }
-
-    const worksheet = workbook.Sheets[targetSheetName];
-    const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+  static parseDeliberationMatrixCore(rawMatrix: any[][], campaignYear?: number): DeliberationParsedRow[] {
     if (!rawMatrix || rawMatrix.length === 0) return [];
 
-    let headerRowIndex = 1;
-    if (rawMatrix.length > 0) {
-      for (let i = 0; i < Math.min(5, rawMatrix.length); i++) {
-        const row = rawMatrix[i] || [];
-        const normColA = normalizeHeader(String(row[0] || ''));
-        if (normColA.includes('matricule')) {
-          headerRowIndex = i;
-          break;
-        }
+    let headerRowIndex = 0;
+    for (let i = 0; i < Math.min(10, rawMatrix.length); i++) {
+      const row = rawMatrix[i] || [];
+      const hasMatricule = row.some(cell => {
+        const norm = normalizeHeader(String(cell || ''));
+        return norm === 'matricule' || norm.includes('matricule');
+      });
+      if (hasMatricule) {
+        headerRowIndex = i;
+        break;
       }
     }
 
-    // Détection du millésime (2024 vs 2025+) d'après la colonne G (index 6)
     const headerRow = rawMatrix[headerRowIndex] || [];
+
+    // Détection dynamique des colonnes par leurs libellés d'en-tête
+    let colMatricule = -1;
+    let colPrenom = -1;
+    let colNom = -1;
+    let colExperience = -1;
+    let colEntryDate = -1;
+    let colExpertGradeDate = -1;
+    let colAncienneteLL = -1;
+    let colYearsExpert = -1;
+    let colNewGrade = -1;
+    let colTjVendu = -1;
+    let colTjCible = -1;
+    let colSalaire3006 = -1;
+    let colWishedSalary = -1;
+    let colGradeChange = -1;
+    let colInvest = -1;
+    let colMission = -1;
+    let colCoachName = -1;
+    let colProposedSalary = -1;
+    let colProposedPercent = -1;
+    let colMaxSalary = -1;
+    let colWhyThisSalary = -1;
+    let colWhatToDoMore = -1;
+    let colReferentJury = -1;
+    let colConsultantFeeling = -1;
+
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = normalizeHeader(String(headerRow[c] || ''));
+      if (!h) continue;
+
+      if (colMatricule === -1 && h.includes('matricule')) {
+        colMatricule = c;
+      } else if (colPrenom === -1 && h.includes('prenom')) {
+        colPrenom = c;
+      } else if (colNom === -1 && (h === 'nom' || (h.includes('nom') && !h.includes('prenom') && !h.includes('coach')))) {
+        colNom = c;
+      } else if (colExperience === -1 && (h === 'exp' || h === 'experience' || h.startsWith('exp_') || h.includes('anciennete_totale'))) {
+        colExperience = c;
+      } else if (colEntryDate === -1 && (h.includes('entree') || h.includes('embauche'))) {
+        colEntryDate = c;
+      } else if (colExpertGradeDate === -1 && (h.includes('expert') && (h.includes('date') || h.includes('passage')))) {
+        colExpertGradeDate = c;
+      } else if (colAncienneteLL === -1 && (h.includes('anciennete') && !h.includes('totale'))) {
+        colAncienneteLL = c;
+      } else if (colYearsExpert === -1 && (h.includes('expert') && (h.includes('annee') || h.includes('nb')))) {
+        colYearsExpert = c;
+      } else if (colNewGrade === -1 && ((h.includes('grade') || h.includes('titre')) && !h.includes('date') && !h.includes('expert') && !h.includes('changement'))) {
+        colNewGrade = c;
+      } else if (colGradeChange === -1 && h.includes('changement')) {
+        colGradeChange = c;
+      } else if (colTjVendu === -1 && ((h.includes('tj') && h.includes('vendu')) || h === 'tj_vendu')) {
+        colTjVendu = c;
+      } else if (colTjCible === -1 && ((h.includes('tj') && h.includes('cible')) || h === 'tj_cible')) {
+        colTjCible = c;
+      } else if (colSalaire3006 === -1 && ((h.includes('salaire') || h.includes('tj_salaire')) && (h.includes('30_06') || h.includes('actuel') || h.includes('30')) && !h.includes('propose') && !h.includes('souhaite') && !h.includes('max'))) {
+        colSalaire3006 = c;
+      } else if (colWishedSalary === -1 && ((h.includes('salaire') || h.includes('pretention')) && (h.includes('souhaite') || h.includes('demande') || h.includes('pretention')) && !h.includes('propose') && !h.includes('max'))) {
+        colWishedSalary = c;
+      } else if (colInvest === -1 && h.includes('invest')) {
+        colInvest = c;
+      } else if (colMission === -1 && h.includes('mission') && !h.includes('collegue') && !h.includes('client')) {
+        colMission = c;
+      } else if (colCoachName === -1 && h.includes('coach')) {
+        colCoachName = c;
+      } else if (colProposedSalary === -1 && ((h.includes('propose') || h.includes('proposition')) && !h.includes('max') && !h.includes('%') && !h.includes('augm') && !h.includes('evolution') && !h.includes('pourquoi') && !h.includes('pour_avoir_plus') && !h.includes('avoir_plus') && !h.includes('ressenti') && !h.includes('referent'))) {
+        colProposedSalary = c;
+      } else if (colProposedPercent === -1 && (h.includes('augm') || h.includes('evolution') || (h.includes('%') && (h.includes('propose') || h.includes('salaire'))))) {
+        colProposedPercent = c;
+      } else if (colMaxSalary === -1 && h.includes('max')) {
+        colMaxSalary = c;
+      } else if (colWhyThisSalary === -1 && (h.includes('pourquoi') || (h.includes('explication') && h.includes('salaire')))) {
+        colWhyThisSalary = c;
+      } else if (colWhatToDoMore === -1 && (h.includes('avoir_plus') || h.includes('pour_avoir_plus') || (h.includes('faire') && (h.includes('plus') || h.includes('avantage'))))) {
+        colWhatToDoMore = c;
+      } else if (colReferentJury === -1 && h.includes('referent')) {
+        colReferentJury = c;
+      } else if (colConsultantFeeling === -1 && h.includes('ressenti')) {
+        colConsultantFeeling = c;
+      }
+    }
+
+    // Détection du millésime d'après les en-têtes et le paramètre campaignYear
     const colGHeader = normalizeHeader(String(headerRow[6] || ''));
-    const is2025Format = colGHeader.includes('anciennete') || colGHeader.includes('ll');
+    const is2025 = (campaignYear === 2025) || colGHeader.includes('anciennete') || colGHeader.includes('ll');
+    const is2023 = !is2025 && ((campaignYear === 2023) || colCoachName !== -1 || headerRow.some(h => normalizeHeader(String(h || '')).includes('coach')));
+    const is2022OrEarlier = !is2025 && !is2023 && ((campaignYear !== undefined && campaignYear <= 2022) || normalizeHeader(String(headerRow[4] || '')).includes('nouveau') || colGHeader.includes('vendu') || (headerRow[18] && normalizeHeader(String(headerRow[18] || '')).includes('propose')));
+
+    // Repli sur les index documentés si non détectés par le texte d'en-tête
+    if (colMatricule === -1) colMatricule = 0;
+    if (colPrenom === -1) colPrenom = 1;
+    if (colNom === -1) colNom = 2;
+    if (colExperience === -1) colExperience = 3;
+
+    if (is2025) {
+      if (colEntryDate === -1) colEntryDate = 4;
+      if (colExpertGradeDate === -1) colExpertGradeDate = 5;
+      if (colAncienneteLL === -1) colAncienneteLL = 6;
+      if (colYearsExpert === -1) colYearsExpert = 7;
+      colNewGrade = 8; // Colonne I (index 8) obligatoire pour 2025
+      if (colTjVendu === -1) colTjVendu = 9;
+      if (colTjCible === -1) colTjCible = 12;
+      if (colSalaire3006 === -1) colSalaire3006 = 15;
+      if (colWishedSalary === -1) colWishedSalary = 17;
+      colInvest = 20; // Colonne U (index 20) obligatoire pour 2025
+      colMission = 21; // Colonne V (index 21) obligatoire pour 2025
+      if (colProposedSalary === -1) colProposedSalary = 22;
+      if (colProposedPercent === -1) colProposedPercent = 25;
+      if (colMaxSalary === -1) colMaxSalary = 29;
+      if (colWhyThisSalary === -1) colWhyThisSalary = 31;
+      if (colWhatToDoMore === -1) colWhatToDoMore = 32;
+      if (colReferentJury === -1) colReferentJury = 33;
+      if (colConsultantFeeling === -1) colConsultantFeeling = 34;
+    } else if (is2023) {
+      colNewGrade = 4; // Colonne E (index 4) obligatoire pour 2023
+      if (colTjVendu === -1) colTjVendu = 5;
+      if (colTjCible === -1) colTjCible = 8;
+      if (colSalaire3006 === -1) colSalaire3006 = 11;
+      if (colWishedSalary === -1) colWishedSalary = 13;
+      if (colGradeChange === -1) colGradeChange = 14;
+      colInvest = 16; // Colonne Q (index 16) obligatoire pour 2023
+      colMission = 17; // Colonne R (index 17) obligatoire pour 2023
+      if (colCoachName === -1) colCoachName = 18;
+      if (colProposedSalary === -1) colProposedSalary = 21;
+      if (colProposedPercent === -1) colProposedPercent = 22;
+      if (colMaxSalary === -1) colMaxSalary = 26;
+      if (colWhyThisSalary === -1) colWhyThisSalary = 28;
+      if (colWhatToDoMore === -1) colWhatToDoMore = 29;
+      if (colReferentJury === -1) colReferentJury = 30;
+      if (colConsultantFeeling === -1) colConsultantFeeling = 31;
+    } else if (is2022OrEarlier) {
+      colNewGrade = 4; // Colonne E (index 4) obligatoire pour 2022 et antérieurs
+      if (colTjVendu === -1) colTjVendu = 5;
+      if (colTjCible === -1) colTjCible = 8;
+      if (colSalaire3006 === -1) colSalaire3006 = 11;
+      if (colWishedSalary === -1) colWishedSalary = 13;
+      if (colGradeChange === -1) colGradeChange = 14;
+      colInvest = 16; // Colonne Q (index 16) obligatoire pour 2022
+      colMission = 17; // Colonne R (index 17) obligatoire pour 2022
+      if (colProposedSalary === -1) colProposedSalary = 18;
+      if (colProposedPercent === -1) colProposedPercent = 19;
+      if (colMaxSalary === -1) colMaxSalary = 23;
+      if (colWhyThisSalary === -1) colWhyThisSalary = 25;
+      if (colWhatToDoMore === -1) colWhatToDoMore = 26;
+      if (colReferentJury === -1) colReferentJury = 27;
+      if (colConsultantFeeling === -1) colConsultantFeeling = 28;
+    } else {
+      // Format 2024 (Défaut standard)
+      if (colEntryDate === -1) colEntryDate = 4;
+      if (colExpertGradeDate === -1) colExpertGradeDate = 5;
+      colNewGrade = 6; // Colonne G (index 6) obligatoire pour 2024
+      if (colTjVendu === -1) colTjVendu = 7;
+      if (colTjCible === -1) colTjCible = 10;
+      if (colSalaire3006 === -1) colSalaire3006 = 13;
+      if (colWishedSalary === -1) colWishedSalary = 15;
+      colInvest = 18; // Colonne S (index 18) obligatoire pour 2024
+      colMission = 19; // Colonne T (index 19) obligatoire pour 2024
+      if (colProposedSalary === -1) colProposedSalary = 20;
+      if (colProposedPercent === -1) colProposedPercent = 22;
+      if (colMaxSalary === -1) colMaxSalary = 26;
+      if (colWhyThisSalary === -1) colWhyThisSalary = 28;
+      if (colWhatToDoMore === -1) colWhatToDoMore = 29;
+      if (colReferentJury === -1) colReferentJury = 30;
+      if (colConsultantFeeling === -1) colConsultantFeeling = 31;
+    }
 
     const rows: DeliberationParsedRow[] = [];
 
@@ -368,111 +518,75 @@ export class CampaignCatchupService {
       const rowArr = rawMatrix[i];
       if (!rowArr || rowArr.length === 0) continue;
 
-      // Col A (index 0) : "Matricule"
-      const matricule = cleanString(rowArr[0]);
-      // Col B (index 1) : "Prénom"
-      const prenom = cleanString(rowArr[1]);
-      // Col C (index 2) : "Nom"
-      const nom = cleanString(rowArr[2]);
-      // Col D (index 3) : "Exp."
-      const experience = cleanString(rowArr[3]);
-      // Col E (index 4) : "Date entrée LL"
-      const entryDate = cleanString(rowArr[4]);
-      // Col F (index 5) : "Date de passage au grade expert"
-      const expertGradeDate = cleanString(rowArr[5]);
+      const matricule = colMatricule !== -1 ? cleanString(rowArr[colMatricule]) : '';
+      const prenom = colPrenom !== -1 ? cleanString(rowArr[colPrenom]) : '';
+      const nom = colNom !== -1 ? cleanString(rowArr[colNom]) : '';
+      const experience = colExperience !== -1 ? cleanString(rowArr[colExperience]) : '';
 
       const nomPrenom = `${prenom} ${nom}`.trim() || nom || prenom || '';
       if (!nomPrenom && !matricule) continue;
 
-      let ancienneteLL: string = '';
-      let yearsExpert: string = '';
-      let newGrade: string = '';
-      let tjVendu0107: number | undefined;
-      let tjCible: number | undefined;
-      let salaire3006: number | undefined;
-      let wishedSalary0107: number | undefined;
-      let investPercent: number | undefined;
-      let missionPercent: number | undefined;
-      let proposedSalaryPercent0107: number | undefined;
-      let proposedSalary0107Val: number | undefined;
-      let maxSalaryIfTjVenduIncreases: number | undefined;
-      let whyThisSalary: string = '';
-      let whatToDoMore: string = '';
-      let referentJury: string = '';
-      let consultantFeeling: string = '';
-      let secondTourFeedback: string = '';
-
-      if (is2025Format) {
-        // --- FORMAT 2025 ---
-        // Col G (index 6) : Ancienneté chez LL
-        ancienneteLL = cleanString(rowArr[6]);
-        // Col H (index 7) : Année en tant qu'expert
-        yearsExpert = cleanString(rowArr[7]);
-        // Col I (index 8) : Nouveau Titre
-        newGrade = cleanString(rowArr[8]);
-        // Col J (index 9) : TJ vendu (01/07)
-        tjVendu0107 = parseFrenchNumber(rowArr[9]);
-        // Col M (index 12) : TJ Cible
-        tjCible = parseFrenchNumber(rowArr[12]);
-        // Col P (index 15) : Salaire au 30/06/2025 (TJ salaire)
-        salaire3006 = parseFrenchNumber(rowArr[15]);
-        // Col R (index 17) : Salaire souhaité au 01/07/2025
-        wishedSalary0107 = parseFrenchNumber(rowArr[17]);
-        // Col U (index 20) : % Investissement
-        investPercent = parseFrenchNumber(rowArr[20]);
-        // Col V (index 21) : % Mission
-        missionPercent = parseFrenchNumber(rowArr[21]);
-        // Col W (index 22) : Salaire proposé au 01/07
-        proposedSalary0107Val = parseFrenchNumber(rowArr[22]);
-        // Col Z (index 25) : % augmentation
-        proposedSalaryPercent0107 = parseFrenchNumber(rowArr[25]);
-        // Col AD (index 29) : Salaire MAX proposé si TJ augmente
-        maxSalaryIfTjVenduIncreases = parseFrenchNumber(rowArr[29]);
-        // Col AF (index 31) : Pourquoi ce salaire proposé
-        whyThisSalary = cleanString(rowArr[31]);
-        // Col AG (index 32) : Ce qu'il faut faire pour avoir plus
-        whatToDoMore = cleanString(rowArr[32]);
-        // Col AH (index 33) : Référent Jury de salaire
-        referentJury = cleanString(rowArr[33]);
-        // Col AI (index 34) : Ressenti consultant
-        consultantFeeling = cleanString(rowArr[34]);
-      } else {
-        // --- FORMAT 2024 ---
-        // Col G (index 6) : Nouveau Titre
-        newGrade = cleanString(rowArr[6]);
-        // Col H (index 7) : TJ vendu (01/07)
-        tjVendu0107 = parseFrenchNumber(rowArr[7]);
-        // Col K (index 10) : TJ Cible
-        tjCible = parseFrenchNumber(rowArr[10]);
-        // Col N (index 13) : Salaire au 30/06/2023 (TJ salaire)
-        salaire3006 = parseFrenchNumber(rowArr[13]);
-        // Col P (index 15) : Salaire souhaité au 01/07/2024
-        wishedSalary0107 = parseFrenchNumber(rowArr[15]);
-        // Col S (index 18) : % Investissement
-        investPercent = parseFrenchNumber(rowArr[18]);
-        // Col T (index 19) : % Mission
-        missionPercent = parseFrenchNumber(rowArr[19]);
-        // Col U (index 20) : Salaire proposé au 01/07
-        proposedSalary0107Val = parseFrenchNumber(rowArr[20]);
-        // Col W (index 22) : % augmentation
-        proposedSalaryPercent0107 = parseFrenchNumber(rowArr[22]);
-        // Col AC (index 28) : Pourquoi ce salaire proposé
-        whyThisSalary = cleanString(rowArr[28]);
-        // Col AD (index 29) : Ce qu'il faut faire pour avoir plus
-        whatToDoMore = cleanString(rowArr[29]);
-        // Col AE (index 30) : Référent Jury de salaire
-        referentJury = cleanString(rowArr[30]);
-        // Col AF (index 31) : Ressenti consultant
-        consultantFeeling = cleanString(rowArr[31]);
+      const entryDate = colEntryDate !== -1 ? cleanString(rowArr[colEntryDate]) : '';
+      const expertGradeDate = colExpertGradeDate !== -1 ? cleanString(rowArr[colExpertGradeDate]) : '';
+      const ancienneteLL = colAncienneteLL !== -1 ? cleanString(rowArr[colAncienneteLL]) : '';
+      const yearsExpert = colYearsExpert !== -1 ? cleanString(rowArr[colYearsExpert]) : '';
+      let newGrade = colNewGrade !== -1 ? cleanString(rowArr[colNewGrade]) : '';
+      if (newGrade.toLowerCase() === 'non' || newGrade.toLowerCase() === 'oui' || newGrade === '0') {
+        newGrade = '';
       }
 
-      // Détection de secours par en-têtes si décalage
+      const tjVendu0107 = colTjVendu !== -1 ? parseFrenchNumber(rowArr[colTjVendu]) : undefined;
+      const tjCible = colTjCible !== -1 ? parseFrenchNumber(rowArr[colTjCible]) : undefined;
+      const salaire3006 = colSalaire3006 !== -1 ? parseFrenchNumber(rowArr[colSalaire3006]) : undefined;
+      const wishedSalary0107 = colWishedSalary !== -1 ? parseFrenchNumber(rowArr[colWishedSalary]) : undefined;
+
+      const rawInvest = colInvest !== -1 ? parseFrenchNumber(rowArr[colInvest]) : undefined;
+      let investPercent: number | undefined = undefined;
+      if (rawInvest !== undefined && rawInvest > 0) {
+        if (rawInvest <= 1) {
+          investPercent = Math.round(rawInvest * 1000) / 10;
+        } else if (rawInvest <= 100) {
+          investPercent = rawInvest;
+        }
+      }
+
+      const rawMission = colMission !== -1 ? parseFrenchNumber(rowArr[colMission]) : undefined;
+      let missionPercent: number | undefined = undefined;
+      if (rawMission !== undefined && rawMission > 0) {
+        if (rawMission <= 1) {
+          missionPercent = Math.round(rawMission * 1000) / 10;
+        } else if (rawMission <= 100) {
+          missionPercent = rawMission;
+        }
+      }
+
+      let proposedSalary0107Val = colProposedSalary !== -1 ? parseFrenchNumber(rowArr[colProposedSalary]) : undefined;
+      let proposedSalaryPercent0107 = colProposedPercent !== -1 ? parseFrenchNumber(rowArr[colProposedPercent]) : undefined;
+      const maxSalaryIfTjVenduIncreases = colMaxSalary !== -1 ? parseFrenchNumber(rowArr[colMaxSalary]) : undefined;
+      const whyThisSalary = colWhyThisSalary !== -1 ? cleanString(rowArr[colWhyThisSalary]) : '';
+      const whatToDoMore = colWhatToDoMore !== -1 ? cleanString(rowArr[colWhatToDoMore]) : '';
+      const referentJury = colReferentJury !== -1 ? cleanString(rowArr[colReferentJury]) : '';
+      const consultantFeeling = colConsultantFeeling !== -1 ? cleanString(rowArr[colConsultantFeeling]) : '';
+
+      // Détection de secours pour proposedSalary0107Val si non résolu ou égal à 0
       if (proposedSalary0107Val === undefined || proposedSalary0107Val <= 0) {
         for (let c = 0; c < rowArr.length; c++) {
-          const h = normalizeHeader(String(rawMatrix[headerRowIndex]?.[c] || ''));
-          if (h.includes('propose') && !h.includes('max') && !h.includes('%') && proposedSalary0107Val === undefined) {
+          const h = normalizeHeader(String(headerRow[c] || ''));
+          if (
+            (h.includes('propose') || h.includes('proposition')) &&
+            !h.includes('max') &&
+            !h.includes('%') &&
+            !h.includes('augm') &&
+            !h.includes('pourquoi') &&
+            !h.includes('avoir_plus') &&
+            !h.includes('ressenti') &&
+            !h.includes('referent')
+          ) {
             const val = parseFrenchNumber(rowArr[c]);
-            if (val && val > 1000) proposedSalary0107Val = val;
+            if (val && val > 1000) {
+              proposedSalary0107Val = val;
+              break;
+            }
           }
         }
       }
@@ -501,12 +615,32 @@ export class CampaignCatchupService {
         whyThisSalary: whyThisSalary || undefined,
         whatToDoMore: whatToDoMore || undefined,
         referentJury: referentJury || undefined,
-        consultantFeeling: consultantFeeling || undefined,
-        secondTourFeedback: secondTourFeedback || undefined
+        consultantFeeling: consultantFeeling || undefined
       });
     }
 
     return rows;
+  }
+
+  /**
+   * Parse le classeur Analyse_Jury_Salaire -> feuille "Analyse_Jury"
+   * Compatible avec tous les millésimes 2022, 2023, 2024, 2025+.
+   */
+  static async parseDeliberationFile(file: File, campaignYear?: number): Promise<DeliberationParsedRow[]> {
+    const workbook = await readImportWorkbook(file);
+
+    let targetSheetName = workbook.SheetNames.find(s => {
+      const norm = normalizeHeader(s);
+      return norm === 'analyse_jury' || norm.includes('analyse') || norm.includes('jury');
+    });
+
+    if (!targetSheetName) {
+      targetSheetName = workbook.SheetNames[0];
+    }
+
+    const worksheet = workbook.Sheets[targetSheetName];
+    const rawMatrix = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+    return this.parseDeliberationMatrixCore(rawMatrix, campaignYear);
   }
 
   /**
@@ -549,6 +683,10 @@ export class CampaignCatchupService {
       }
     }
 
+    const headerRow = rawMatrix[headerRowIndex] || [];
+    const colGHeader = normalizeHeader(String(headerRow[6] || ''));
+    const is2022_2023Format = colGHeader === 'cv' || colGHeader.includes('cv') || normalizeHeader(String(headerRow[10] || '')).includes('evaluat');
+
     const rows: EvaluationParsedRow[] = [];
 
     for (let i = headerRowIndex + 1; i < rawMatrix.length; i++) {
@@ -570,40 +708,72 @@ export class CampaignCatchupService {
 
       // Col F (5) : Grade
       const grade = cleanString(rowArr[5]);
-      // Col G (6) : Client
-      const client = cleanString(rowArr[6]);
-      // Col H (7) : Projet
-      const project = cleanString(rowArr[7]);
-      // Col I (8) : Matricule de l'évaluateur (dans la feuille TJ Cible)
-      const rawEvaluatorColI = cleanString(rowArr[8]);
-      const evaluatorMatricule = rawEvaluatorColI;
-      const evaluatorName = rawEvaluatorColI;
 
-      // Détecter le type de relation d'après les colonnes J à P
+      let client: string = '';
+      let project: string = '';
+      let rawEvaluator: string = '';
+      let relationStartIndex = 9; // Col J pour 2024/2025, Col L pour 2022/2023
+      let tjCibleMin: number | undefined;
+      let tjCibleMax: number | undefined;
+      let justification: string = '';
+      let improvementAxes: string = '';
+      let confidenceIndex: number | undefined;
+
+      if (is2022_2023Format) {
+        // --- FORMAT 2022 & 2023 ---
+        // Col H (7) : Client, Col J (9) : Projet, Col K (10) : Evaluateur
+        client = cleanString(rowArr[7]);
+        project = cleanString(rowArr[9]);
+        rawEvaluator = cleanString(rowArr[10]);
+        relationStartIndex = 11; // Col L (11) à Col R (17)
+
+        // Col U (20) : "TJ Cible Min"
+        tjCibleMin = parseFrenchNumber(rowArr[20]);
+        // Col V (21) : "TJ Cible Max"
+        tjCibleMax = parseFrenchNumber(rowArr[21]);
+        // Col W (22) : "Justification TJ Cible"
+        justification = cleanString(rowArr[22]);
+        // Col X (23) : "Axes pour augmenter le TJ"
+        improvementAxes = cleanString(rowArr[23]);
+        // Col Y (24) : "Indice de confiance"
+        confidenceIndex = parseFrenchNumber(rowArr[24]);
+      } else {
+        // --- FORMAT 2024 & 2025 ---
+        // Col G (6) : Client, Col H (7) : Projet, Col I (8) : Evaluateur
+        client = cleanString(rowArr[6]);
+        project = cleanString(rowArr[7]);
+        rawEvaluator = cleanString(rowArr[8]);
+        relationStartIndex = 9; // Col J (9) à Col P (15)
+
+        // Col S (18) : "TJ Cible Min"
+        tjCibleMin = parseFrenchNumber(rowArr[18]);
+        // Col T (19) : "TJ Cible Max"
+        tjCibleMax = parseFrenchNumber(rowArr[19]);
+        // Col U (20) : "Justification TJ Cible"
+        justification = cleanString(rowArr[20]);
+        // Col V (21) : "Axes pour augmenter le TJ"
+        improvementAxes = cleanString(rowArr[21]);
+        // Col W (22) : "Indice de confiance"
+        confidenceIndex = parseFrenchNumber(rowArr[22]);
+      }
+
+      const evaluatorMatricule = rawEvaluator;
+      const evaluatorName = rawEvaluator;
+
+      // Détecter le type de relation
       const isChecked = (colIdx: number) => {
         const val = cleanString(rowArr[colIdx]).toLowerCase();
         return val === 'x' || val === '1' || val === 'oui' || val === 'true' || val === 'vrai' || val.length > 0;
       };
 
       let detectedType: EvaluationRelationType = 'Collègue_Mission';
-      if (isChecked(9)) detectedType = 'Auto_Evaluation';
-      else if (isChecked(10)) detectedType = 'Commerciale';
-      else if (isChecked(11)) detectedType = 'Encadrement';
-      else if (isChecked(12)) detectedType = 'Meteo_Client';
-      else if (isChecked(13)) detectedType = 'Coach';
-      else if (isChecked(14)) detectedType = 'Logiclever';
-      else if (isChecked(15)) detectedType = 'Collègue_Mission';
-
-      // Col S (index 18) : "TJ Cible Min"
-      let tjCibleMin = parseFrenchNumber(rowArr[18]);
-      // Col T (index 19) : "TJ Cible Max"
-      let tjCibleMax = parseFrenchNumber(rowArr[19]);
-      // Col U (index 20) : "Justification TJ Cible"
-      let justification = cleanString(rowArr[20]);
-      // Col V (index 21) : "Axes pour augmenter le TJ"
-      let improvementAxes = cleanString(rowArr[21]);
-      // Col W (index 22) : "Indice de confiance"
-      let confidenceIndex = parseFrenchNumber(rowArr[22]);
+      if (isChecked(relationStartIndex)) detectedType = 'Auto_Evaluation';
+      else if (isChecked(relationStartIndex + 1)) detectedType = 'Commerciale';
+      else if (isChecked(relationStartIndex + 2)) detectedType = 'Encadrement';
+      else if (isChecked(relationStartIndex + 3)) detectedType = 'Meteo_Client';
+      else if (isChecked(relationStartIndex + 4)) detectedType = 'Coach';
+      else if (isChecked(relationStartIndex + 5)) detectedType = 'Logiclever';
+      else if (isChecked(relationStartIndex + 6)) detectedType = 'Collègue_Mission';
 
       // Recherche de secours par en-têtes si décalage
       for (let c = 16; c < rowArr.length; c++) {
@@ -741,13 +911,32 @@ export class CampaignCatchupService {
       if (explicitId && profileByIdProfil.has(explicitId.trim().toUpperCase())) {
         return profileByIdProfil.get(explicitId.trim().toUpperCase());
       }
-      if (matricule && profileByMatricule.has(matricule.trim().toUpperCase())) {
-        return profileByMatricule.get(matricule.trim().toUpperCase());
+      if (matricule) {
+        const matUpper = matricule.trim().toUpperCase();
+        if (profileByMatricule.has(matUpper)) {
+          return profileByMatricule.get(matUpper);
+        }
+        // Match souple sans zéros initiaux
+        const matNum = matUpper.replace(/^0+/, '');
+        for (const [key, p] of profileByMatricule.entries()) {
+          if (key.replace(/^0+/, '') === matNum) return p;
+        }
       }
       if (name) {
         const norm = normalizePersonName(name);
         if (profileByName.has(norm)) {
           return profileByName.get(norm);
+        }
+        // Match souple par jetons (Nom Prénom ou Prénom Nom dans n'importe quel ordre)
+        const tokens = norm.split('_').filter(t => t.length >= 2);
+        if (tokens.length >= 2) {
+          for (const p of profilesRef) {
+            const pNorm = normalizePersonName(p.displayName || `${p.prenom} ${p.nom}`);
+            const pTokens = pNorm.split('_').filter(t => t.length >= 2);
+            if (tokens.every(t => pTokens.includes(t)) || pTokens.every(t => tokens.includes(t))) {
+              return p;
+            }
+          }
         }
       }
       return undefined;
@@ -949,6 +1138,18 @@ export class CampaignCatchupService {
       if (e.evaluatorIdProfil) participantIdProfils.add(e.evaluatorIdProfil.trim().toUpperCase());
       if (e.evaluatorMatricule) participantIdProfils.add(e.evaluatorMatricule.trim().toUpperCase());
     });
+    deliberations.forEach(d => {
+      if (!d.referentJury) return;
+      const referentName = normalizePersonName(d.referentJury);
+      const matchingProfiles = profilesRef.filter(p =>
+        normalizePersonName(p.prenom) === referentName ||
+        normalizePersonName(p.displayName) === referentName ||
+        normalizePersonName(`${p.prenom} ${p.nom}`) === referentName
+      );
+      if (matchingProfiles.length === 1) {
+        participantIdProfils.add(matchingProfiles[0].idProfil.trim().toUpperCase());
+      }
+    });
 
     const activeParticipantsProfiles = profilesRef.filter(p => {
       const idUpper = p.idProfil.trim().toUpperCase();
@@ -1012,6 +1213,35 @@ export class CampaignCatchupService {
         const idProfilNorm = conflict.idProfil;
         const deliberation = deliberations.find(d => d.resolvedIdProfil && d.resolvedIdProfil.trim().toUpperCase() === idProfilNorm);
         const candidateEvals = evaluations.filter(e => e.resolvedCandidateIdProfil && e.resolvedCandidateIdProfil.trim().toUpperCase() === idProfilNorm);
+
+        const referentSourceName = deliberation?.referentJury?.trim() || '';
+        const normalizedReferentName = normalizePersonName(referentSourceName);
+        const matchingJuryProfiles = normalizedReferentName
+          ? profilesRef.filter(p =>
+              normalizePersonName(p.prenom) === normalizedReferentName ||
+              normalizePersonName(p.displayName) === normalizedReferentName ||
+              normalizePersonName(`${p.prenom} ${p.nom}`) === normalizedReferentName
+            )
+          : [];
+        const juryProfile = matchingJuryProfiles.length === 1 ? matchingJuryProfiles[0] : undefined;
+        const resolvedReferentName = juryProfile?.displayName || referentSourceName;
+        let juryUser = juryProfile
+          ? UserDirectoryService.getUserById(juryProfile.idProfil) || UserDirectoryService.getUserByEmail(juryProfile.email)
+          : undefined;
+        if (juryProfile && !juryUser) {
+          juryUser = UserDirectoryService.addUser({
+            id: juryProfile.idProfil,
+            idProfil: juryProfile.idProfil,
+            matricule: juryProfile.matricule || '',
+            displayName: juryProfile.displayName,
+            email: juryProfile.email || '',
+            roles: ['JURY']
+          });
+        } else if (juryUser && !juryUser.roles.includes('JURY')) {
+          juryUser = UserDirectoryService.updateUser(juryUser.id, {
+            roles: [...juryUser.roles, 'JURY']
+          }) || juryUser;
+        }
 
         const profileItem = profileMap.get(idProfilNorm);
         const existingDossier = allDossiersMap.get(idProfilNorm);
@@ -1089,7 +1319,7 @@ export class CampaignCatchupService {
           ...(deliberation?.maxSalaryIfTjVenduIncreases !== undefined ? { maxSalaryIfTjVenduIncreases: deliberation.maxSalaryIfTjVenduIncreases } : {}),
           ...(deliberation?.whyThisSalary ? { whyThisSalary: deliberation.whyThisSalary } : {}),
           ...(deliberation?.whatToDoMore ? { whatToDoMore: deliberation.whatToDoMore } : {}),
-          ...(deliberation?.referentJury ? { referentJury: deliberation.referentJury } : {}),
+          ...(resolvedReferentName ? { referentJury: resolvedReferentName } : {}),
           ...(deliberation?.consultantFeeling ? { consultantFeeling: deliberation.consultantFeeling } : {}),
           ...(deliberation?.secondTourFeedback ? { secondTourFeedback: deliberation.secondTourFeedback } : {})
         };
@@ -1210,7 +1440,30 @@ export class CampaignCatchupService {
           };
         });
 
-        const finalStatus = existingDossier?.status || (deliberation ? 'VALIDE' : 'OUVERT');
+        // Dans le cadre d'un Rattrapage de campagne passée (2022, 2023, 2024, 2025...),
+        // tous les dossiers de l'exercice sont clôturés et doivent être validés à 100%.
+        const finalStatus: Dossier['status'] = 'VALIDE';
+        const nowIso = new Date().toISOString();
+        const validationDate = existingDossier?.validationDate || nowIso;
+
+        const juryMemberReviews = { ...(existingDossier?.juryMemberReviews || {}) };
+        if (deliberation && (deliberation.whyThisSalary || deliberation.whatToDoMore || resolvedReferentName)) {
+          const juryIdentity = juryUser?.id || juryProfile?.idProfil || `historical_${normalizePersonName(resolvedReferentName || 'jury')}`;
+          juryMemberReviews[juryIdentity] = {
+            ...(juryMemberReviews[juryIdentity] || {}),
+            juryUid: juryUser?.id || juryProfile?.idProfil || juryIdentity,
+            juryName: resolvedReferentName || 'Membre du Jury',
+            juryEmail: juryUser?.email || juryProfile?.email || '',
+            whyThisSalary: deliberation.whyThisSalary || '',
+            whatToDoMore: deliberation.whatToDoMore || '',
+            verdict: updatedDecision.verdict || (updatedDecision.amount ? 'AUGMENTATION_VALIDEE' : 'MAINTIEN_SALAIRE'),
+            proposedSalary: updatedDecision.amount,
+            percentage: updatedDecision.percentage,
+            isFinalized: true,
+            finalizedAt: validationDate,
+            updatedAt: nowIso
+          };
+        }
 
         // Météos associées au candidat pour cette année de campagne (STRICTEMENT Colonne B)
         const targetYearStr = String(preview.year);
@@ -1240,10 +1493,17 @@ export class CampaignCatchupService {
           candidateEmail: candidateUser.email || profileItem?.email || '',
           campaignId: preview.campaignId,
           campaignYear: preview.year,
-          status: finalStatus,
+          status: 'VALIDE',
+          validationDate,
           assignedConsultantIds: Array.from(assignedConsultantIdsSet),
           annualReport: updatedAnnualReport as AnnualReport,
-          juryDecision: updatedDecision,
+          juryDecision: {
+            ...updatedDecision,
+            date: (updatedDecision as any).date || validationDate,
+            decisionDate: (updatedDecision as any).decisionDate || validationDate,
+            verdict: updatedDecision.verdict || (updatedDecision.amount ? 'AUGMENTATION_VALIDEE' : 'MAINTIEN_SALAIRE')
+          },
+          juryMemberReviews,
           consultantFeedbacks: existingFeedbacks,
           meteoLinks: mergedMeteoLinks,
           meteoDetails: mergedMeteoDetails,
@@ -1283,6 +1543,27 @@ export class CampaignCatchupService {
       }
 
       await batch.commit();
+    }
+
+    // Enregistrer ou mettre à jour la campagne avec le statut CLÔTURÉE (campagne passée scellée)
+    try {
+      const campaignId = preview.campaignId;
+      const existingCampaign = LocalDatabaseService.getCampaignById(campaignId);
+      const campaignPayload = {
+        id: campaignId,
+        year: preview.year,
+        title: existingCampaign?.title || `Campagne ${preview.year}`,
+        status: 'CLÔTURÉE' as const,
+        rhDocuments: existingCampaign?.rhDocuments || [],
+        pairsDocuments: existingCampaign?.pairsDocuments || [],
+        otherDocuments: existingCampaign?.otherDocuments || [],
+        createdAt: existingCampaign?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        closedAt: new Date().toISOString()
+      };
+      LocalDatabaseService.saveCampaign(campaignPayload);
+    } catch (campaignErr) {
+      console.warn("Could not register campaign as CLÔTURÉE:", campaignErr);
     }
 
     return {
@@ -1366,9 +1647,17 @@ export class CampaignCatchupService {
   }
 
   /**
-   * Parse une matrice brute pour les Délibérations
+   * Parse une matrice brute pour les Délibérations (Google Sheets ou tableau 2D)
+   * Supporte tous les formats (2022, 2023, 2024, 2025+) avec détection dynamique d'en-têtes.
    */
-  static parseDeliberationFromMatrix(rawMatrix: any[][]): DeliberationParsedRow[] {
+  static parseDeliberationFromMatrix(rawMatrix: any[][], campaignYear?: number): DeliberationParsedRow[] {
+    return this.parseDeliberationMatrixCore(rawMatrix, campaignYear);
+  }
+
+  /**
+   * Parse une matrice brute pour la feuille TJ Cible
+   */
+  static parseEvaluationsFromMatrix(rawMatrix: any[][], campaignYear?: number): EvaluationParsedRow[] {
     if (!rawMatrix || rawMatrix.length === 0) return [];
 
     let headerRowIndex = 0;
@@ -1383,132 +1672,12 @@ export class CampaignCatchupService {
 
     const headerRow = rawMatrix[headerRowIndex] || [];
     const colGHeader = normalizeHeader(String(headerRow[6] || ''));
-    const is2025Format = colGHeader.includes('anciennete') || colGHeader.includes('ll');
-
-    const rows: DeliberationParsedRow[] = [];
-
-    for (let i = headerRowIndex + 1; i < rawMatrix.length; i++) {
-      const rowArr = rawMatrix[i];
-      if (!rowArr || rowArr.length === 0) continue;
-
-      const matricule = cleanString(rowArr[0]);
-      const prenom = cleanString(rowArr[1]);
-      const nom = cleanString(rowArr[2]);
-      const experience = cleanString(rowArr[3]);
-      const entryDate = cleanString(rowArr[4]);
-      const expertGradeDate = cleanString(rowArr[5]);
-
-      const nomPrenom = `${prenom} ${nom}`.trim() || nom || prenom || '';
-      if (!nomPrenom && !matricule) continue;
-
-      let ancienneteLL: string = '';
-      let yearsExpert: string = '';
-      let newGrade: string = '';
-      let tjVendu0107: number | undefined;
-      let tjCible: number | undefined;
-      let salaire3006: number | undefined;
-      let wishedSalary0107: number | undefined;
-      let investPercent: number | undefined;
-      let missionPercent: number | undefined;
-      let proposedSalaryPercent0107: number | undefined;
-      let proposedSalary0107Val: number | undefined;
-      let maxSalaryIfTjVenduIncreases: number | undefined;
-      let whyThisSalary: string = '';
-      let whatToDoMore: string = '';
-      let referentJury: string = '';
-      let consultantFeeling: string = '';
-      let secondTourFeedback: string = '';
-
-      if (is2025Format) {
-        ancienneteLL = cleanString(rowArr[6]);
-        yearsExpert = cleanString(rowArr[7]);
-        newGrade = cleanString(rowArr[8]);
-        tjVendu0107 = parseFrenchNumber(rowArr[9]);
-        tjCible = parseFrenchNumber(rowArr[12]);
-        salaire3006 = parseFrenchNumber(rowArr[15]);
-        wishedSalary0107 = parseFrenchNumber(rowArr[17]);
-        investPercent = parseFrenchNumber(rowArr[20]);
-        missionPercent = parseFrenchNumber(rowArr[21]);
-        proposedSalary0107Val = parseFrenchNumber(rowArr[22]);
-        proposedSalaryPercent0107 = parseFrenchNumber(rowArr[25]);
-        maxSalaryIfTjVenduIncreases = parseFrenchNumber(rowArr[29]);
-        whyThisSalary = cleanString(rowArr[31]);
-        whatToDoMore = cleanString(rowArr[32]);
-        referentJury = cleanString(rowArr[33]);
-        consultantFeeling = cleanString(rowArr[34]);
-      } else {
-        newGrade = cleanString(rowArr[6]);
-        tjVendu0107 = parseFrenchNumber(rowArr[7]);
-        tjCible = parseFrenchNumber(rowArr[10]);
-        salaire3006 = parseFrenchNumber(rowArr[13]);
-        wishedSalary0107 = parseFrenchNumber(rowArr[15]);
-        investPercent = parseFrenchNumber(rowArr[18]);
-        missionPercent = parseFrenchNumber(rowArr[19]);
-        proposedSalary0107Val = parseFrenchNumber(rowArr[20]);
-        proposedSalaryPercent0107 = parseFrenchNumber(rowArr[22]);
-        whyThisSalary = cleanString(rowArr[28]);
-        whatToDoMore = cleanString(rowArr[29]);
-        referentJury = cleanString(rowArr[30]);
-        consultantFeeling = cleanString(rowArr[31]);
-      }
-
-      if (proposedSalary0107Val === undefined || proposedSalary0107Val <= 0) {
-        for (let c = 0; c < rowArr.length; c++) {
-          const h = normalizeHeader(String(rawMatrix[headerRowIndex]?.[c] || ''));
-          if (h.includes('propose') && !h.includes('max') && !h.includes('%') && proposedSalary0107Val === undefined) {
-            const val = parseFrenchNumber(rowArr[c]);
-            if (val && val > 1000) proposedSalary0107Val = val;
-          }
-        }
-      }
-
-      rows.push({
-        rawRowIndex: i + 1,
-        matricule: matricule || undefined,
-        prenom: prenom || undefined,
-        nom: nom || undefined,
-        nomPrenom: nomPrenom || undefined,
-        experience: experience || undefined,
-        entryDate: entryDate || undefined,
-        expertGradeDate: expertGradeDate || undefined,
-        ancienneteLL: ancienneteLL || undefined,
-        yearsExpert: yearsExpert || undefined,
-        newGrade: newGrade || undefined,
-        tjVendu0107: tjVendu0107 || undefined,
-        tjCible: tjCible || undefined,
-        salaire3006: salaire3006 || undefined,
-        wishedSalary0107: wishedSalary0107 || undefined,
-        investPercent: investPercent || undefined,
-        missionPercent: missionPercent || undefined,
-        proposedSalaryPercent0107: proposedSalaryPercent0107 || undefined,
-        proposedSalary0107: proposedSalary0107Val || undefined,
-        maxSalaryIfTjVenduIncreases: maxSalaryIfTjVenduIncreases || undefined,
-        whyThisSalary: whyThisSalary || undefined,
-        whatToDoMore: whatToDoMore || undefined,
-        referentJury: referentJury || undefined,
-        consultantFeeling: consultantFeeling || undefined,
-        secondTourFeedback: secondTourFeedback || undefined
-      });
-    }
-
-    return rows;
-  }
-
-  /**
-   * Parse une matrice brute pour la feuille TJ Cible
-   */
-  static parseEvaluationsFromMatrix(rawMatrix: any[][]): EvaluationParsedRow[] {
-    if (!rawMatrix || rawMatrix.length === 0) return [];
-
-    let headerRowIndex = 0;
-    for (let i = 0; i < Math.min(5, rawMatrix.length); i++) {
-      const row = rawMatrix[i] || [];
-      const normColA = normalizeHeader(String(row[0] || ''));
-      if (normColA.includes('matricule')) {
-        headerRowIndex = i;
-        break;
-      }
-    }
+    const colIHeader = normalizeHeader(String(headerRow[8] || ''));
+    const colKHeader = normalizeHeader(String(headerRow[10] || ''));
+    const is2022_2023Format = (campaignYear !== undefined && campaignYear <= 2023) ||
+      colGHeader === 'cv' || colGHeader.includes('cv') ||
+      colIHeader === 'date_fin' || colIHeader.includes('date') ||
+      colKHeader.includes('evaluat');
 
     const rows: EvaluationParsedRow[] = [];
 
@@ -1525,11 +1694,57 @@ export class CampaignCatchupService {
       if (!candidateName && !matricule) continue;
 
       const grade = cleanString(rowArr[5]);
-      const client = cleanString(rowArr[6]);
-      const project = cleanString(rowArr[7]);
-      const rawEvaluatorColI = cleanString(rowArr[8]);
-      const evaluatorMatricule = rawEvaluatorColI;
-      const evaluatorName = rawEvaluatorColI;
+
+      let client: string = '';
+      let project: string = '';
+      let rawEvaluator: string = '';
+      let relationStartIndex = 9;
+      let tjCibleMin: number | undefined;
+      let tjCibleMax: number | undefined;
+      let justification: string = '';
+      let improvementAxes: string = '';
+      let confidenceIndex: number | undefined;
+
+      if (is2022_2023Format) {
+        // --- FORMAT 2022 & 2023 ---
+        // Col H (7) : Client, Col J (9) : Projet, Col K (10) : Evaluateur
+        client = cleanString(rowArr[7]);
+        project = cleanString(rowArr[9]);
+        rawEvaluator = cleanString(rowArr[10]);
+        relationStartIndex = 11; // Col L (11) à Col R (17)
+
+        // Col U (20) : "TJ Cible Min"
+        tjCibleMin = parseFrenchNumber(rowArr[20]);
+        // Col V (21) : "TJ Cible Max"
+        tjCibleMax = parseFrenchNumber(rowArr[21]);
+        // Col W (22) : "Justification TJ Cible"
+        justification = cleanString(rowArr[22]);
+        // Col X (23) : "Axes pour augmenter le TJ"
+        improvementAxes = cleanString(rowArr[23]);
+        // Col Y (24) : "Indice de confiance"
+        confidenceIndex = parseFrenchNumber(rowArr[24]);
+      } else {
+        // --- FORMAT 2024 & 2025 ---
+        // Col G (6) : Client, Col H (7) : Projet, Col I (8) : Evaluateur
+        client = cleanString(rowArr[6]);
+        project = cleanString(rowArr[7]);
+        rawEvaluator = cleanString(rowArr[8]);
+        relationStartIndex = 9; // Col J (9) à Col P (15)
+
+        // Col S (18) : "TJ Cible Min"
+        tjCibleMin = parseFrenchNumber(rowArr[18]);
+        // Col T (19) : "TJ Cible Max"
+        tjCibleMax = parseFrenchNumber(rowArr[19]);
+        // Col U (20) : "Justification TJ Cible"
+        justification = cleanString(rowArr[20]);
+        // Col V (21) : "Axes pour augmenter le TJ"
+        improvementAxes = cleanString(rowArr[21]);
+        // Col W (22) : "Indice de confiance"
+        confidenceIndex = parseFrenchNumber(rowArr[22]);
+      }
+
+      const evaluatorMatricule = rawEvaluator;
+      const evaluatorName = rawEvaluator;
 
       const isChecked = (colIdx: number) => {
         const val = cleanString(rowArr[colIdx]).toLowerCase();
@@ -1537,21 +1752,16 @@ export class CampaignCatchupService {
       };
 
       let detectedType: EvaluationRelationType = 'Collègue_Mission';
-      if (isChecked(9)) detectedType = 'Auto_Evaluation';
-      else if (isChecked(10)) detectedType = 'Commerciale';
-      else if (isChecked(11)) detectedType = 'Encadrement';
-      else if (isChecked(12)) detectedType = 'Meteo_Client';
-      else if (isChecked(13)) detectedType = 'Coach';
-      else if (isChecked(14)) detectedType = 'Logiclever';
-      else if (isChecked(15)) detectedType = 'Collègue_Mission';
+      if (isChecked(relationStartIndex)) detectedType = 'Auto_Evaluation';
+      else if (isChecked(relationStartIndex + 1)) detectedType = 'Commerciale';
+      else if (isChecked(relationStartIndex + 2)) detectedType = 'Encadrement';
+      else if (isChecked(relationStartIndex + 3)) detectedType = 'Meteo_Client';
+      else if (isChecked(relationStartIndex + 4)) detectedType = 'Coach';
+      else if (isChecked(relationStartIndex + 5)) detectedType = 'Logiclever';
+      else if (isChecked(relationStartIndex + 6)) detectedType = 'Collègue_Mission';
 
-      let tjCibleMin = parseFrenchNumber(rowArr[18]);
-      let tjCibleMax = parseFrenchNumber(rowArr[19]);
-      let justification = cleanString(rowArr[20]);
-      let improvementAxes = cleanString(rowArr[21]);
-      let confidenceIndex = parseFrenchNumber(rowArr[22]);
-
-      for (let c = 16; c < rowArr.length; c++) {
+      const searchStartCol = is2022_2023Format ? 18 : 16;
+      for (let c = searchStartCol; c < rowArr.length; c++) {
         const h = normalizeHeader(String(rawMatrix[headerRowIndex]?.[c] || ''));
         if (h.includes('min') && h.includes('tj') && tjCibleMin === undefined) tjCibleMin = parseFrenchNumber(rowArr[c]);
         else if (h.includes('max') && h.includes('tj') && tjCibleMax === undefined) tjCibleMax = parseFrenchNumber(rowArr[c]);

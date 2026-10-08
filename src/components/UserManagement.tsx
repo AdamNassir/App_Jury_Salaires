@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, doc, updateDoc, getDoc, getDocs, where, setDoc, deleteDoc } from '../lib/localDatabase';
 import { db } from '../lib/localDatabase';
 import { UserProfile, UserRole, Grade } from '../types';
-import { Users, User as UserIcon, ChevronDown, Plus, Trash2, Check, Download } from 'lucide-react';
+import { Users, User as UserIcon, ChevronDown, Plus, Trash2, Check, Download, Gavel } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cleanDatabase } from '../services/dataCleansing';
@@ -17,6 +17,7 @@ import { UserRowDrawer } from './users/UserRowDrawer';
 import { CreateUserModal } from './users/CreateUserModal';
 import { DeleteUserModal } from './users/DeleteUserModal';
 import { MassDeleteUsersModal } from './users/MassDeleteUsersModal';
+import { ConstituerJuryModal } from './users/ConstituerJuryModal';
 
 const sanitizeForStorage = (obj: any): any => {
   if (obj === undefined) return null;
@@ -64,6 +65,9 @@ export function UserManagement({ currentUser }: UserManagementProps) {
   // States for "Mass Delete Non-Admin Users" Confirmation Modal
   const [isMassDeleteModalOpen, setIsMassDeleteModalOpen] = useState(false);
   const [isMassDeleting, setIsMassDeleting] = useState(false);
+
+  // States for "Constituer Jury" Modal
+  const [isConstituerJuryModalOpen, setIsConstituerJuryModalOpen] = useState(false);
 
   useEffect(() => {
     const syncFromDirectory = () => {
@@ -379,6 +383,17 @@ export function UserManagement({ currentUser }: UserManagementProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          {isOperatingAdmin && (
+            <button 
+              onClick={() => setIsConstituerJuryModalOpen(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-primary hover:brightness-110 text-white rounded-base text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-primary/20 cursor-pointer active:scale-95"
+              title="Constituer le jury pour une campagne en sélectionnant les experts éligibles"
+            >
+              <Gavel className="w-4 h-4" />
+              Constituer Jury
+            </button>
+          )}
+
           <button 
             onClick={() => {
               UserDirectoryService.downloadUsersJson();
@@ -547,6 +562,13 @@ export function UserManagement({ currentUser }: UserManagementProps) {
           />
         )}
       </AnimatePresence>
+
+      <ConstituerJuryModal
+        isOpen={isConstituerJuryModalOpen}
+        onClose={() => setIsConstituerJuryModalOpen(false)}
+        onSuccess={(msg) => showNotification('success', msg)}
+        currentUser={currentUser}
+      />
 
       {/* Toast Notification */}
       <AnimatePresence>

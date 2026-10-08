@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Gavel, Clock, CheckCircle2, MessageSquareHeart, Save, Loader2, Sparkles, RotateCcw, Eye, FileText, X } from 'lucide-react';
+import { Gavel, Clock, CheckCircle2, MessageSquareHeart, Save, Loader2, Sparkles, RotateCcw, Eye, FileText, X, TrendingUp } from 'lucide-react';
 import { Dossier, JuryMemberReview, UserProfile } from '../../../types';
 import { cn, formatCurrency } from '../../../lib/utils';
 import { LocalDatabaseService } from '../../../services/localDatabaseService';
@@ -25,6 +25,10 @@ export function JuryFeedbacksTab({ dossier, candidate, onUpdateConsultantFeeling
   );
   const isFinalDecision = dossier?.status === 'VALIDE';
   const juryDecision = dossier?.juryDecision;
+
+  const campaignYear = dossier?.campaignYear || (dossier?.campaignId ? parseInt(dossier.campaignId.replace(/[^0-9]/g, '')) : undefined) || 2026;
+  const campaign = dossier?.campaignId ? LocalDatabaseService.getCampaignById(dossier.campaignId) : undefined;
+  const isPastOrClosedCampaign = (campaign?.status === 'CLÔTURÉE') || (campaignYear < 2026);
 
   const [consultantFeeling, setConsultantFeeling] = useState<string>(
     juryDecision?.consultantFeeling || ''
@@ -120,37 +124,25 @@ export function JuryFeedbacksTab({ dossier, candidate, onUpdateConsultantFeeling
           <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-green-500 via-primary to-green-600" />
           
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-accent/10">
-            <div className="bg-accent/[0.03] px-6 py-3.5 rounded-2xl border border-accent/10">
-              <div className="text-[10px] font-black uppercase text-accent/40 tracking-widest mb-1">
+            <div className="bg-gradient-to-br from-primary/5 via-emerald-50/40 to-primary/10 p-6 sm:p-8 rounded-2xl border-2 border-primary/20 shadow-sm w-full sm:w-auto">
+              <div className="text-xs sm:text-sm font-black uppercase text-primary/80 tracking-wider mb-2">
                 Salaire Proposé
               </div>
-              <div className="text-3xl sm:text-4xl font-black text-primary tracking-tight tabular-nums">
+              <div className="text-4xl sm:text-5xl lg:text-6xl font-black text-secondary tracking-tight tabular-nums">
                 {formatCurrency(juryDecision?.amount || 0)}
               </div>
               {juryDecision?.percentage ? (
-                <div className="text-[11px] font-bold text-accent/50 mt-0.5">
-                  Évolution : +{juryDecision.percentage}%
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 mt-3 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold text-sm sm:text-base shadow-xs">
+                  <TrendingUp className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>Évolution : +{juryDecision.percentage}%</span>
                 </div>
               ) : null}
             </div>
-
-            {/* Bouton pour revoir son dossier complet */}
-            {onReviewDossier && (
-              <button
-                type="button"
-                onClick={onReviewDossier}
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-accent/5 hover:bg-accent/10 border border-accent/15 text-accent font-bold text-xs uppercase tracking-wider transition-all shadow-xs cursor-pointer group active:scale-[0.98]"
-                title="Consulter l'ensemble de vos rubriques et documents"
-              >
-                <Eye className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
-                <span>Revoir mon dossier</span>
-              </button>
-            )}
           </div>
 
-          {/* Espace Ressenti Consultant (déverrouillé explicitement) */}
+          {/* Espace Ressenti Consultant (verrouillé si campagne passée ou clôturée) */}
           <div className="mt-6 pt-2 space-y-3">
-            <CandidateReadOnlyContext.Provider value={false}>
+            <CandidateReadOnlyContext.Provider value={isPastOrClosedCampaign}>
               <FormField
                 label={
                   <span className="flex items-center gap-2">
@@ -159,45 +151,47 @@ export function JuryFeedbacksTab({ dossier, candidate, onUpdateConsultantFeeling
                   </span>
                 }
                 value={consultantFeeling}
-                onChange={val => setConsultantFeeling(val)}
-                placeholder="Partagez vos impressions sur les retours du jury, vos questions ou clarifications..."
+                onChange={val => !isPastOrClosedCampaign && setConsultantFeeling(val)}
+                placeholder={isPastOrClosedCampaign ? "Aucun ressenti saisi pour cette campagne archivée." : "Partagez vos impressions sur les retours du jury, vos questions ou clarifications..."}
               />
             </CandidateReadOnlyContext.Provider>
 
-            <div className="flex items-center justify-between pt-1">
-              <div className="text-xs">
-                {saveSuccess && (
-                  <span className="inline-flex items-center gap-1.5 text-green-600 font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    Ressenti enregistré avec succès !
-                  </span>
-                )}
+            {!isPastOrClosedCampaign && (
+              <div className="flex items-center justify-between pt-1">
+                <div className="text-xs">
+                  {saveSuccess && (
+                    <span className="inline-flex items-center gap-1.5 text-green-600 font-bold">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      Ressenti enregistré avec succès !
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveFeeling}
+                  disabled={isSavingFeeling}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/90 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-secondary/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingFeeling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Enregistrement...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Enregistrer mon ressenti
+                    </>
+                  )}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleSaveFeeling}
-                disabled={isSavingFeeling}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary hover:bg-secondary/90 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-secondary/20 cursor-pointer disabled:opacity-50"
-              >
-                {isSavingFeeling ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Enregistrement...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    Enregistrer mon ressenti
-                  </>
-                )}
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* 2. Section Second Tour (Deuxième Avis) */}
-      {(isFinalDecision || (juryDecision?.amount && juryDecision.amount > 0)) && (
+      {/* 2. Section Second Tour (Deuxième Avis) - uniquement sur campagne en cours ou si déjà demandé */}
+      {(isFinalDecision || (juryDecision?.amount && juryDecision.amount > 0)) && (!isPastOrClosedCampaign || isSecondTourAlreadyRequested) && (
         <div className="bg-white rounded-2xl border border-purple-200/80 shadow-sm p-8 sm:p-10 relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-accent/10 pb-6 mb-6">
             <div className="flex items-center gap-3">
@@ -383,7 +377,7 @@ export function JuryFeedbacksTab({ dossier, candidate, onUpdateConsultantFeeling
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                     <div className="p-5 rounded-xl bg-accent/[0.02] border border-accent/10 space-y-2">
                       <div className="text-[10px] font-black uppercase tracking-widest text-primary">
-                        Justification TJ Cible
+                        Pourquoi ce salaire proposé
                       </div>
                       <div className="text-xs text-accent/80 font-light leading-relaxed whitespace-pre-wrap">
                         {review.whyThisSalary || (
@@ -394,7 +388,7 @@ export function JuryFeedbacksTab({ dossier, candidate, onUpdateConsultantFeeling
 
                     <div className="p-5 rounded-xl bg-accent/[0.02] border border-accent/10 space-y-2">
                       <div className="text-[10px] font-black uppercase tracking-widest text-secondary">
-                        Axes pour augmenter le TJ
+                        Ce qu'il faut faire pour avoir plus
                       </div>
                       <div className="text-xs text-accent/80 font-light leading-relaxed whitespace-pre-wrap">
                         {review.whatToDoMore || (

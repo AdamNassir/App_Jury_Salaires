@@ -349,6 +349,7 @@ export interface JuryDecision {
   advice: string;
   conclusion: string;
   date: any;
+  decisionDate?: string;
   unanimous?: boolean;
   referentJury?: string;
   // Analytical and historical deliberation columns
@@ -399,6 +400,7 @@ export interface Dossier {
   candidateEmail: string;
   campaignYear: number;
   status: DossierStatus;
+  validationDate?: string;
   
   // Data from Candidate
   annualReport?: AnnualReport;

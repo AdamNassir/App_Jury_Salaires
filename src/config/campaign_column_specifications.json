@@ -1,0 +1,222 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Logiclever - Spécifications des colonnes des classeurs de campagne par millésime",
+  "description": "Cartographie exhaustive des colonnes et index pour l'extraction des classeurs Analyse_Jury_Salaire (feuilles Analyse_Jury et TJ_Cible / Evaluations) selon l'année de campagne.",
+  "campaigns": {
+    "2022_and_earlier": {
+      "name": "Campagnes 2022 et antérieures",
+      "status": "CLOTURE",
+      "sheets": {
+        "Analyse_Jury": {
+          "description": "Feuille de délibération officielle de rémunération pour les exercices 2022 et antérieurs",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom", "type": "string" },
+            "D (3)": { "field": "dateEntree", "label": "Date Entrée LL", "type": "date/string" },
+            "E (4)": { "field": "grade", "label": "Grade (Nouveau Grade)", "type": "string" },
+            "F (5)": { "field": "gradeActuel", "label": "Grade Actuel", "type": "string" },
+            "G (6)": { "field": "tjVendu0107", "label": "TJ Vendu", "type": "number", "unit": "€" },
+            "H (7)": { "field": "tjCible", "label": "TJ Cible suggéré", "type": "number", "unit": "€" },
+            "I (8)": { "field": "salaire3006", "label": "Salaire au 30/06", "type": "currency", "unit": "€" },
+            "J (9)": { "field": "salaireSouhaite", "label": "Salaire Souhaité", "type": "currency", "unit": "€" },
+            "Q (16)": { "field": "pourcentInvestissement", "label": "% Investissement", "type": "percentage", "unit": "%" },
+            "R (17)": { "field": "pourcentMission", "label": "% Mission", "type": "percentage", "unit": "%" },
+            "S (18)": { "field": "salairePropose0107", "label": "Salaire Proposé au 01/07", "type": "currency", "unit": "€" },
+            "T (19)": { "field": "pourcentageAugmentation", "label": "% Augmentation", "type": "percentage", "unit": "%" },
+            "V (21)": { "field": "pourquoiCeSalaire", "label": "Pourquoi ce salaire proposé", "type": "text" },
+            "W (22)": { "field": "ceQuIlFautFairePourAvoirPlus", "label": "Ce qu'il faut faire pour avoir plus", "type": "text" },
+            "X (23)": { "field": "referentJury", "label": "Référent Jury", "type": "string" },
+            "Y (24)": { "field": "ressentiConsultant", "label": "Ressenti Consultant", "type": "text" }
+          }
+        },
+        "TJ_Cible": {
+          "description": "Feuille des évaluations et avis des pairs pour 2022 et 2023",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule Candidat", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom Candidat", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom Candidat", "type": "string" },
+            "D (3)": { "field": "dateEntree", "label": "Date Entrée LL", "type": "date/string" },
+            "E (4)": { "field": "anciennete", "label": "Ancienneté LL", "type": "number" },
+            "F (5)": { "field": "grade", "label": "Grade Candidat", "type": "string" },
+            "G (6)": { "field": "lienCV", "label": "CV", "type": "url" },
+            "H (7)": { "field": "client", "label": "Client Mission", "type": "string" },
+            "I (8)": { "field": "dateFinMission", "label": "Date fin mission", "type": "date/string" },
+            "J (9)": { "field": "projet", "label": "Projet / Mission", "type": "string" },
+            "K (10)": { "field": "evaluateur", "label": "Nom Évaluateur", "type": "string" },
+            "L (11) - R (17)": {
+              "field": "typeRelation",
+              "label": "Type relation (Collègue, Ancien Collègue, Coach, Météo, etc.)",
+              "type": "checkbox_vector"
+            },
+            "S (18)": { "field": "tjCibleMin", "label": "TJ Cible Min suggéré", "type": "number", "unit": "€" },
+            "T (19)": { "field": "tjCibleMax", "label": "TJ Cible Max suggéré", "type": "number", "unit": "€" },
+            "U (20)": { "field": "indiceConfiance", "label": "Indice de confiance (sur 5)", "type": "number" },
+            "V (21)": { "field": "justification", "label": "Argumentaire / Justification TJ Cible", "type": "text" },
+            "W (22)": { "field": "axesAmelioration", "label": "Axes d'amélioration", "type": "text" }
+          }
+        }
+      }
+    },
+    "2023": {
+      "name": "Campagne 2023",
+      "status": "CLOTURE",
+      "sheets": {
+        "Analyse_Jury": {
+          "description": "Feuille de délibération officielle de rémunération pour l'exercice 2023",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom", "type": "string" },
+            "D (3)": { "field": "dateEntree", "label": "Date Entrée LL", "type": "date/string" },
+            "E (4)": { "field": "grade", "label": "Grade (Nouveau Grade)", "type": "string" },
+            "F (5)": { "field": "tjVendu0107", "label": "TJ Vendu", "type": "number", "unit": "€" },
+            "I (8)": { "field": "tjCible", "label": "TJ Cible", "type": "number", "unit": "€" },
+            "L (11)": { "field": "salaire3006", "label": "Salaire au 30/06", "type": "currency", "unit": "€" },
+            "N (13)": { "field": "salaireSouhaite", "label": "Salaire Souhaité", "type": "currency", "unit": "€" },
+            "Q (16)": { "field": "pourcentInvestissement", "label": "% Investissement", "type": "percentage", "unit": "%" },
+            "R (17)": { "field": "pourcentMission", "label": "% Mission", "type": "percentage", "unit": "%" },
+            "U (20)": { "field": "salairePropose0107", "label": "Salaire Proposé au 01/07", "type": "currency", "unit": "€" },
+            "V (21)": { "field": "pourcentageAugmentation", "label": "% Augmentation", "type": "percentage", "unit": "%" },
+            "X (23)": { "field": "pourquoiCeSalaire", "label": "Pourquoi ce salaire proposé", "type": "text" },
+            "Y (24)": { "field": "ceQuIlFautFairePourAvoirPlus", "label": "Ce qu'il faut faire pour avoir plus", "type": "text" },
+            "Z (25)": { "field": "referentJury", "label": "Référent Jury", "type": "string" },
+            "AA (26)": { "field": "ressentiConsultant", "label": "Ressenti Consultant", "type": "text" }
+          }
+        },
+        "TJ_Cible": {
+          "description": "Feuille des évaluations et avis des pairs pour 2023 (structure identique à 2022)",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule Candidat", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom Candidat", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom Candidat", "type": "string" },
+            "G (6)": { "field": "lienCV", "label": "CV", "type": "url" },
+            "H (7)": { "field": "client", "label": "Client Mission", "type": "string" },
+            "I (8)": { "field": "dateFinMission", "label": "Date fin mission", "type": "date/string" },
+            "J (9)": { "field": "projet", "label": "Projet / Mission", "type": "string" },
+            "K (10)": { "field": "evaluateur", "label": "Nom Évaluateur", "type": "string" },
+            "L (11) - R (17)": {
+              "field": "typeRelation",
+              "label": "Type relation (Collègue, Ancien Collègue, Coach, Météo, etc.)",
+              "type": "checkbox_vector"
+            },
+            "S (18)": { "field": "tjCibleMin", "label": "TJ Cible Min", "type": "number", "unit": "€" },
+            "T (19)": { "field": "tjCibleMax", "label": "TJ Cible Max", "type": "number", "unit": "€" },
+            "U (20)": { "field": "indiceConfiance", "label": "Indice de confiance (sur 5)", "type": "number" },
+            "V (21)": { "field": "justification", "label": "Argumentaire TJ Cible", "type": "text" },
+            "W (22)": { "field": "axesAmelioration", "label": "Axes d'amélioration", "type": "text" }
+          }
+        }
+      }
+    },
+    "2024": {
+      "name": "Campagne 2024",
+      "status": "CLOTURE",
+      "sheets": {
+        "Analyse_Jury": {
+          "description": "Feuille de délibération officielle de rémunération pour l'exercice 2024",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom", "type": "string" },
+            "D (3)": { "field": "dateEntree", "label": "Date Entrée LL", "type": "date/string" },
+            "E (4)": { "field": "anciennete", "label": "Ancienneté LL", "type": "number" },
+            "F (5)": { "field": "changementGrade", "label": "Changement de Grade (Oui/Non)", "type": "string" },
+            "G (6)": { "field": "grade", "label": "Grade (Nouveau Grade / Titre)", "type": "string" },
+            "H (7)": { "field": "salaire3006", "label": "Salaire au 30/06", "type": "currency", "unit": "€" },
+            "K (10)": { "field": "tjCible", "label": "TJ Cible", "type": "number", "unit": "€" },
+            "M (12)": { "field": "tjVendu0107", "label": "TJ Vendu", "type": "number", "unit": "€" },
+            "O (14)": { "field": "salaireSouhaite", "label": "Salaire Souhaité", "type": "currency", "unit": "€" },
+            "S (18)": { "field": "pourcentInvestissement", "label": "% Investissement", "type": "percentage", "unit": "%" },
+            "T (19)": { "field": "pourcentMission", "label": "% Mission", "type": "percentage", "unit": "%" },
+            "Y (24)": { "field": "salairePropose0107", "label": "Salaire Proposé au 01/07", "type": "currency", "unit": "€" },
+            "Z (25)": { "field": "pourcentageAugmentation", "label": "% Augmentation", "type": "percentage", "unit": "%" },
+            "AC (28)": { "field": "pourquoiCeSalaire", "label": "Pourquoi ce salaire proposé", "type": "text" },
+            "AD (29)": { "field": "ceQuIlFautFairePourAvoirPlus", "label": "Ce qu'il faut faire pour avoir plus", "type": "text" },
+            "AE (30)": { "field": "referentJury", "label": "Référent Jury", "type": "string" },
+            "AF (31)": { "field": "ressentiConsultant", "label": "Ressenti Consultant", "type": "text" }
+          }
+        },
+        "TJ_Cible": {
+          "description": "Feuille des évaluations et avis des pairs pour 2024",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule Candidat", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom Candidat", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom Candidat", "type": "string" },
+            "D (3)": { "field": "dateEntree", "label": "Date Entrée LL", "type": "date/string" },
+            "E (4)": { "field": "anciennete", "label": "Ancienneté LL", "type": "number" },
+            "F (5)": { "field": "grade", "label": "Grade Candidat", "type": "string" },
+            "G (6)": { "field": "client", "label": "Client Mission", "type": "string" },
+            "H (7)": { "field": "projet", "label": "Projet / Mission", "type": "string" },
+            "I (8)": { "field": "evaluateur", "label": "Nom Évaluateur", "type": "string" },
+            "J (9) - P (15)": {
+              "field": "typeRelation",
+              "label": "Type relation (Collègue, Ancien Collègue, Coach, Météo, etc.)",
+              "type": "checkbox_vector"
+            },
+            "Q (16)": { "field": "tjCibleMin", "label": "TJ Cible Min suggéré", "type": "number", "unit": "€" },
+            "R (17)": { "field": "tjCibleMax", "label": "TJ Cible Max suggéré", "type": "number", "unit": "€" },
+            "S (18)": { "field": "indiceConfiance", "label": "Indice de confiance (sur 5)", "type": "number" },
+            "T (19)": { "field": "justification", "label": "Argumentaire / Justification TJ Cible", "type": "text" },
+            "U (20)": { "field": "axesAmelioration", "label": "Axes d'amélioration", "type": "text" }
+          }
+        }
+      }
+    },
+    "2025_and_later": {
+      "name": "Campagne 2025 et ultérieures",
+      "status": "EN_COURS",
+      "sheets": {
+        "Analyse_Jury": {
+          "description": "Feuille de délibération officielle de rémunération pour les exercices 2025 et ultérieurs",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom", "type": "string" },
+            "D (3)": { "field": "dateEntree", "label": "Date Entrée LL", "type": "date/string" },
+            "E (4)": { "field": "changementGrade", "label": "Changement de Grade (Oui/Non)", "type": "string" },
+            "F (5)": { "field": "ancienGrade", "label": "Ancien Grade", "type": "string" },
+            "G (6)": { "field": "anciennete", "label": "Ancienneté LL", "type": "number" },
+            "H (7)": { "field": "salaire3006", "label": "Salaire au 30/06", "type": "currency", "unit": "€" },
+            "I (8)": { "field": "grade", "label": "Grade (Nouveau Grade / Titre)", "type": "string" },
+            "J (9)": { "field": "tjCible", "label": "TJ Cible", "type": "number", "unit": "€" },
+            "K (10)": { "field": "tjVendu0107", "label": "TJ Vendu", "type": "number", "unit": "€" },
+            "M (12)": { "field": "salaireSouhaite", "label": "Salaire Souhaité", "type": "currency", "unit": "€" },
+            "U (20)": { "field": "pourcentInvestissement", "label": "% Investissement", "type": "percentage", "unit": "%" },
+            "V (21)": { "field": "pourcentMission", "label": "% Mission", "type": "percentage", "unit": "%" },
+            "AA (26)": { "field": "salairePropose0107", "label": "Salaire Proposé au 01/07", "type": "currency", "unit": "€" },
+            "AB (27)": { "field": "pourcentageAugmentation", "label": "% Augmentation", "type": "percentage", "unit": "%" },
+            "AF (31)": { "field": "pourquoiCeSalaire", "label": "Pourquoi ce salaire proposé", "type": "text" },
+            "AG (32)": { "field": "ceQuIlFautFairePourAvoirPlus", "label": "Ce qu'il faut faire pour avoir plus", "type": "text" },
+            "AH (33)": { "field": "referentJury", "label": "Référent Jury", "type": "string" },
+            "AI (34)": { "field": "ressentiConsultant", "label": "Ressenti Consultant", "type": "text" }
+          }
+        },
+        "TJ_Cible": {
+          "description": "Feuille des évaluations et avis des pairs pour 2025 et ultérieurs (structure identique à 2024)",
+          "columns": {
+            "A (0)": { "field": "matricule", "label": "Matricule Candidat", "type": "string" },
+            "B (1)": { "field": "prenom", "label": "Prénom Candidat", "type": "string" },
+            "C (2)": { "field": "nom", "label": "Nom Candidat", "type": "string" },
+            "D (3)": { "field": "dateEntree", "label": "Date Entrée LL", "type": "date/string" },
+            "E (4)": { "field": "anciennete", "label": "Ancienneté LL", "type": "number" },
+            "F (5)": { "field": "grade", "label": "Grade Candidat", "type": "string" },
+            "G (6)": { "field": "client", "label": "Client Mission", "type": "string" },
+            "H (7)": { "field": "projet", "label": "Projet / Mission", "type": "string" },
+            "I (8)": { "field": "evaluateur", "label": "Nom Évaluateur", "type": "string" },
+            "J (9) - P (15)": {
+              "field": "typeRelation",
+              "label": "Type relation (Collègue, Ancien Collègue, Coach, Météo, etc.)",
+              "type": "checkbox_vector"
+            },
+            "Q (16)": { "field": "tjCibleMin", "label": "TJ Cible Min suggéré", "type": "number", "unit": "€" },
+            "R (17)": { "field": "tjCibleMax", "label": "TJ Cible Max suggéré", "type": "number", "unit": "€" },
+            "S (18)": { "field": "indiceConfiance", "label": "Indice de confiance (sur 5)", "type": "number" },
+            "T (19)": { "field": "justification", "label": "Argumentaire / Justification TJ Cible", "type": "text" },
+            "U (20)": { "field": "axesAmelioration", "label": "Axes d'amélioration", "type": "text" }
+          }
+        }
+      }
+    }
+  }
+}

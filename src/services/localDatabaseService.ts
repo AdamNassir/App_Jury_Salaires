@@ -21,6 +21,15 @@ class LocalDatabaseServiceImpl {
     }).catch(error => console.warn('Could not sync dossier deletion to server:', error));
   }
 
+  syncAllDossiersClearedToServer() {
+    if (typeof window === 'undefined') return;
+    fetch('/api/sync/dossiers/replace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([]),
+    }).catch(error => console.warn('Could not clear dossiers on server:', error));
+  }
+
   private save(name: CollectionName, id: string, data: object, merge = false) {
     commitMutations([{ collection: name, id, kind: 'set', data: { ...data, updatedAt: new Date().toISOString() }, merge }]);
   }
@@ -144,6 +153,15 @@ class LocalDatabaseServiceImpl {
       this.syncDossierDeletionToServer(toDelete.map(d => d.id), campaignId);
     }
     return toDelete.length;
+  }
+  deleteAllDossiers(): number {
+    const dossiers = this.getDossiers();
+    const count = dossiers.length;
+    if (count > 0) {
+      commitMutations(dossiers.map(d => ({ collection: 'dossiers', id: d.id, kind: 'delete' })));
+    }
+    this.syncAllDossiersClearedToServer();
+    return count;
   }
   syncEvaluatorAssignments(): void {
     const dossiers = this.getDossiers();

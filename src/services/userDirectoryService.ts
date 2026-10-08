@@ -63,6 +63,16 @@ class UserDirectoryServiceImpl {
   }
   getCandidates(): UserProfile[] { return this.getAllUsers().filter(u => u.roles.includes('CANDIDATE')); }
   getJuryMembers(): UserProfile[] { return this.getAllUsers().filter(u => u.roles.includes('JURY')); }
+  getEligibleReferentJuryMembers(): UserProfile[] {
+    return this.getJuryMembers().filter(u => {
+      const isAdmin = u.roles.includes('ADMIN');
+      if (!isAdmin) return true;
+      // Seul Julien Bourlon est éligible en tant que Référent Jury tout en étant Administrateur
+      const name = (u.displayName || '').toLowerCase().trim();
+      const email = (u.email || '').toLowerCase().trim();
+      return name.includes('julien bourlon') || email.includes('julien.bourlon');
+    });
+  }
   getEvaluators(): UserProfile[] { return this.getAllUsers().filter(u => u.roles.includes('EVALUATOR')); }
   prepareUsers(rows: Partial<UserProfile>[]): UserProfile[] {
     const users = this.getAllUsers();

@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spécifications des colonnes des fichiers de données par année de campagne",
+  "description": "Cartographie exhaustive des colonnes des fichiers Excel et Google Sheets pour les campagnes de rémunération (2022 à 2025+)",
+  "version": "1.0.0",
+  "lastUpdated": "2026-10-08",
+  "files": {
+    "Analyse_Jury_Salaires": {
+      "description": "Classeur principal de délibération du jury et des évaluations TJ Cible",
+      "sheets": {
+        "Analyse_Jury": {
+          "description": "Feuille de délibération officielle contenant les salaires, TJM, évaluations d'investissement/mission et décisions du jury",
+          "headerRowDetection": "Recherche de la ligne contenant 'matricule' (généralement ligne 1 ou 2, index 0 ou 1)",
+          "campaignYears": {
+            "2025": {
+              "format": "2025_WITH_SENIORITY",
+              "notes": "Introduit les colonnes Ancienneté chez LL en Col G et Années Exp. si Expert en Col H.",
+              "columns": {
+                "A": { "index": 0, "name": "Matricule", "type": "string", "field": "matricule" },
+                "B": { "index": 1, "name": "Prénom", "type": "string", "field": "prenom" },
+                "C": { "index": 2, "name": "Nom", "type": "string", "field": "nom" },
+                "D": { "index": 3, "name": "Exp.", "type": "string", "field": "experience" },
+                "E": { "index": 4, "name": "Date entrée LL", "type": "date", "field": "entryDate" },
+                "F": { "index": 5, "name": "Date de passage au grade expert", "type": "date", "field": "expertGradeDate" },
+                "G": { "index": 6, "name": "Ancienneté chez LL", "type": "number|string", "field": "ancienneteLL" },
+                "H": { "index": 7, "name": "Années Exp. si Expert", "type": "number|string", "field": "yearsExpert" },
+                "I": { "index": 8, "name": "Nouveau Grade", "type": "string", "field": "newGrade" },
+                "J": { "index": 9, "name": "TJ vendu (01/07)", "type": "number", "field": "tjVendu0107" },
+                "K": { "index": 10, "name": "TJ vendu cible", "type": "number", "field": "tjVenduCible" },
+                "L": { "index": 11, "name": "Ecart TJ vendu / TJ cible", "type": "number", "field": "ecartTj" },
+                "M": { "index": 12, "name": "TJ Cible", "type": "number", "field": "tjCible" },
+                "N": { "index": 13, "name": "TJ Cible formule", "type": "number", "field": "tjCibleFormule" },
+                "O": { "index": 14, "name": "Marge", "type": "number", "field": "marge" },
+                "P": { "index": 15, "name": "Salaire au 30/06", "type": "number", "field": "salaire3006" },
+                "Q": { "index": 16, "name": "TJ salaire", "type": "number", "field": "tjSalaire" },
+                "R": { "index": 17, "name": "Salaire souhaité au 01/07", "type": "number", "field": "wishedSalary0107" },
+                "S": { "index": 18, "name": "TJ souhaité", "type": "number", "field": "tjSouhaite" },
+                "T": { "index": 19, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
+                "U": { "index": 20, "name": "% Investissement", "type": "number", "field": "investPercent" },
+                "V": { "index": 21, "name": "% Mission", "type": "number", "field": "missionPercent" },
+                "W": { "index": 22, "name": "Salaire proposé au 01/07", "type": "number", "field": "proposedSalary0107" },
+                "X": { "index": 23, "name": "TJ proposé formule", "type": "number", "field": "tjProposeFormule" },
+                "Y": { "index": 24, "name": "Marge proposée", "type": "number", "field": "margeProposee" },
+                "Z": { "index": 25, "name": "% Augmentation", "type": "number", "field": "proposedSalaryPercent0107" },
+                "AA": { "index": 26, "name": "Salaire formule", "type": "number", "field": "salaireFormule" },
+                "AB": { "index": 27, "name": "Ecart formule / proposé", "type": "number", "field": "ecartFormulePropose" },
+                "AC": { "index": 28, "name": "Augmentation brute", "type": "number", "field": "augmentationBrute" },
+                "AD": { "index": 29, "name": "Salaire MAX proposé si TJ augmente", "type": "number", "field": "maxSalaryIfTjVenduIncreases" },
+                "AE": { "index": 30, "name": "Observations", "type": "string", "field": "observations" },
+                "AF": { "index": 31, "name": "Pourquoi ce salaire proposé", "type": "string", "field": "whyThisSalary" },
+                "AG": { "index": 32, "name": "Ce qu'il faut faire pour avoir plus", "type": "string", "field": "whatToDoMore" },
+                "AH": { "index": 33, "name": "Référent Jury de salaire", "type": "string", "field": "referentJury" },
+                "AI": { "index": 34, "name": "Ressenti consultant", "type": "string", "field": "consultantFeeling" }
+              }
+            },
+            "2024": {
+              "format": "2024_STANDARD",
+              "notes": "Format sans colonne Ancienneté chez LL en Col G. Le salaire proposé se situe en Col U (index 20).",
+              "columns": {
+                "A": { "index": 0, "name": "Matricule", "type": "string", "field": "matricule" },
+                "B": { "index": 1, "name": "Prénom", "type": "string", "field": "prenom" },
+                "C": { "index": 2, "name": "Nom", "type": "string", "field": "nom" },
+                "D": { "index": 3, "name": "Exp.", "type": "string", "field": "experience" },
+                "E": { "index": 4, "name": "Date entrée LL", "type": "date", "field": "entryDate" },
+                "F": { "index": 5, "name": "Date de passage au grade expert", "type": "date", "field": "expertGradeDate" },
+                "G": { "index": 6, "name": "Nouveau Grade", "type": "string", "field": "newGrade" },
+                "H": { "index": 7, "name": "TJ vendu (01/07)", "type": "number", "field": "tjVendu0107" },
+                "I": { "index": 8, "name": "TJ vendu cible", "type": "number", "field": "tjVenduCible" },
+                "J": { "index": 9, "name": "Ecart TJ vendu / TJ cible", "type": "number", "field": "ecartTj" },
+                "K": { "index": 10, "name": "TJ Cible", "type": "number", "field": "tjCible" },
+                "L": { "index": 11, "name": "TJ Cible formule", "type": "number", "field": "tjCibleFormule" },
+                "M": { "index": 12, "name": "Marge", "type": "number", "field": "marge" },
+                "N": { "index": 13, "name": "Salaire au 30/06", "type": "number", "field": "salaire3006" },
+                "O": { "index": 14, "name": "TJ salaire", "type": "number", "field": "tjSalaire" },
+                "P": { "index": 15, "name": "Salaire souhaité au 01/07", "type": "number", "field": "wishedSalary0107" },
+                "Q": { "index": 16, "name": "TJ souhaité", "type": "number", "field": "tjSouhaite" },
+                "R": { "index": 17, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
+                "S": { "index": 18, "% Investissement": "number", "type": "number", "field": "investPercent" },
+                "T": { "index": 19, "% Mission": "number", "type": "number", "field": "missionPercent" },
+                "U": { "index": 20, "name": "Salaire proposé au 01/07", "type": "number", "field": "proposedSalary0107" },
+                "V": { "index": 21, "name": "TJ proposé formule", "type": "number", "field": "tjProposeFormule" },
+                "W": { "index": 22, "name": "% Augmentation", "type": "number", "field": "proposedSalaryPercent0107" },
+                "X": { "index": 23, "name": "Salaire formule", "type": "number", "field": "salaireFormule" },
+                "Y": { "index": 24, "name": "Ecart formule / proposé", "type": "number", "field": "ecartFormulePropose" },
+                "Z": { "index": 25, "name": "Augmentation brute", "type": "number", "field": "augmentationBrute" },
+                "AA": { "index": 26, "name": "Salaire MAX proposé si TJ augmente", "type": "number", "field": "maxSalaryIfTjVenduIncreases" },
+                "AB": { "index": 27, "name": "Observations", "type": "string", "field": "observations" },
+                "AC": { "index": 28, "name": "Pourquoi ce salaire proposé", "type": "string", "field": "whyThisSalary" },
+                "AD": { "index": 29, "name": "Ce qu'il faut faire pour avoir plus", "type": "string", "field": "whatToDoMore" },
+                "AE": { "index": 30, "name": "Référent Jury de salaire", "type": "string", "field": "referentJury" },
+                "AF": { "index": 31, "name": "Ressenti consultant", "type": "string", "field": "consultantFeeling" }
+              }
+            },
+            "2023": {
+              "format": "2023_WITH_COACH",
+              "notes": "Présence des colonnes Coach. Le salaire proposé se situe en Col V (index 21).",
+              "columns": {
+                "A": { "index": 0, "name": "Matricule", "type": "string", "field": "matricule" },
+                "B": { "index": 1, "name": "Prénom", "type": "string", "field": "prenom" },
+                "C": { "index": 2, "name": "Nom", "type": "string", "field": "nom" },
+                "D": { "index": 3, "name": "Exp.", "type": "string", "field": "experience" },
+                "E": { "index": 4, "name": "Grade", "type": "string", "field": "newGrade" },
+                "F": { "index": 5, "name": "TJ vendu (01/07)", "type": "number", "field": "tjVendu0107" },
+                "G": { "index": 6, "name": "TJ vendu cible", "type": "number", "field": "tjVenduCible" },
+                "H": { "index": 7, "name": "Ecart TJ vendu / TJ cible", "type": "number", "field": "ecartTj" },
+                "I": { "index": 8, "name": "TJ Cible", "type": "number", "field": "tjCible" },
+                "J": { "index": 9, "name": "TJ Cible formule", "type": "number", "field": "tjCibleFormule" },
+                "K": { "index": 10, "name": "Marge", "type": "number", "field": "marge" },
+                "L": { "index": 11, "name": "Salaire au 30/06", "type": "number", "field": "salaire3006" },
+                "M": { "index": 12, "name": "TJ salaire", "type": "number", "field": "tjSalaire" },
+                "N": { "index": 13, "name": "Salaire souhaité au 01/07", "type": "number", "field": "wishedSalary0107" },
+                "O": { "index": 14, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
+                "P": { "index": 15, "name": "TJ souhaité", "type": "number", "field": "tjSouhaite" },
+                "Q": { "index": 16, "name": "% Investissement", "type": "number", "field": "investPercent" },
+                "R": { "index": 17, "name": "% Mission", "type": "number", "field": "missionPercent" },
+                "S": { "index": 18, "name": "Nom du coach", "type": "string", "field": "coachName" },
+                "T": { "index": 19, "name": "Avis coach", "type": "string", "field": "coachAdvice" },
+                "U": { "index": 20, "name": "Calcul intermédiaire", "type": "number", "field": "calculIntermediaire" },
+                "V": { "index": 21, "name": "Salaire proposé au 01/07", "type": "number", "field": "proposedSalary0107" },
+                "W": { "index": 22, "name": "% Augmentation", "type": "number", "field": "proposedSalaryPercent0107" },
+                "X": { "index": 23, "name": "Salaire formule", "type": "number", "field": "salaireFormule" },
+                "Y": { "index": 24, "name": "Ecart formule / proposé", "type": "number", "field": "ecartFormulePropose" },
+                "Z": { "index": 25, "name": "Augmentation brute", "type": "number", "field": "augmentationBrute" },
+                "AA": { "index": 26, "name": "Salaire MAX proposé si TJ augmente", "type": "number", "field": "maxSalaryIfTjVenduIncreases" },
+                "AB": { "index": 27, "name": "Observations", "type": "string", "field": "observations" },
+                "AC": { "index": 28, "name": "Pourquoi ce salaire proposé", "type": "string", "field": "whyThisSalary" },
+                "AD": { "index": 29, "name": "Ce qu'il faut faire pour avoir plus", "type": "string", "field": "whatToDoMore" },
+                "AE": { "index": 30, "name": "Référent Jury de salaire", "type": "string", "field": "referentJury" },
+                "AF": { "index": 31, "name": "Ressenti consultant", "type": "string", "field": "consultantFeeling" }
+              }
+            },
+            "2022_and_earlier": {
+              "format": "2022_LEGACY",
+              "notes": "Format historique sans colonnes Coach. Le salaire proposé se situe en Col S (index 18).",
+              "columns": {
+                "A": { "index": 0, "name": "Matricule", "type": "string", "field": "matricule" },
+                "B": { "index": 1, "name": "Prénom", "type": "string", "field": "prenom" },
+                "C": { "index": 2, "name": "Nom", "type": "string", "field": "nom" },
+                "D": { "index": 3, "name": "Exp.", "type": "string", "field": "experience" },
+                "E": { "index": 4, "name": "Nouveau Titre", "type": "string", "field": "newGrade" },
+                "F": { "index": 5, "name": "TJ vendu (01/07)", "type": "number", "field": "tjVendu0107" },
+                "G": { "index": 6, "name": "TJ vendu cible", "type": "number", "field": "tjVenduCible" },
+                "H": { "index": 7, "name": "Ecart TJ", "type": "number", "field": "ecartTj" },
+                "I": { "index": 8, "name": "TJ Cible", "type": "number", "field": "tjCible" },
+                "J": { "index": 9, "name": "TJ Cible formule", "type": "number", "field": "tjCibleFormule" },
+                "K": { "index": 10, "name": "Marge", "type": "number", "field": "marge" },
+                "L": { "index": 11, "name": "Salaire au 30/06", "type": "number", "field": "salaire3006" },
+                "M": { "index": 12, "name": "TJ salaire", "type": "number", "field": "tjSalaire" },
+                "N": { "index": 13, "name": "Salaire souhaité au 01/07", "type": "number", "field": "wishedSalary0107" },
+                "O": { "index": 14, "name": "Changement de grade", "type": "string", "field": "gradeChange" },
+                "P": { "index": 15, "name": "TJ souhaité", "type": "number", "field": "tjSouhaite" },
+                "Q": { "index": 16, "name": "% Investissement", "type": "number", "field": "investPercent" },
+                "R": { "index": 17, "name": "% Mission", "type": "number", "field": "missionPercent" },
+                "S": { "index": 18, "name": "Salaire proposé au 01/07", "type": "number", "field": "proposedSalary0107" },
+                "T": { "index": 19, "name": "% Augmentation", "type": "number", "field": "proposedSalaryPercent0107" },
+                "U": { "index": 20, "name": "Salaire formule", "type": "number", "field": "salaireFormule" },
+                "V": { "index": 21, "name": "Ecart formule / proposé", "type": "number", "field": "ecartFormulePropose" },
+                "W": { "index": 22, "name": "Augmentation brute", "type": "number", "field": "augmentationBrute" },
+                "X": { "index": 23, "name": "Salaire MAX proposé si TJ augmente", "type": "number", "field": "maxSalaryIfTjVenduIncreases" },
+                "Y": { "index": 24, "name": "Observations", "type": "string", "field": "observations" },
+                "Z": { "index": 25, "name": "Pourquoi ce salaire proposé", "type": "string", "field": "whyThisSalary" },
+                "AA": { "index": 26, "name": "Ce qu'il faut faire pour avoir plus", "type": "string", "field": "whatToDoMore" },
+                "AB": { "index": 27, "name": "Référent Jury de salaire", "type": "string", "field": "referentJury" },
+                "AC": { "index": 28, "name": "Ressenti consultant", "type": "string", "field": "consultantFeeling" }
+              }
+            }
+          }
+        },
+        "TJ_Cible": {
+          "description": "Feuille des évaluations par les pairs et encadrants",
+          "headerRowDetection": "Recherche de la ligne contenant 'matricule' (index 0 ou 1)",
+          "campaignYears": {
+            "2024_and_2025": {
+              "format": "2024_2025_EVALUATION",
+              "notes": "Client en Col G (6), Projet en Col H (7), Évaluateur en Col I (8), Relations en Col J-P (9-15), TJ Min en Col S (18), TJ Max en Col T (19).",
+              "columns": {
+                "A": { "index": 0, "name": "Matricule", "type": "string", "field": "matricule" },
+                "B": { "index": 1, "name": "Exp", "type": "string", "field": "experience" },
+                "C": { "index": 2, "name": "TJ_Vendu", "type": "number", "field": "tjVendu0107" },
+                "D": { "index": 3, "name": "Prénom", "type": "string", "field": "candidatePrenom" },
+                "E": { "index": 4, "name": "Nom", "type": "string", "field": "candidateNom" },
+                "F": { "index": 5, "name": "Grade", "type": "string", "field": "grade" },
+                "G": { "index": 6, "name": "Client", "type": "string", "field": "client" },
+                "H": { "index": 7, "name": "Projet", "type": "string", "field": "project" },
+                "I": { "index": 8, "name": "Evaluateur", "type": "string", "field": "evaluatorName" },
+                "J": { "index": 9, "name": "Commerciale", "type": "string", "field": "relCommerciale" },
+                "K": { "index": 10, "name": "Auto_Evaluation", "type": "string", "field": "relAutoEvaluation" },
+                "L": { "index": 11, "name": "Encadrement", "type": "string", "field": "relEncadrement" },
+                "M": { "index": 12, "name": "Meteo_Client", "type": "string", "field": "relMeteoClient" },
+                "N": { "index": 13, "name": "Coach", "type": "string", "field": "relCoach" },
+                "O": { "index": 14, "name": "Logiclever", "type": "string", "field": "relLogiclever" },
+                "P": { "index": 15, "name": "Collègue_Mission", "type": "string", "field": "relCollegueMission" },
+                "Q": { "index": 16, "name": "Date_Debut", "type": "date", "field": "dateDebut" },
+                "R": { "index": 17, "name": "Date_Fin", "type": "date", "field": "dateFin" },
+                "S": { "index": 18, "name": "TJ Cible Min", "type": "number", "field": "tjCibleMin" },
+                "T": { "index": 19, "name": "TJ Cible Max", "type": "number", "field": "tjCibleMax" },
+                "U": { "index": 20, "name": "Justification TJ Cible", "type": "string", "field": "justification" },
+                "V": { "index": 21, "name": "Axes pour augmenter le TJ", "type": "string", "field": "improvementAxes" },
+                "W": { "index": 22, "name": "Indice de confiance", "type": "number", "field": "confidenceIndex" }
+              }
+            },
+            "2022_and_2023": {
+              "format": "2022_2023_EVALUATION",
+              "notes": "Présence de colonnes CV et Date fin en Col G et I. Client en Col H (7), Projet en Col J (9), Évaluateur en Col K (10), Relations en Col L-R (11-17), TJ Min en Col U (20), TJ Max en Col V (21).",
+              "columns": {
+                "A": { "index": 0, "name": "Matricule", "type": "string", "field": "matricule" },
+                "B": { "index": 1, "name": "Exp", "type": "string", "field": "experience" },
+                "C": { "index": 2, "name": "TJ_Vendu", "type": "number", "field": "tjVendu0107" },
+                "D": { "index": 3, "name": "Prénom", "type": "string", "field": "candidatePrenom" },
+                "E": { "index": 4, "name": "Nom", "type": "string", "field": "candidateNom" },
+                "F": { "index": 5, "name": "Grade", "type": "string", "field": "grade" },
+                "G": { "index": 6, "name": "CV", "type": "string", "field": "cv" },
+                "H": { "index": 7, "name": "Client", "type": "string", "field": "client" },
+                "I": { "index": 8, "name": "Date fin", "type": "date", "field": "dateFin" },
+                "J": { "index": 9, "name": "Projet", "type": "string", "field": "project" },
+                "K": { "index": 10, "name": "Evaluateur", "type": "string", "field": "evaluatorName" },
+                "L": { "index": 11, "name": "Commerciale", "type": "string", "field": "relCommerciale" },
+                "M": { "index": 12, "name": "Auto_Evaluation", "type": "string", "field": "relAutoEvaluation" },
+                "N": { "index": 13, "name": "Encadrement", "type": "string", "field": "relEncadrement" },
+                "O": { "index": 14, "name": "Meteo_Client", "type": "string", "field": "relMeteoClient" },
+                "P": { "index": 15, "name": "Coach", "type": "string", "field": "relCoach" },
+                "Q": { "index": 16, "name": "Logiclever", "type": "string", "field": "relLogiclever" },
+                "R": { "index": 17, "name": "Collègue_Mission", "type": "string", "field": "relCollegueMission" },
+                "S": { "index": 18, "name": "Date_Debut", "type": "date", "field": "dateDebut" },
+                "T": { "index": 19, "name": "Date_Fin", "type": "date", "field": "dateFinMission" },
+                "U": { "index": 20, "name": "TJ Cible Min", "type": "number", "field": "tjCibleMin" },
+                "V": { "index": 21, "name": "TJ Cible Max", "type": "number", "field": "tjCibleMax" },
+                "W": { "index": 22, "name": "Justification TJ Cible", "type": "string", "field": "justification" },
+                "X": { "index": 23, "name": "Axes pour augmenter le TJ", "type": "string", "field": "improvementAxes" },
+                "Y": { "index": 24, "name": "Indice de confiance", "type": "number", "field": "confidenceIndex" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "BDD_LL_New_Drive": {
+      "description": "Référentiel global des collaborateurs et profils",
+      "sheets": {
+        "Profil": {
+          "description": "Feuille maîtresse des identités et identifiants uniques",
+          "columns": {
+            "A": { "index": 0, "name": "Id_Profil", "type": "string", "field": "idProfil" },
+            "B": { "index": 1, "name": "Nom", "type": "string", "field": "nom" },
+            "C": { "index": 2, "name": "Prénom", "type": "string", "field": "prenom" },
+            "D": { "index": 3, "name": "Email", "type": "string", "field": "email" },
+            "E": { "index": 4, "name": "Grade", "type": "string", "field": "grade" },
+            "F": { "index": 5, "name": "Date entrée", "type": "date", "field": "entryDate" },
+            "G": { "index": 6, "name": "Date passage expert", "type": "date", "field": "expertGradeDate" },
+            "H": { "index": 7, "name": "Matricule", "type": "string", "field": "matricule" }
+          }
+        }
+      }
+    },
+    "Vues_LL_NEW_DRIVE": {
+      "description": "Vues de suivi d'activité et météos clients",
+      "sheets": {
+        "Vue_Meteo": {
+          "description": "Retours météo des clients sur les consultants par campagne",
+          "columns": {
+            "B": { "index": 1, "name": "Id_Profil_Evalue", "type": "string", "field": "idProfil" },
+            "E": { "index": 4, "name": "Id_Profil_Evaluateur", "type": "string", "field": "idProfilEvaluateur" },
+            "F": { "index": 5, "name": "Date_Meteo", "type": "date", "field": "date" },
+            "Q": { "index": 16, "name": "Lien_Meteo", "type": "url", "field": "link" },
+            "R": { "index": 17, "name": "Consultant_Evalue", "type": "string", "field": "consultantName" },
+            "S": { "index": 18, "name": "Client", "type": "string", "field": "client" },
+            "Z": { "index": 25, "name": "Annee_Campagne", "type": "number", "field": "year" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -18,7 +18,12 @@ import {
   Loader2,
   RefreshCw,
   UserCheck,
-  MessageSquareQuote
+  MessageSquareQuote,
+  ArrowLeft,
+  BarChart3,
+  Layers,
+  SlidersHorizontal,
+  Check
 } from 'lucide-react';
 import { Dossier, UserProfile, Campaign } from '../../types';
 import { formatCurrency } from '../../lib/utils';
@@ -76,6 +81,66 @@ export function PersonalSpaceView({
   }) || sortedDossiers[0];
 
   const matricule = currentUser.matricule || activeDossier?.candidateId || 'N/A';
+
+  // Mode d'affichage : 'recap' (synthèse & graphique par défaut) ou 'campaign' (dossier d'une année spécifique)
+  const [viewMode, setViewMode] = useState<'recap' | 'campaign'>('recap');
+
+  // Couches superposables du graphique d'évolution
+  const [activeLayers, setActiveLayers] = useState({
+    salairePropose: true,
+    salaireActuel: true,
+    pourcentMission: false,
+    pourcentInvestissement: false
+  });
+
+  // Point sélectionné / survolé sur le graphique
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+
+  // Données historiques triées par ordre chronologique croissant pour le graphique
+  const historicalData = [...sortedDossiers].reverse().map(d => {
+    const yr = d.campaignYear || (d.campaignId ? parseInt(d.campaignId.replace(/[^0-9]/g, '')) : 2025);
+    const dec = d.juryDecision;
+    const curSal = dec?.salaire3006 || d.annualReport?.currentSalary || currentUser.currentSalary || 0;
+    const propSal = dec?.proposedSalary0107 || dec?.amount || (curSal > 0 ? curSal : 0);
+    const evo = dec?.percentage !== undefined 
+      ? dec.percentage 
+      : (curSal > 0 && propSal > curSal ? Math.round(((propSal - curSal) / curSal) * 100) : 0);
+    const tjV = dec?.tjVendu0107 || (d as any).tjVendu || undefined;
+    const tjC = dec?.tjCibleDecision || undefined;
+
+    let pMiss = dec?.missionPercentage !== undefined && dec.missionPercentage !== null ? Number(dec.missionPercentage) : undefined;
+    if (pMiss !== undefined) {
+      if (pMiss <= 1 && pMiss > 0) pMiss = Math.round(pMiss * 1000) / 10;
+      else if (pMiss > 100) pMiss = undefined;
+    }
+
+    let pInv = dec?.investmentPercentage !== undefined && dec.investmentPercentage !== null ? Number(dec.investmentPercentage) : undefined;
+    if (pInv !== undefined) {
+      if (pInv <= 1 && pInv > 0) pInv = Math.round(pInv * 1000) / 10;
+      else if (pInv > 100) pInv = undefined;
+    }
+
+    let rawGrade = dec?.gradeDecision || (d as any).grade || d.annualReport?.currentGrade || currentUser.currentGrade || '—';
+    if (typeof rawGrade === 'string' && (rawGrade.toLowerCase() === 'non' || rawGrade.toLowerCase() === 'oui' || rawGrade.trim() === '0')) {
+      rawGrade = d.annualReport?.currentGrade || currentUser.currentGrade || '—';
+    }
+    const gr = rawGrade;
+
+    return {
+      dossier: d,
+      year: yr,
+      label: `Campagne ${yr}`,
+      grade: gr,
+      currentSalary: curSal,
+      proposedSalary: propSal,
+      evolution: evo,
+      tjVendu: tjV,
+      tjCible: tjC,
+      pourcentMission: pMiss,
+      pourcentInvestissement: pInv,
+      status: d.status
+    };
+  });
 
   const [loadingDriveDoc, setLoadingDriveDoc] = useState(false);
   const [driveDoc, setDriveDoc] = useState<{ id: string; name: string; webViewLink?: string } | null>(null);
@@ -296,6 +361,111 @@ export function PersonalSpaceView({
   const proposedSalary = decision?.proposedSalary0107 || decision?.amount || currentSalary;
   const percentAugmentation = decision?.percentage || (currentSalary > 0 && proposedSalary > currentSalary ? Math.round(((proposedSalary - currentSalary) / currentSalary) * 100) : 0);
 
+  // Statistiques pour la vue récapitulative
+  const latestDossierData = historicalData.length > 0 ? historicalData[historicalData.length - 1] : null;
+  const initialDossierData = historicalData.length > 0 ? historicalData[0] : null;
+
+  const initialSalary = initialDossierData ? (initialDossierData.currentSalary || initialDossierData.proposedSalary) : 0;
+  const latestSalary = latestDossierData ? (latestDossierData.proposedSalary || latestDossierData.currentSalary) : 0;
+  const totalSalaryDiff = latestSalary > 0 && initialSalary > 0 ? latestSalary - initialSalary : 0;
+  const totalSalaryPct = initialSalary > 0 && totalSalaryDiff !== 0 ? Math.round((totalSalaryDiff / initialSalary) * 100) : 0;
+
+  const validTjs = historicalData.map(d => d.tjVendu).filter((t): t is number => !!t && t > 0);
+  const avgTjVendu = validTjs.length > 0 ? Math.round(validTjs.reduce((a, b) => a + b, 0) / validTjs.length) : (latestDossierData?.tjVendu || null);
+
+  // Géométrie SVG du graphique d'évolution
+  const svgWidth = 860;
+  const svgHeight = 360;
+  const paddingLeft = 75;
+  const paddingRight = 75;
+  const paddingTop = 35;
+  const paddingBottom = 50;
+  const plotWidth = svgWidth - paddingLeft - paddingRight;
+  const plotHeight = svgHeight - paddingTop - paddingBottom;
+
+  // Échelle Salaires (€)
+  const allSalaries = historicalData.flatMap(d => [
+    activeLayers.salaireActuel && d.currentSalary > 0 ? d.currentSalary : null,
+    activeLayers.salairePropose && d.proposedSalary > 0 ? d.proposedSalary : null
+  ]).filter((v): v is number => v !== null && v > 0);
+
+  const rawMinSalary = allSalaries.length > 0 ? Math.min(...allSalaries) : 40000;
+  const rawMaxSalary = allSalaries.length > 0 ? Math.max(...allSalaries) : 80000;
+  const salaryMargin = Math.max(4000, Math.round((rawMaxSalary - rawMinSalary) * 0.15));
+  const minSalary = Math.max(0, Math.floor((rawMinSalary - salaryMargin) / 5000) * 5000);
+  const maxSalary = Math.ceil((rawMaxSalary + salaryMargin) / 5000) * 5000;
+  const salaryRange = Math.max(10000, maxSalary - minSalary);
+
+  // Position X par indice chronologique
+  const getX = (index: number) => {
+    if (historicalData.length <= 1) return paddingLeft + plotWidth / 2;
+    return paddingLeft + (index / (historicalData.length - 1)) * plotWidth;
+  };
+
+  // Position Y pour Salaires
+  const getYSalary = (val: number) => {
+    if (val <= 0) return paddingTop + plotHeight;
+    const ratio = (val - minSalary) / salaryRange;
+    return paddingTop + plotHeight - Math.max(0, Math.min(1, ratio)) * plotHeight;
+  };
+
+  // Position Y pour Pourcentages (0 à 100%)
+  const getYPercent = (val: number) => {
+    const ratio = Math.max(0, Math.min(100, val)) / 100;
+    return paddingTop + plotHeight - ratio * plotHeight;
+  };
+
+  const salaryTicks = [
+    minSalary,
+    Math.round(minSalary + salaryRange * 0.33),
+    Math.round(minSalary + salaryRange * 0.66),
+    maxSalary
+  ];
+
+  const hasPercentLayer = activeLayers.pourcentMission || activeLayers.pourcentInvestissement;
+
+  // Fonctions de tracé SVG lissé
+  const createSmoothPath = (points: Array<{ x: number; y: number }>) => {
+    if (points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const cp1x = p0.x + (p1.x - p0.x) / 2;
+      const cp1y = p0.y;
+      const cp2x = p0.x + (p1.x - p0.x) / 2;
+      const cp2y = p1.y;
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
+    }
+    return d;
+  };
+
+  const createAreaPath = (points: Array<{ x: number; y: number }>, baselineY: number) => {
+    if (points.length < 2) return '';
+    const line = createSmoothPath(points);
+    const first = points[0];
+    const last = points[points.length - 1];
+    return `${line} L ${last.x} ${baselineY} L ${first.x} ${baselineY} Z`;
+  };
+
+  // Points des séries
+  const pointsSalairePropose = historicalData
+    .map((d, i) => d.proposedSalary > 0 ? { x: getX(i), y: getYSalary(d.proposedSalary), val: d.proposedSalary, index: i, data: d } : null)
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+
+  const pointsSalaireActuel = historicalData
+    .map((d, i) => d.currentSalary > 0 ? { x: getX(i), y: getYSalary(d.currentSalary), val: d.currentSalary, index: i, data: d } : null)
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+
+  const pointsMission = historicalData
+    .map((d, i) => d.pourcentMission !== undefined ? { x: getX(i), y: getYPercent(d.pourcentMission), val: d.pourcentMission, index: i, data: d } : null)
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+
+  const pointsInvestissement = historicalData
+    .map((d, i) => d.pourcentInvestissement !== undefined ? { x: getX(i), y: getYPercent(d.pourcentInvestissement), val: d.pourcentInvestissement, index: i, data: d } : null)
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+
   return (
     <div className="space-y-8 font-sans pb-16">
       {/* Barre de changement d'utilisateur pour Administrateur (Impersonation) */}
@@ -331,7 +501,7 @@ export function PersonalSpaceView({
         </div>
       )}
 
-      {/* 1. En-tête Profil Utilisateur */}
+      {/* 1. En-tête Profil Utilisateur avec Sélecteur de Campagne en Haut à Droite */}
       <div className="bg-white p-8 lg:p-10 rounded-2xl border border-accent/10 shadow-sm flex flex-wrap items-center justify-between gap-6">
         <div className="flex items-center gap-5">
           <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center text-2xl font-black shadow-inner">
@@ -356,46 +526,711 @@ export function PersonalSpaceView({
             </div>
           </div>
         </div>
+
+        {/* Menu déroulant en haut à droite : Synthèse vs Années de Campagne */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-accent/5 p-2 sm:p-2.5 rounded-xl border border-accent/10 shrink-0">
+          <div className="text-xs font-bold text-secondary flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-primary shrink-0" />
+            <span className="text-[11px] uppercase tracking-wider text-accent/60 font-black">Vue :</span>
+          </div>
+          <select
+            value={viewMode === 'recap' ? 'recap' : String(selectedYear)}
+            onChange={(e) => {
+              if (e.target.value === 'recap') {
+                setViewMode('recap');
+              } else {
+                const yr = Number(e.target.value);
+                setSelectedYear(yr);
+                setViewMode('campaign');
+              }
+            }}
+            className="bg-white border border-accent/20 hover:border-primary focus:border-primary text-secondary text-xs font-bold px-3 py-2 rounded-lg shadow-xs focus:ring-2 focus:ring-primary/20 focus:outline-none cursor-pointer"
+          >
+            <option value="recap">📊 Synthèse & Évolution pluriannuelle</option>
+            {sortedDossiers.length > 0 && (
+              <optgroup label="Campagnes disponibles">
+                {sortedDossiers.map(d => {
+                  const yr = d.campaignYear || (d.campaignId ? parseInt(d.campaignId.replace(/[^0-9]/g, '')) : 2025);
+                  return (
+                    <option key={d.id || yr} value={String(yr)}>
+                      Campagne {yr} {d.status === 'VALIDE' ? '(Clôturée)' : ''}
+                    </option>
+                  );
+                })}
+              </optgroup>
+            )}
+          </select>
+        </div>
       </div>
 
-      {/* 2. Navigation Historique des Dossiers (Onglets par Année) */}
-      <div className="bg-white p-6 rounded-2xl border border-accent/10 shadow-sm space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-accent/10 pb-4">
-          <div>
-            <h3 className="text-lg font-bold text-secondary flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
-              Historique de vos Dossiers de Campagne
-            </h3>
+      {/* 2. CONTENU PRINCIPAL : Soit Synthèse & Graphique d'évolution ('recap'), soit Dossier d'une Campagne spécifique ('campaign') */}
+      {viewMode === 'recap' ? (
+        <div className="space-y-8">
+          {/* A. Bannière Synthèse & Cartes KPI Clés */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-6 rounded-2xl border border-emerald-200/80 shadow-xs relative overflow-hidden">
+              <div className="absolute top-0 inset-x-0 h-1 bg-emerald-500" />
+              <div className="text-[11px] font-black uppercase tracking-wider text-emerald-800 mb-1 flex items-center justify-between">
+                <span>Dernier Salaire Délibéré</span>
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-3xl font-black text-secondary">
+                {latestDossierData ? formatCurrency(latestDossierData.proposedSalary) : '—'}
+              </div>
+              <div className="text-xs text-accent/60 mt-1">
+                {latestDossierData ? `Campagne ${latestDossierData.year} (${latestDossierData.grade})` : 'Aucun dossier'}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-indigo-200/80 shadow-xs relative overflow-hidden">
+              <div className="absolute top-0 inset-x-0 h-1 bg-indigo-500" />
+              <div className="text-[11px] font-black uppercase tracking-wider text-indigo-800 mb-1 flex items-center justify-between">
+                <span>Progression Salariale Totale</span>
+                <Award className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div className="text-3xl font-black text-secondary">
+                {totalSalaryDiff > 0 ? `+${formatCurrency(totalSalaryDiff)}` : '—'}
+              </div>
+              <div className="text-xs font-bold text-indigo-600 mt-1">
+                {totalSalaryPct > 0 ? `+${totalSalaryPct}% sur l'ensemble des campagnes` : 'Évolution stable'}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-purple-200/80 shadow-xs relative overflow-hidden">
+              <div className="absolute top-0 inset-x-0 h-1 bg-purple-500" />
+              <div className="text-[11px] font-black uppercase tracking-wider text-purple-800 mb-1 flex items-center justify-between">
+                <span>TJM Moyen / Récent</span>
+                <Briefcase className="w-4 h-4 text-purple-600" />
+              </div>
+              <div className="text-3xl font-black text-secondary">
+                {avgTjVendu ? `${avgTjVendu} €` : '—'}
+              </div>
+              <div className="text-xs text-accent/60 mt-1">
+                {latestDossierData?.tjVendu ? `Dernier TJ Vendu : ${latestDossierData.tjVendu} €` : 'Taux journalier moyen'}
+              </div>
+            </div>
           </div>
 
-          {/* Sélecteur des années */}
-          <div className="flex items-center gap-2 bg-accent/5 p-1.5 rounded-xl border border-accent/10">
-            {sortedDossiers.length === 0 ? (
-              <span className="text-xs text-accent/50 italic px-3 py-1">Aucun dossier historisé</span>
+          {/* B. Carte Principale : Graphique d'évolution pluriannuelle & Contrôle des Couches */}
+          <div className="bg-white p-6 sm:p-8 rounded-2xl border border-accent/10 shadow-sm space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-accent/10">
+              <div>
+                <h3 className="text-xl font-bold text-secondary flex items-center gap-2">
+                  <BarChart3 className="w-6 h-6 text-primary" />
+                  Évolution Pluriannuelle des Rémunérations & Indicateurs
+                </h3>
+                <p className="text-xs text-accent/60 mt-0.5">
+                  Visualisez l'historique de vos délibérations et superposez les métriques de performance.
+                </p>
+              </div>
+
+              {/* Raccourcis de Préréglages */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold text-accent/60 uppercase tracking-wider">Vues rapides :</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayers({
+                    salairePropose: true,
+                    salaireActuel: true,
+                    pourcentMission: false,
+                    pourcentInvestissement: false
+                  })}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-accent/5 hover:bg-accent/10 text-accent transition-all cursor-pointer"
+                >
+                  Salaires
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayers({
+                    salairePropose: true,
+                    salaireActuel: false,
+                    pourcentMission: true,
+                    pourcentInvestissement: true
+                  })}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-accent/5 hover:bg-accent/10 text-accent transition-all cursor-pointer"
+                >
+                  Implication (% Mission / Invest)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayers({
+                    salairePropose: true,
+                    salaireActuel: true,
+                    pourcentMission: true,
+                    pourcentInvestissement: true
+                  })}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer"
+                >
+                  ✨ Tout afficher
+                </button>
+              </div>
+            </div>
+
+            {/* Barre de contrôle des calques (Superposition des couches) */}
+            <div className="bg-accent/5 p-4 rounded-xl border border-accent/10 space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-secondary">
+                <Layers className="w-4 h-4 text-primary" />
+                <span>Couches superposables (Cliquez pour activer/désactiver) :</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Couche Salaire Proposé */}
+                <button
+                  type="button"
+                  onClick={() => setActiveLayers(prev => ({ ...prev, salairePropose: !prev.salairePropose }))}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    activeLayers.salairePropose
+                      ? "bg-emerald-500 text-white border-emerald-600 shadow-xs"
+                      : "bg-white text-accent/60 border-accent/20 hover:border-emerald-500"
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.salairePropose ? 'bg-white' : 'bg-emerald-500'}`} />
+                  <span>Salaire Proposé (01/07)</span>
+                  {activeLayers.salairePropose && <Check className="w-3.5 h-3.5" />}
+                </button>
+
+                {/* Couche Salaire Actuel */}
+                <button
+                  type="button"
+                  onClick={() => setActiveLayers(prev => ({ ...prev, salaireActuel: !prev.salaireActuel }))}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    activeLayers.salaireActuel
+                      ? "bg-indigo-500 text-white border-indigo-600 shadow-xs"
+                      : "bg-white text-accent/60 border-accent/20 hover:border-indigo-500"
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.salaireActuel ? 'bg-white' : 'bg-indigo-500'}`} />
+                  <span>Salaire Actuel (30/06)</span>
+                  {activeLayers.salaireActuel && <Check className="w-3.5 h-3.5" />}
+                </button>
+
+                {/* Couche % Mission */}
+                <button
+                  type="button"
+                  onClick={() => setActiveLayers(prev => ({ ...prev, pourcentMission: !prev.pourcentMission }))}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    activeLayers.pourcentMission
+                      ? "bg-cyan-600 text-white border-cyan-700 shadow-xs"
+                      : "bg-white text-accent/60 border-accent/20 hover:border-cyan-600"
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.pourcentMission ? 'bg-white' : 'bg-cyan-600'}`} />
+                  <span>% Mission</span>
+                  {activeLayers.pourcentMission && <Check className="w-3.5 h-3.5" />}
+                </button>
+
+                {/* Couche % Investissement */}
+                <button
+                  type="button"
+                  onClick={() => setActiveLayers(prev => ({ ...prev, pourcentInvestissement: !prev.pourcentInvestissement }))}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    activeLayers.pourcentInvestissement
+                      ? "bg-pink-500 text-white border-pink-600 shadow-xs"
+                      : "bg-white text-accent/60 border-accent/20 hover:border-pink-500"
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${activeLayers.pourcentInvestissement ? 'bg-white' : 'bg-pink-500'}`} />
+                  <span>% Investissement</span>
+                  {activeLayers.pourcentInvestissement && <Check className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Zone du Graphique */}
+            {historicalData.length === 0 ? (
+              <div className="p-16 text-center text-accent/40 bg-accent/5 rounded-2xl border border-dashed border-accent/20">
+                <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-30 text-primary" />
+                <p className="text-sm font-bold text-secondary">Aucune campagne enregistrée pour le moment.</p>
+                <p className="text-xs text-accent/60 mt-1 max-w-md mx-auto">
+                  Les dossiers de campagnes s'afficheront dès qu'ils seront initialisés ou synchronisés via le Rattrapage des Campagnes.
+                </p>
+              </div>
             ) : (
-              sortedDossiers.map(d => {
-                const yr = d.campaignYear || (d.campaignId ? parseInt(d.campaignId.replace(/[^0-9]/g, '')) : 2025);
-                const isSelected = yr === selectedYear;
-                return (
-                  <button
-                    key={d.id || yr}
-                    onClick={() => setSelectedYear(yr)}
-                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                      isSelected
-                        ? "bg-primary text-white shadow-sm"
-                        : "text-accent/60 hover:text-accent hover:bg-white"
-                    }`}
+              <div className="relative">
+                {/* SVG Graphique */}
+                <div className="w-full overflow-x-auto">
+                  <svg
+                    viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                    className="w-full h-auto min-w-[650px] select-none"
                   >
-                    <span>Campagne {yr}</span>
-                    {d.status === 'VALIDE' && (
-                      <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`} />
+                    <defs>
+                      <linearGradient id="gradSalairePropose" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                      </linearGradient>
+                      <linearGradient id="gradSalaireActuel" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Grille horizontale de fond */}
+                    {salaryTicks.map((tickVal, idx) => {
+                      const yPos = getYSalary(tickVal);
+                      return (
+                        <g key={`grid_${idx}`}>
+                          <line
+                            x1={paddingLeft}
+                            y1={yPos}
+                            x2={svgWidth - paddingRight}
+                            y2={yPos}
+                            stroke="#e2e8f0"
+                            strokeWidth="1"
+                            strokeDasharray={idx === 0 ? "0" : "4 4"}
+                          />
+                          <text
+                            x={paddingLeft - 10}
+                            y={yPos + 4}
+                            textAnchor="end"
+                            fontSize="11"
+                            fontWeight="600"
+                            fill="#94a3b8"
+                          >
+                            {(tickVal / 1000).toFixed(0)}k €
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Axe droit : Pourcentages (%) si calque actif */}
+                    {hasPercentLayer && [0, 25, 50, 75, 100].map((pct, idx) => {
+                      const yPos = getYPercent(pct);
+                      return (
+                        <text
+                          key={`pct_axis_${idx}`}
+                          x={svgWidth - paddingRight + 12}
+                          y={yPos + 4}
+                          textAnchor="start"
+                          fontSize="11"
+                          fontWeight="600"
+                          fill="#06b6d4"
+                        >
+                          {pct}%
+                        </text>
+                      );
+                    })}
+
+                    {/* Axe X : Lignes verticales de repère et labels des campagnes */}
+                    {historicalData.map((d, i) => {
+                      const xPos = getX(i);
+                      const isHovered = hoveredPointIndex === i;
+                      return (
+                        <g key={`x_axis_${d.year}`}>
+                          {/* Ligne de repère vertical */}
+                          <line
+                            x1={xPos}
+                            y1={paddingTop}
+                            x2={xPos}
+                            y2={paddingTop + plotHeight}
+                            stroke={isHovered ? "#3b82f6" : "#f1f5f9"}
+                            strokeWidth={isHovered ? "2" : "1"}
+                            strokeDasharray={isHovered ? "0" : "3 3"}
+                          />
+                          {/* Label année */}
+                          <text
+                            x={xPos}
+                            y={paddingTop + plotHeight + 25}
+                            textAnchor="middle"
+                            fontSize="13"
+                            fontWeight={isHovered ? "800" : "700"}
+                            fill={isHovered ? "#1e293b" : "#64748b"}
+                          >
+                            {d.year}
+                          </text>
+                          <text
+                            x={xPos}
+                            y={paddingTop + plotHeight + 40}
+                            textAnchor="middle"
+                            fontSize="10"
+                            fontWeight="500"
+                            fill="#94a3b8"
+                          >
+                            {d.grade}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Aires ombrées sous les courbes */}
+                    {activeLayers.salairePropose && pointsSalairePropose.length >= 2 && (
+                      <path
+                        d={createAreaPath(pointsSalairePropose, paddingTop + plotHeight)}
+                        fill="url(#gradSalairePropose)"
+                      />
                     )}
-                  </button>
-                );
-              })
+                    {activeLayers.salaireActuel && pointsSalaireActuel.length >= 2 && (
+                      <path
+                        d={createAreaPath(pointsSalaireActuel, paddingTop + plotHeight)}
+                        fill="url(#gradSalaireActuel)"
+                      />
+                    )}
+
+                    {/* Courbes des différentes séries */}
+                    {/* 1. Salaire Actuel (Ligne pointillée Indigo) */}
+                    {activeLayers.salaireActuel && pointsSalaireActuel.length >= 2 && (
+                      <path
+                        d={createSmoothPath(pointsSalaireActuel)}
+                        fill="none"
+                        stroke="#6366f1"
+                        strokeWidth="2.5"
+                        strokeDasharray="4 4"
+                      />
+                    )}
+
+                    {/* 2. Salaire Proposé (Ligne continue Émeraude) */}
+                    {activeLayers.salairePropose && pointsSalairePropose.length >= 2 && (
+                      <path
+                        d={createSmoothPath(pointsSalairePropose)}
+                        fill="none"
+                        stroke="#10b981"
+                        strokeWidth="3.5"
+                      />
+                    )}
+
+                    {/* 3. % Mission (Ligne Cyan) */}
+                    {activeLayers.pourcentMission && pointsMission.length >= 2 && (
+                      <path
+                        d={createSmoothPath(pointsMission)}
+                        fill="none"
+                        stroke="#06b6d4"
+                        strokeWidth="2.5"
+                      />
+                    )}
+
+                    {/* 4. % Investissement (Ligne Rose) */}
+                    {activeLayers.pourcentInvestissement && pointsInvestissement.length >= 2 && (
+                      <path
+                        d={createSmoothPath(pointsInvestissement)}
+                        fill="none"
+                        stroke="#ec4899"
+                        strokeWidth="2.5"
+                      />
+                    )}
+
+                    {/* Points Salaire Actuel */}
+                    {activeLayers.salaireActuel && pointsSalaireActuel.map(p => (
+                      <g key={`pt_sal_act_${p.index}`}>
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={hoveredPointIndex === p.index ? 7 : 5}
+                          fill="#ffffff"
+                          stroke="#6366f1"
+                          strokeWidth="2.5"
+                        />
+                      </g>
+                    ))}
+
+                    {/* Points Salaire Proposé */}
+                    {activeLayers.salairePropose && pointsSalairePropose.map(p => (
+                      <g key={`pt_sal_prop_${p.index}`}>
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={hoveredPointIndex === p.index ? 8 : 6}
+                          fill="#ffffff"
+                          stroke="#10b981"
+                          strokeWidth="3"
+                          className="transition-all duration-150"
+                        />
+                        {/* Valeur affichée au-dessus du point */}
+                        <text
+                          x={p.x}
+                          y={p.y - 12}
+                          textAnchor="middle"
+                          fontSize="11"
+                          fontWeight="800"
+                          fill="#047857"
+                        >
+                          {formatCurrency(p.val)}
+                        </text>
+                      </g>
+                    ))}
+
+                    {/* Points % Mission */}
+                    {activeLayers.pourcentMission && pointsMission.map(p => (
+                      <g key={`pt_pmiss_${p.index}`}>
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={hoveredPointIndex === p.index ? 7 : 5}
+                          fill="#06b6d4"
+                          stroke="#ffffff"
+                          strokeWidth="2"
+                        />
+                      </g>
+                    ))}
+
+                    {/* Points % Investissement */}
+                    {activeLayers.pourcentInvestissement && pointsInvestissement.map(p => (
+                      <g key={`pt_pinv_${p.index}`}>
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={hoveredPointIndex === p.index ? 7 : 5}
+                          fill="#ec4899"
+                          stroke="#ffffff"
+                          strokeWidth="2"
+                        />
+                      </g>
+                    ))}
+
+                    {/* Zones de survol transparentes pour chaque colonne de campagne */}
+                    {historicalData.map((d, i) => {
+                      const xPos = getX(i);
+                      const width = plotWidth / Math.max(1, historicalData.length);
+                      return (
+                        <rect
+                          key={`hover_zone_${d.year}`}
+                          x={xPos - width / 2}
+                          y={paddingTop}
+                          width={width}
+                          height={plotHeight + 40}
+                          fill="transparent"
+                          className="cursor-pointer"
+                          onMouseEnter={() => setHoveredPointIndex(i)}
+                          onClick={() => {
+                            setSelectedYear(d.year);
+                            setViewMode('campaign');
+                          }}
+                        />
+                      );
+                    })}
+                  </svg>
+                </div>
+
+                {/* Info-Bulle dynamique (Tooltip détaillée au survol) */}
+                {hoveredPointIndex !== null && historicalData[hoveredPointIndex] && (() => {
+                  const item = historicalData[hoveredPointIndex];
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-4 p-4 bg-slate-900 text-white rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-4 border border-slate-800"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-black text-sm">
+                          {item.year}
+                        </div>
+                        <div>
+                          <div className="text-sm font-black text-white flex items-center gap-2">
+                            <span>Campagne {item.year}</span>
+                            <span className="text-[11px] font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                              Grade : {item.grade}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            Statut : {item.status === 'VALIDE' ? 'Dossier Clôturé' : 'En cours'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Métriques actives */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+                        {activeLayers.salairePropose && (
+                          <div className="flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-xl">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                            <span className="text-slate-300">Proposé :</span>
+                            <span className="text-emerald-400 font-extrabold">{formatCurrency(item.proposedSalary)}</span>
+                            {item.evolution ? (
+                              <span className="text-[10px] text-emerald-300 font-black">+{item.evolution}%</span>
+                            ) : null}
+                          </div>
+                        )}
+
+                        {activeLayers.salaireActuel && (
+                          <div className="flex items-center gap-1.5 bg-indigo-950/60 border border-indigo-800/60 px-3 py-1.5 rounded-xl">
+                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                            <span className="text-slate-300">Actuel :</span>
+                            <span className="text-indigo-400 font-bold">{formatCurrency(item.currentSalary)}</span>
+                          </div>
+                        )}
+
+                        {item.tjVendu ? (
+                          <div className="flex items-center gap-1.5 bg-purple-950/60 border border-purple-800/60 px-3 py-1.5 rounded-xl">
+                            <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                            <span className="text-slate-300">TJ Vendu :</span>
+                            <span className="text-purple-400 font-bold">{item.tjVendu} €</span>
+                          </div>
+                        ) : null}
+
+                        {item.tjCible ? (
+                          <div className="flex items-center gap-1.5 bg-amber-950/60 border border-amber-800/60 px-3 py-1.5 rounded-xl">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                            <span className="text-slate-300">TJ Cible :</span>
+                            <span className="text-amber-400 font-bold">{item.tjCible} €</span>
+                          </div>
+                        ) : null}
+
+                        {activeLayers.pourcentMission && (
+                          <div className="flex items-center gap-1.5 bg-cyan-950/60 border border-cyan-800/60 px-3 py-1.5 rounded-xl">
+                            <span className="w-2.5 h-2.5 rounded-full bg-cyan-500" />
+                            <span className="text-slate-300">% Mission :</span>
+                            <span className="text-cyan-400 font-bold">{item.pourcentMission !== undefined ? `${item.pourcentMission}%` : '—'}</span>
+                          </div>
+                        )}
+
+                        {activeLayers.pourcentInvestissement && (
+                          <div className="flex items-center gap-1.5 bg-pink-950/60 border border-pink-800/60 px-3 py-1.5 rounded-xl">
+                            <span className="w-2.5 h-2.5 rounded-full bg-pink-500" />
+                            <span className="text-slate-300">% Invest :</span>
+                            <span className="text-pink-400 font-bold">{item.pourcentInvestissement !== undefined ? `${item.pourcentInvestissement}%` : '—'}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedYear(item.year);
+                          setViewMode('campaign');
+                        }}
+                        className="px-3.5 py-1.5 bg-primary text-white text-xs font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <span>Ouvrir la délibération</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  );
+                })()}
+              </div>
             )}
           </div>
+
+          {/* C. Tableau Comparatif Synthétique Pluriannuel */}
+          <div className="bg-white p-6 rounded-2xl border border-accent/10 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-accent/10 pb-3">
+              <div>
+                <h4 className="text-base font-bold text-secondary flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  Tableau Récapitulatif des Campagnes
+                </h4>
+              </div>
+              <span className="text-xs text-accent/60 font-medium">
+                {historicalData.length} campagne(s) archivée(s)
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-accent/5 border-b border-accent/10 text-accent/70 font-black uppercase tracking-wider text-[10px]">
+                    <th className="py-3 px-4">Campagne</th>
+                    <th className="py-3 px-4">Grade</th>
+                    <th className="py-3 px-4">Salaire Actuel (30/06)</th>
+                    <th className="py-3 px-4">Salaire Proposé (01/07)</th>
+                    <th className="py-3 px-4">Évolution</th>
+                    <th className="py-3 px-4">TJ Vendu</th>
+                    <th className="py-3 px-4">TJ Cible</th>
+                    <th className="py-3 px-4">% Mission</th>
+                    <th className="py-3 px-4">% Investissement</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-accent/10">
+                  {historicalData.map(d => (
+                    <tr
+                      key={d.year}
+                      className="hover:bg-accent/5 transition-colors cursor-pointer group"
+                      onClick={() => {
+                        setSelectedYear(d.year);
+                        setViewMode('campaign');
+                      }}
+                    >
+                      <td className="py-3.5 px-4 font-extrabold text-secondary flex items-center gap-2">
+                        <span>Campagne {d.year}</span>
+                        {d.status === 'VALIDE' && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" title="Clôturé" />
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-accent/70">{d.grade}</td>
+                      <td className="py-3.5 px-4 font-bold text-secondary">
+                        {d.currentSalary > 0 ? formatCurrency(d.currentSalary) : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 font-black text-emerald-600">
+                        {d.proposedSalary > 0 ? formatCurrency(d.proposedSalary) : '—'}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {d.evolution ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[11px]">
+                            +{d.evolution}%
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-purple-700">
+                        {d.tjVendu ? `${d.tjVendu} €` : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-amber-700">
+                        {d.tjCible ? `${d.tjCible} €` : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-cyan-700">
+                        {d.pourcentMission !== undefined && d.pourcentMission > 0 ? `${d.pourcentMission}%` : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-pink-700">
+                        {d.pourcentInvestissement !== undefined && d.pourcentInvestissement > 0 ? `${d.pourcentInvestissement}%` : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedYear(d.year);
+                            setViewMode('campaign');
+                          }}
+                          className="px-3 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg font-bold text-xs transition-all shadow-xs inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Voir le dossier</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
+      ) : (
+        /* D. Vue Détail d'une Campagne Spécifique (Mode 'campaign') */
+        <div className="bg-white p-6 rounded-2xl border border-accent/10 shadow-sm space-y-6">
+          {/* Barre de retour et sélecteur rapide */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-accent/10">
+            <button
+              type="button"
+              onClick={() => setViewMode('recap')}
+              className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/15 px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>← Retour à la Synthèse & Évolution pluriannuelle</span>
+            </button>
+
+            {/* Sélecteur des années */}
+            <div className="flex items-center gap-2 bg-accent/5 p-1.5 rounded-xl border border-accent/10">
+              {sortedDossiers.length === 0 ? (
+                <span className="text-xs text-accent/50 italic px-3 py-1">Aucun dossier historisé</span>
+              ) : (
+                sortedDossiers.map(d => {
+                  const yr = d.campaignYear || (d.campaignId ? parseInt(d.campaignId.replace(/[^0-9]/g, '')) : 2025);
+                  const isSelected = yr === selectedYear;
+                  return (
+                    <button
+                      key={d.id || yr}
+                      onClick={() => setSelectedYear(yr)}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                        isSelected
+                          ? "bg-primary text-white shadow-sm"
+                          : "text-accent/60 hover:text-accent hover:bg-white"
+                      }`}
+                    >
+                      <span>Campagne {yr}</span>
+                      {d.status === 'VALIDE' && (
+                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`} />
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
 
         {/* Détails du Dossier sélectionné */}
         {!activeDossier ? (
@@ -758,6 +1593,7 @@ export function PersonalSpaceView({
           </div>
         )}
       </div>
+    )}
     </div>
   );
 }

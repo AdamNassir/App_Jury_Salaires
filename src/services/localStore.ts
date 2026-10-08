@@ -34,6 +34,19 @@ function readDatabase(): Database {
       throw new Error('La base locale est invalide. Restaurez une sauvegarde avant de continuer.');
     }
 
+    // Purger les campagnes de démonstration par défaut si présentes
+    if (parsed.campaigns && Array.isArray(parsed.campaigns)) {
+      const filteredCampaigns = parsed.campaigns.filter((c: any) => {
+        const isDefault2025 = c.id === 'campaign_2025' && c.label === "Campagne d'évaluation 2025" && (!c.files || c.files.length === 0);
+        const isDefault2026 = c.id === 'campaign_2026' && c.title === "Campagne Annuelle 2026" && c.description?.includes("Campagne de jury des salaires pour l'année 2026.");
+        return !isDefault2025 && !isDefault2026;
+      });
+      if (filteredCampaigns.length !== parsed.campaigns.length) {
+        parsed.campaigns = filteredCampaigns;
+        localStorage.setItem(DATABASE_KEY, JSON.stringify(parsed));
+      }
+    }
+
     if (localStorage.getItem(BUILTIN_USERS_VERSION_KEY) !== BUILTIN_USERS_VERSION) {
       (users as RecordData[]).forEach(builtinUser => {
         const existingIndex = parsed.users.findIndex((user: RecordData) =>

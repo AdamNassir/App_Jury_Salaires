@@ -38,7 +38,7 @@ export function JuryCandidateHeader({
     : candidate?.entryDate
       ? calculateYears(candidate.entryDate, referenceDate)
       : null;
-  const juryMembers = useMemo(() => UserDirectoryService.getJuryMembers(), []);
+  const juryMembers = useMemo(() => UserDirectoryService.getEligibleReferentJuryMembers(), []);
 
   const handleAssignReferent = async (referentName: string) => {
     try {

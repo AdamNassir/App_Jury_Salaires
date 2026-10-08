@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogOut, User as UserIcon, Building2, ArrowLeft } from 'lucide-react';
+import { LogOut, User as UserIcon, Building2, ArrowLeft, MessageSquarePlus } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface NavbarProps {
@@ -7,11 +7,12 @@ interface NavbarProps {
   onLogout: () => void;
   onHome: () => void;
   onOpenPersonalSpace?: () => void;
+  onOpenTicketModal?: () => void;
   onBack?: () => void;
   canGoBack?: boolean;
 }
 
-export function Navbar({ profile, onLogout, onHome, onOpenPersonalSpace, onBack, canGoBack }: NavbarProps) {
+export function Navbar({ profile, onLogout, onHome, onOpenPersonalSpace, onOpenTicketModal, onBack, canGoBack }: NavbarProps) {
   return (
     <nav className="bg-white border-b border-accent/10 py-6 px-4 fixed top-0 w-full z-50 shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -59,6 +60,17 @@ export function Navbar({ profile, onLogout, onHome, onOpenPersonalSpace, onBack,
             >
               <UserIcon className="w-4 h-4" />
               Espace Personnel
+            </button>
+          )}
+
+          {onOpenTicketModal && (
+            <button
+              onClick={onOpenTicketModal}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-accent/5 hover:bg-accent/10 text-secondary border border-accent/20 hover:border-emerald-500 rounded-base text-sm font-bold transition-all shadow-xs cursor-pointer group"
+              title="Envoyer un ticket ou une demande d'évolution à adam.nassir@logiclever.com"
+            >
+              <MessageSquarePlus className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+              <span>Envoyer un ticket</span>
             </button>
           )}
 

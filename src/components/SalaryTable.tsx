@@ -94,9 +94,9 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
   const [exportResult, setExportResult] = useState<SheetExportResult | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Liste des membres du jury pour l'assignation rapide
+  // Liste des membres du jury pour l'assignation rapide en tant que Référent Jury (exclut les admins sauf Julien Bourlon)
   const juryMembers = useMemo(() => {
-    return UserDirectoryService.getJuryMembers();
+    return UserDirectoryService.getEligibleReferentJuryMembers();
   }, []);
 
   // Fonction d'assignation directe d'un référent jury depuis le tableau
@@ -1112,7 +1112,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                       <div className="space-y-3 my-1.5 max-w-5xl">
                         <div className="text-[10px] font-black uppercase tracking-wider text-accent/50 flex items-center gap-2 pl-1">
                           <Users className="w-3.5 h-3.5 text-secondary" />
-                          <span>Détail des avis des évaluateurs et jurys ({totalSublines})</span>
+                          <span>Détail des avis des évaluateurs ({totalSublines})</span>
                         </div>
 
                         {/* 1. Cartes pour les ÉVALUATEURS */}
@@ -1120,6 +1120,30 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                           const tjMin = fb.targetTJMin || 0;
                           const tjMax = fb.targetTJMax || 0;
                           const tjMean = (tjMin > 0 && tjMax > 0) ? Math.round((tjMin + tjMax) / 2) : (tjMin || tjMax || null);
+                          const assignmentKeys = [fb.evaluatorIdProfil, fb.evaluatorUid, fb.consultantId]
+                            .filter((key): key is string => Boolean(key));
+                          const assignmentDetails = assignmentKeys
+                            .map(key => item.dossier.assignmentsDetails?.[key])
+                            .find(Boolean);
+                          const assignedRelationTypes = assignmentDetails?.relationTypes || [];
+                          const feedbackRelationTypes = Array.isArray(fb.relationTypes) ? fb.relationTypes : [];
+                          const relationValues = feedbackRelationTypes.length > 0
+                            ? feedbackRelationTypes
+                            : assignedRelationTypes.length > 0
+                              ? assignedRelationTypes
+                              : fb.relationType
+                                ? String(fb.relationType).split(',')
+                                : fb.type
+                                  ? [fb.type]
+                                  : assignmentDetails?.typePrime
+                                    ? [assignmentDetails.typePrime]
+                                    : [];
+                          const relationLabel = relationValues.length > 0
+                            ? relationValues
+                                .map(value => String(value).trim().replace(/_/g, ' '))
+                                .filter(Boolean)
+                                .join(' • ')
+                            : 'Relation non renseignée';
 
                           return (
                             <div 
@@ -1137,7 +1161,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                                       {fb.consultantName || 'Évaluateur'}
                                     </div>
                                     <div className="text-[9px] px-2 py-0.5 rounded-full bg-secondary/10 text-secondary font-bold uppercase tracking-wider inline-block mt-0.5">
-                                      Évaluateur
+                                      {relationLabel}
                                     </div>
                                     {(fb.client || fb.project) && (
                                       <div className="text-[10px] text-accent/50 font-medium mt-1 flex flex-wrap gap-x-1.5 items-center">
@@ -1149,7 +1173,7 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                                   </div>
                                 </div>
 
-                                {/* Métriques : TJ Cible (Moyenne Min/Max), % Mission, % Investissement, Indice de confiance */}
+                                {/* Métriques : TJ Cible (Moyenne Min/Max) et indice de confiance */}
                                 <div className="flex flex-wrap items-center gap-3 bg-accent/[0.03] p-2 rounded-lg border border-accent/10 shrink-0">
                                   <div className="text-center px-2">
                                     <div className="text-[9px] font-bold text-accent/40 uppercase">TJ Cible (Moy.)</div>
@@ -1161,24 +1185,6 @@ export function SalaryTable({ dossiers, candidates, referenceDate, profile }: Sa
                                         {tjMin}€ - {tjMax}€
                                       </div>
                                     )}
-                                  </div>
-
-                                  <div className="w-px h-6 bg-accent/10" />
-
-                                  <div className="text-center px-2">
-                                    <div className="text-[9px] font-bold text-accent/40 uppercase">% Mission</div>
-                                    <div className="text-xs font-black text-accent">
-                                      {fb.missionPercentage !== undefined && fb.missionPercentage !== null ? `${fb.missionPercentage}%` : '-'}
-                                    </div>
-                                  </div>
-
-                                  <div className="w-px h-6 bg-accent/10" />
-
-                                  <div className="text-center px-2">
-                                    <div className="text-[9px] font-bold text-accent/40 uppercase">% Invest.</div>
-                                    <div className="text-xs font-black text-accent">
-                                      {fb.investmentPercentage !== undefined && fb.investmentPercentage !== null ? `${fb.investmentPercentage}%` : '-'}
-                                    </div>
                                   </div>
 
                                   <div className="w-px h-6 bg-accent/10" />

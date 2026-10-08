@@ -22,6 +22,7 @@ import {
 } from '../../services/campaignCatchupService';
 import { importDataFromGoogleSheet } from '../../services/googleSheetsService';
 import { requestGoogleSheetsAccess, requestGoogleDriveAccess } from '../../lib/firebase';
+import { AppLinksService } from '../../services/appLinksService';
 
 interface CatchupCampaignModalProps {
   isOpen: boolean;
@@ -31,14 +32,56 @@ interface CatchupCampaignModalProps {
   onSuccess: (message: string) => void;
 }
 
-// Identifiants canoniques des sources fournies
-const SPREADSHEETS_CONFIG = {
-  bddProfilsId: '1Ez9VFazCY3TcIoZcAp3Ec60vDfSutgfi4h1HLrH44z4',
-  analyseJury2024Id: '1G1rBLNz1IAw0ct7Zc8qTnV-5BGP3tt_bX7m8EOf2rUU',
-  analyseJury2025Id: '1DgkpCkCzj2_LGdH_BjnRScxatIidzVBj0ASwzJhD0zU',
-  vuesMeteosId: '1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek',
-  bilansFolderId: '1A2DLQku7fGLkV3XthSIi34pJ9TC-_2Bv'
-};
+export function extractSpreadsheetId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : null;
+}
+
+export interface DetectedCatchupCampaign {
+  year: number;
+  spreadsheetId: string;
+  delibTab: string;
+  tjCibleTab: string;
+  linkTitle: string;
+  url: string;
+}
+
+export function getConnectedCatchupCampaigns(): DetectedCatchupCampaign[] {
+  const links = AppLinksService.getLinks();
+  // Année actuelle du système (ex. 2026)
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - 1; // Commence à current year - 1 (ex. 2025)
+  const results: DetectedCatchupCampaign[] = [];
+
+  // Découverte descendante d'année en année jusqu'à ce qu'aucun lien ne soit trouvé
+  for (let year = startYear; year >= 2015; year--) {
+    const expectedId = `link_analyse_jury_${year}`;
+    const link = links.find(l => 
+      l.id === expectedId || 
+      (l.libelle && l.libelle.toLowerCase().includes('analyse jury') && l.libelle.includes(String(year)))
+    );
+
+    if (link && link.url && link.url.trim().length > 0) {
+      const sheetId = extractSpreadsheetId(link.url);
+      if (sheetId) {
+        results.push({
+          year,
+          spreadsheetId: sheetId,
+          delibTab: year === 2024 ? 'Analyse Jury' : 'Analyse_Jury',
+          tjCibleTab: 'TJ Cible',
+          linkTitle: link.libelle || `Analyse Jury Salaire ${year}`,
+          url: link.url
+        });
+        continue;
+      }
+    }
+    // Si aucun lien n'est trouvé pour cette année, on interrompt la boucle descendante
+    break;
+  }
+
+  return results;
+}
 
 export function CatchupCampaignModal({
   isOpen,
@@ -57,6 +100,8 @@ export function CatchupCampaignModal({
   }[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const detectedCampaigns = getConnectedCatchupCampaigns();
+
   if (!isOpen) return null;
 
   const addLog = (msg: string) => {
@@ -65,8 +110,8 @@ export function CatchupCampaignModal({
 
   /**
    * Rattrapage 100% Automatique :
-   * Parcourt les sources connues (BDD_LL_New_Drive, Analyse_Jury 2024 & 2025, TJ Cible),
-   * détecte les années, synchronise les profils des participants (candidats/évaluateurs) et scelle les dossiers.
+   * Parcourt dynamiquement les sources du Répertoire des Liens pour chaque année détectée
+   * (en descendant de currentYear - 1 jusqu'à ce qu'aucun lien ne soit trouvé).
    */
   const handleRunAutomaticCatchup = async () => {
     setStep('RUNNING');
@@ -92,12 +137,15 @@ export function CatchupCampaignModal({
       }
 
       // 1. Charger le Référentiel des Profils (BDD_LL_New_Drive -> Profil)
+      const bddProfilsUrl = AppLinksService.getLinkUrl('link_bdd_ll_new_drive', 'https://docs.google.com/spreadsheets/d/1Ez9VFazCY3TcIoZcAp3Ec60vDfSutgfi4h1HLrH44z4/edit');
+      const bddProfilsId = extractSpreadsheetId(bddProfilsUrl) || '1Ez9VFazCY3TcIoZcAp3Ec60vDfSutgfi4h1HLrH44z4';
+
       setCurrentAction("Lecture de BDD_LL_New_Drive (feuille Profil)...");
       addLog("Lecture des profils depuis BDD_LL_New_Drive...");
       
       let rawProfilesMatrix: any[][] = [];
       try {
-        const profRes = await importDataFromGoogleSheet('A1:Z1000', SPREADSHEETS_CONFIG.bddProfilsId, 'Profil');
+        const profRes = await importDataFromGoogleSheet('A1:Z1000', bddProfilsId, 'Profil');
         rawProfilesMatrix = [profRes.headers, ...profRes.rows];
       } catch (err: any) {
         throw new Error(`Impossible d'accéder à BDD_LL_New_Drive : ${err.message}`);
@@ -107,11 +155,14 @@ export function CatchupCampaignModal({
       addLog(`✅ ${allProfiles.length} profil(s) scannés dans BDD_LL_New_Drive (Col A=Id_Profil, Col D=Email, Col H=Matricule).`);
 
       // 1.bis Charger Vues_LL_NEW_DRIVE (feuille Vue_Meteo)
+      const vuesMeteosUrl = AppLinksService.getLinkUrl('link_vues_ll_new_drive', 'https://docs.google.com/spreadsheets/d/1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek/edit');
+      const vuesMeteosId = extractSpreadsheetId(vuesMeteosUrl) || '1Wi5TuI92CDl87Ma4APfXeyVLFi9_2FZJA3lBK3rRYek';
+
       setCurrentAction("Lecture de Vues_LL_NEW_DRIVE (feuille Vue_Meteo)...");
       addLog("Lecture des météos clients depuis Vues_LL_NEW_DRIVE (feuille Vue_Meteo)...");
       let allMeteos: CatchupMeteoItem[] = [];
       try {
-        const meteoRes = await importDataFromGoogleSheet('A1:Z5000', SPREADSHEETS_CONFIG.vuesMeteosId, 'Vue_Meteo');
+        const meteoRes = await importDataFromGoogleSheet('A1:Z5000', vuesMeteosId, 'Vue_Meteo');
         const meteoMatrix = [meteoRes.headers, ...meteoRes.rows];
         allMeteos = CampaignCatchupService.parseMeteosFromMatrix(meteoMatrix);
         addLog(`⛅ ${allMeteos.length} météo(s) client extraite(s) depuis Vues_LL_NEW_DRIVE (Col B=IdProfil, Col Z=Année, Col Q=Lien).`);
@@ -119,26 +170,18 @@ export function CatchupCampaignModal({
         addLog(`⚠️ Notice Vue_Meteo : ${meteoErr.message || 'Feuille non chargée, poursuite du rattrapage'}`);
       }
 
-      const campaignsToProcess = [
-        {
-          year: 2024,
-          spreadsheetId: SPREADSHEETS_CONFIG.analyseJury2024Id,
-          delibTab: 'Analyse Jury',
-          tjCibleTab: 'TJ Cible'
-        },
-        {
-          year: 2025,
-          spreadsheetId: SPREADSHEETS_CONFIG.analyseJury2025Id,
-          delibTab: 'Analyse_Jury',
-          tjCibleTab: 'TJ Cible'
-        }
-      ];
+      // 2. Découvrir dynamiquement toutes les campagnes attachées dans le Répertoire des Liens
+      const campaignsToProcess = getConnectedCatchupCampaigns();
+      if (campaignsToProcess.length === 0) {
+        throw new Error("Aucun fichier Analyse_Jury_Salaires n'a été trouvé dans le Répertoire des Liens pour les années historiques.");
+      }
+      addLog(`🔍 ${campaignsToProcess.length} campagne(s) détectée(s) dans le Répertoire des Liens : ${campaignsToProcess.map(c => c.year).join(', ')}`);
 
       const executedSummaries: { campaignYear: number; dossiersCount: number; evaluationsCount: number }[] = [];
 
       for (const camp of campaignsToProcess) {
-        setCurrentAction(`Extraction de la Campagne ${camp.year}...`);
-        addLog(`📂 Traitement automatique de la Campagne ${camp.year}...`);
+        setCurrentAction(`Extraction de la Campagne ${camp.year} (${camp.linkTitle})...`);
+        addLog(`📂 Traitement automatique de la Campagne ${camp.year} (${camp.linkTitle})...`);
 
         // 2. Extraire Délibérations
         let delibMatrix: any[][] = [];
@@ -156,7 +199,7 @@ export function CatchupCampaignModal({
           }
         }
 
-        const delibRows = CampaignCatchupService.parseDeliberationFromMatrix(delibMatrix);
+        const delibRows = CampaignCatchupService.parseDeliberationFromMatrix(delibMatrix, camp.year);
         addLog(`📊 ${delibRows.length} ligne(s) de délibération extraite(s) pour ${camp.year}.`);
 
         // 3. Extraire TJ Cible (Évaluations)
@@ -168,7 +211,7 @@ export function CatchupCampaignModal({
           addLog(`ℹ️ Onglet TJ Cible non trouvé séparément pour ${camp.year}, utilisation des données disponibles.`);
         }
 
-        const evalRows = CampaignCatchupService.parseEvaluationsFromMatrix(evalMatrix);
+        const evalRows = CampaignCatchupService.parseEvaluationsFromMatrix(evalMatrix, camp.year);
         addLog(`👥 ${evalRows.length} évaluation(s) / relations de pairs extraite(s) pour ${camp.year}.`);
 
         // 4. Prévisualisation / Réconciliation
@@ -197,7 +240,7 @@ export function CatchupCampaignModal({
           evaluationsCount: applyResult.evaluationsCreatedCount + applyResult.evaluationsUpdatedCount
         });
 
-        addLog(`🎉 Campagne ${camp.year} mise à jour : ${applyResult.dossiersUpdatedCount} dossier(s) synchronisés et scellés.`);
+        addLog(`🎉 Campagne ${camp.year} scellée et validée : ${applyResult.dossiersUpdatedCount} dossier(s) synchronisés.`);
       }
 
       setSummaryResults(executedSummaries);
@@ -251,14 +294,19 @@ export function CatchupCampaignModal({
                   <Sparkles className="w-4 h-4" /> Mode 100% Automatique Détecté
                 </div>
                 <p className="text-xs text-accent/70 leading-relaxed font-light">
-                  Aucune sélection manuelle n'est requise. L'algorithme lit les Google Sheets connectés, extrait les colonnes selon le millésime exact (2024 sans colonne ancienneté, 2025 avec ancienneté en Col G), crée uniquement les comptes des candidats et évaluateurs participants, et rattache les dossiers à l'<strong>Espace Personnel</strong> de chaque collaborateur.
+                  Aucune sélection manuelle n'est requise. L'algorithme détecte dynamiquement les fichiers Analyse_Jury_Salaires connectés dans le Répertoire des Liens (2022, 2023, 2024, 2025...), extrait les colonnes selon chaque structure, crée uniquement les comptes des participants et valide à 100% les dossiers scellés.
                 </p>
               </div>
 
               {/* Liste des sources officielles connectées */}
               <div className="space-y-3">
-                <div className="text-xs font-black uppercase tracking-wider text-accent/60">
-                  Sources Connectées dans le Répertoire des Liens :
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black uppercase tracking-wider text-accent/60">
+                    Sources Connectées dans le Répertoire des Liens :
+                  </div>
+                  <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
+                    {detectedCampaigns.length} campagne(s) détectée(s)
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -270,21 +318,15 @@ export function CatchupCampaignModal({
                     </div>
                   </div>
 
-                  <div className="p-3.5 bg-accent/5 rounded-xl border border-accent/10 flex items-start gap-3">
-                    <FileSpreadsheet className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-accent">Analyse Jury Salaire 2024</div>
-                      <div className="text-accent/50 text-[11px] truncate">Délibérations & TJ Cible 2024</div>
+                  {detectedCampaigns.map(camp => (
+                    <div key={camp.year} className="p-3.5 bg-accent/5 rounded-xl border border-accent/10 flex items-start gap-3">
+                      <FileSpreadsheet className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-accent">{camp.linkTitle} ({camp.year})</div>
+                        <div className="text-accent/50 text-[11px] truncate">Délibérations & TJ Cible &bull; ID: {camp.spreadsheetId.substring(0, 10)}...</div>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="p-3.5 bg-accent/5 rounded-xl border border-accent/10 flex items-start gap-3">
-                    <FileSpreadsheet className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-accent">Analyse Jury Salaire 2025</div>
-                      <div className="text-accent/50 text-[11px] truncate">Délibérations & TJ Cible 2025 (Ancienneté Col G)</div>
-                    </div>
-                  </div>
+                  ))}
 
                   <div className="p-3.5 bg-accent/5 rounded-xl border border-accent/10 flex items-start gap-3">
                     <FolderOpen className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
