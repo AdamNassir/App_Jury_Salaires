@@ -37,7 +37,6 @@ export type EvaluationRelationType =
   | 'Meteo_Client'
   | 'Coach'
   | 'Logiclever'
-  | 'Coach Logiclever'
   | 'Collègue_Mission';
 
 export type ConsultationType = 

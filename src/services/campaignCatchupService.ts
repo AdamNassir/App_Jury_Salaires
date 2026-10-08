@@ -34,7 +34,6 @@ export const VALID_RELATION_TYPES: EvaluationRelationType[] = [
   'Meteo_Client',
   'Coach',
   'Logiclever',
-  'Coach Logiclever',
   'Collègue_Mission'
 ];
 
@@ -207,8 +206,12 @@ export class CampaignCatchupService {
     if (clean === 'Logiclever' || norm === 'logiclever') {
       return { relationType: 'Logiclever', requiresConversion: false };
     }
-    if (clean === 'Coach Logiclever' || norm === 'coach_logiclever') {
-      return { relationType: 'Coach Logiclever', requiresConversion: false };
+    if (norm === 'coach_logiclever') {
+      return {
+        relationType: undefined,
+        requiresConversion: true,
+        explanation: 'Ancien libellé combiné : sélectionner Coach et/ou Logiclever séparément.'
+      };
     }
     if (clean === 'Auto_Evaluation' || norm === 'auto_evaluation' || norm === 'auto_eval') {
       return { relationType: 'Auto_Evaluation', requiresConversion: false };

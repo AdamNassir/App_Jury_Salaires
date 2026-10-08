@@ -18,9 +18,20 @@ const RELATION_TYPES: EvaluationRelationType[] = [
   'Commerciale',
   'Encadrement',
   'Meteo_Client',
-  'Coach Logiclever',
+  'Coach',
+  'Logiclever',
   'Collègue_Mission'
 ];
+// Keep both relationships distinct when reading old feedback saved with the former combined label.
+const normalizeRelationTypes = (values: readonly string[]): EvaluationRelationType[] => {
+  const normalized = values.flatMap(value => {
+    const cleaned = String(value).trim().replace(/_/g, ' ');
+    if (/^coach\s+logiclever$/i.test(cleaned)) return ['Coach', 'Logiclever'];
+    return [value.trim().replace(/ /g, '_')];
+  });
+  return [...new Set(normalized.filter(value => RELATION_TYPES.includes(value as EvaluationRelationType)))] as EvaluationRelationType[];
+};
+
 
 export function ConsultantView({ dossiers, profile }: ConsultantViewProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -614,7 +625,7 @@ function ConsultantFeedbackForm({
   // Détection automatique depuis la colonne C (Type_Prime) : Encadrement et Commerciale
   const initialAssignedTypes: EvaluationRelationType[] = [];
   if (assignedPrimeDetails?.relationTypes && assignedPrimeDetails.relationTypes.length > 0) {
-    initialAssignedTypes.push(...(assignedPrimeDetails.relationTypes as EvaluationRelationType[]));
+    initialAssignedTypes.push(...normalizeRelationTypes(assignedPrimeDetails.relationTypes));
   } else if (assignedPrimeDetails?.typePrime) {
     if (/encadrement/i.test(assignedPrimeDetails.typePrime)) initialAssignedTypes.push('Encadrement');
     if (/commercial/i.test(assignedPrimeDetails.typePrime)) initialAssignedTypes.push('Commerciale');
@@ -666,17 +677,19 @@ function ConsultantFeedbackForm({
       });
     } else {
       // Determine if legacy type
-      const legacyTypes = ['Coach', 'Collègue en mission', 'Météo Client', 'Logiclever', 'COP & Epic'];
+      const legacyTypes = ['Collègue en mission', 'Météo Client', 'COP & Epic', 'Coach Logiclever'];
       const rawType = activeFeedback.relationType || activeFeedback.type;
       const isLegacy = legacyTypes.includes(rawType as string) && !RELATION_TYPES.includes(rawType as EvaluationRelationType);
 
       // Résolution multi-valeurs des types de relation
       let resolvedTypes: EvaluationRelationType[] = [];
       if (Array.isArray(activeFeedback.relationTypes) && activeFeedback.relationTypes.length > 0) {
-        resolvedTypes = activeFeedback.relationTypes.filter(r => RELATION_TYPES.includes(r as EvaluationRelationType)) as EvaluationRelationType[];
+        resolvedTypes = normalizeRelationTypes(activeFeedback.relationTypes);
       } else if (activeFeedback.relationType) {
-        const parts = String(activeFeedback.relationType).split(',').map(s => s.trim().replace(/ /g, '_'));
-        resolvedTypes = parts.filter(p => RELATION_TYPES.includes(p as EvaluationRelationType)) as EvaluationRelationType[];
+        resolvedTypes = normalizeRelationTypes(String(activeFeedback.relationType).split(','));
+      }
+      if (resolvedTypes.length === 0 && activeFeedback.type) {
+        resolvedTypes = normalizeRelationTypes([String(activeFeedback.type)]);
       }
       if (resolvedTypes.length === 0 || (resolvedTypes.length === 1 && resolvedTypes[0] === 'Collègue_Mission' && initialAssignedTypes.length > 0)) {
         resolvedTypes = initialAssignedTypes.length > 0 ? initialAssignedTypes : defaultRelationTypes;
