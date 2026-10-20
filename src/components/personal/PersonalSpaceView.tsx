@@ -114,7 +114,11 @@ export function PersonalSpaceView({
       else if (pMiss > 100) pMiss = undefined;
     }
 
-    let pInv = dec?.investmentPercentage !== undefined && dec.investmentPercentage !== null ? Number(dec.investmentPercentage) : undefined;
+    let pInv = dec?.investmentPercentage !== undefined && dec.investmentPercentage !== null 
+      ? Number(dec.investmentPercentage) 
+      : (d.annualReport?.internalInvestment !== undefined && d.annualReport.internalInvestment > 0 && d.annualReport.internalInvestment <= 100
+          ? Number(d.annualReport.internalInvestment)
+          : undefined);
     if (pInv !== undefined) {
       if (pInv <= 1 && pInv > 0) pInv = Math.round(pInv * 1000) / 10;
       else if (pInv > 100) pInv = undefined;
@@ -370,9 +374,6 @@ export function PersonalSpaceView({
   const totalSalaryDiff = latestSalary > 0 && initialSalary > 0 ? latestSalary - initialSalary : 0;
   const totalSalaryPct = initialSalary > 0 && totalSalaryDiff !== 0 ? Math.round((totalSalaryDiff / initialSalary) * 100) : 0;
 
-  const validTjs = historicalData.map(d => d.tjVendu).filter((t): t is number => !!t && t > 0);
-  const avgTjVendu = validTjs.length > 0 ? Math.round(validTjs.reduce((a, b) => a + b, 0) / validTjs.length) : (latestDossierData?.tjVendu || null);
-
   // Géométrie SVG du graphique d'évolution
   const svgWidth = 860;
   const svgHeight = 360;
@@ -567,7 +568,7 @@ export function PersonalSpaceView({
       {viewMode === 'recap' ? (
         <div className="space-y-8">
           {/* A. Bannière Synthèse & Cartes KPI Clés */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white p-6 rounded-2xl border border-emerald-200/80 shadow-xs relative overflow-hidden">
               <div className="absolute top-0 inset-x-0 h-1 bg-emerald-500" />
               <div className="text-[11px] font-black uppercase tracking-wider text-emerald-800 mb-1 flex items-center justify-between">
@@ -595,20 +596,6 @@ export function PersonalSpaceView({
                 {totalSalaryPct > 0 ? `+${totalSalaryPct}% sur l'ensemble des campagnes` : 'Évolution stable'}
               </div>
             </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-purple-200/80 shadow-xs relative overflow-hidden">
-              <div className="absolute top-0 inset-x-0 h-1 bg-purple-500" />
-              <div className="text-[11px] font-black uppercase tracking-wider text-purple-800 mb-1 flex items-center justify-between">
-                <span>TJM Moyen / Récent</span>
-                <Briefcase className="w-4 h-4 text-purple-600" />
-              </div>
-              <div className="text-3xl font-black text-secondary">
-                {avgTjVendu ? `${avgTjVendu} €` : '—'}
-              </div>
-              <div className="text-xs text-accent/60 mt-1">
-                {latestDossierData?.tjVendu ? `Dernier TJ Vendu : ${latestDossierData.tjVendu} €` : 'Taux journalier moyen'}
-              </div>
-            </div>
           </div>
 
           {/* B. Carte Principale : Graphique d'évolution pluriannuelle & Contrôle des Couches */}
@@ -619,9 +606,6 @@ export function PersonalSpaceView({
                   <BarChart3 className="w-6 h-6 text-primary" />
                   Évolution Pluriannuelle des Rémunérations & Indicateurs
                 </h3>
-                <p className="text-xs text-accent/60 mt-0.5">
-                  Visualisez l'historique de vos délibérations et superposez les métriques de performance.
-                </p>
               </div>
 
               {/* Raccourcis de Préréglages */}

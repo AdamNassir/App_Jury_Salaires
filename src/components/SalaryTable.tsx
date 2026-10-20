@@ -263,8 +263,8 @@ export function SalaryTable({ dossiers: allDossiers, candidates, campaignYear, r
 
       // Calculations
       const tjSalaire = dossier.annualReport?.currentTJSalaire ?? candidate.currentTJSalaire ?? 0;
-      const tjVendu = dossier.annualReport?.currentTJM ?? candidate.currentTJM ?? 0;
-      const tjCible = dossier.annualReport?.targetTJM || 0;
+      const tjVendu = dossier.annualReport?.currentTJM ?? dossier.juryDecision?.tjVendu0107 ?? candidate.currentTJM ?? 0;
+      const tjCible = dossier.annualReport?.targetTJM || dossier.juryDecision?.tjCibleDecision || 0;
 
       const salaireVendu = calculateSalaryFormule(tjVendu, effectiveGrade, yearsExpert, prime);
       const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, effectiveGrade, yearsExpert, prime);
@@ -275,12 +275,12 @@ export function SalaryTable({ dossiers: allDossiers, candidates, campaignYear, r
       const salaireCible = calculateSalaryFormule(tjCible, targetGrade, targetYearsExpert, prime);
       const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
 
-      const currentSalary = dossier.annualReport?.currentSalary ?? candidate.currentSalary ?? 0;
+      const currentSalary = dossier.annualReport?.currentSalary ?? dossier.juryDecision?.salaire3006 ?? candidate.currentSalary ?? 0;
       const realMargin = calculateMargin(tjVendu, currentSalary, prime);
 
       // Jury Decision Data
       const decision = (dossier.juryDecision || {}) as JuryDecision;
-      const proposedSalary = decision.amount || 0;
+      const proposedSalary = decision.amount || decision.proposedSalary0107 || 0;
       
       const marginPostJury = calculateMargin(tjVendu, proposedSalary, prime);
 
@@ -986,14 +986,14 @@ export function SalaryTable({ dossiers: allDossiers, candidates, campaignYear, r
                 </td>
 
                 {/* Wishes */}
-                <td className="p-4 text-right tabular-nums text-secondary font-bold">{formatCurrency(item.dossier.annualReport?.wishedSalary || 0)}</td>
+                <td className="p-4 text-right tabular-nums text-secondary font-bold">{formatCurrency(item.dossier.annualReport?.wishedSalary || item.decision?.wishedSalary0107 || 0)}</td>
                 <td className="p-4 text-center">
                   {item.dossier.annualReport?.wishedGrade !== item.candidate.currentGrade ? (
                     <span className="text-secondary font-bold">Oui ({item.dossier.annualReport?.wishedGrade})</span>
                   ) : 'Non'}
                 </td>
                 <td className="p-4 text-center border-r border-accent/10 opacity-50">
-                  {calculateMargin(item.tjVendu, item.dossier.annualReport?.wishedSalary || 0, item.prime).toFixed(1)}%
+                  {calculateMargin(item.tjVendu, item.dossier.annualReport?.wishedSalary || item.decision?.wishedSalary0107 || 0, item.prime).toFixed(1)}%
                 </td>
 
                 {/* Metrics */}
@@ -1082,7 +1082,7 @@ export function SalaryTable({ dossiers: allDossiers, candidates, campaignYear, r
                         setEditValues({...editValues, maxSalaryIfTJIncreases: isNaN(parsed) ? undefined : Math.max(0, parsed)});
                       }}
                     />
-                  ) : item.decision.maxSalaryIfTJIncreases ? formatCurrency(item.decision.maxSalaryIfTJIncreases) : '-'}
+                  ) : (item.decision.maxSalaryIfTJIncreases !== undefined && item.decision.maxSalaryIfTJIncreases !== null ? formatCurrency(item.decision.maxSalaryIfTJIncreases) : (item.decision.maxSalaryIfTjVenduIncreases !== undefined && item.decision.maxSalaryIfTjVenduIncreases !== null ? formatCurrency(item.decision.maxSalaryIfTjVenduIncreases) : '-'))}
                 </td>
                 <td className="p-4 min-w-[220px]">
                   {editingId === item.dossier.id ? (

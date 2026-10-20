@@ -1,0 +1,1529 @@
+{
+  "$schemaVersion": "2.0.0",
+  "updatedAt": "2026-10-20T13:27:29.248Z",
+  "totalFiles": 113,
+  "policies": {
+    "never_edit": "CRITICAL / IMMUTABLE: Authentication and core security files must never be modified under any circumstances.",
+    "approval_required": "EXPLICIT APPROVAL REQUIRED: Root configuration, project metadata, package definitions, server runner, or seed fixtures.",
+    "generated": "DO NOT EDIT DIRECTLY: Artifacts produced automatically by package managers or compilers (e.g. bun.lock).",
+    "editable": "STANDARD CODE: Application source files, components, services, and tests modifiable after explaining rationale."
+  },
+  "routing": {
+    "auth_security": {
+      "name": "Authentication & Core Security",
+      "desc": "User session management, Firebase Auth bindings, Firestore security rules, and auth error handling.",
+      "keywords": [
+        "auth",
+        "login",
+        "session",
+        "user",
+        "firestore rules",
+        "credentials",
+        "security",
+        "token",
+        "firebase"
+      ],
+      "patterns": [
+        "src/lib/firebase*",
+        "src/lib/auth*",
+        "firestore.rules",
+        "firebase-*.json",
+        "tests/auth*"
+      ]
+    },
+    "salary_deliberation": {
+      "name": "Salary Calculations & Deliberation Rules",
+      "desc": "Compensation calculations, grade step tariffs, seniority bonuses, and catchup campaign salary logic.",
+      "keywords": [
+        "salary",
+        "remuneration",
+        "prime",
+        "coefficient",
+        "grade",
+        "taux",
+        "augmentation",
+        "rattrapage"
+      ],
+      "patterns": [
+        "src/lib/salaryUtils.ts",
+        "src/services/campaignCatchupService.ts",
+        "src/config/**"
+      ]
+    },
+    "campaign_services": {
+      "name": "Campaign Lifecycle & Data Services",
+      "desc": "Operations for campaign synchronization, Google Sheets/Drive connectors, user directory, and data reconciliation.",
+      "keywords": [
+        "campaign",
+        "sheets",
+        "drive",
+        "objectives",
+        "reconciliation",
+        "sync",
+        "directory",
+        "cleansing"
+      ],
+      "patterns": [
+        "src/services/**"
+      ]
+    },
+    "candidate_evaluation": {
+      "name": "Candidate Dossier & Evaluation UI",
+      "desc": "Evaluation tabs for consultant skills, career bilan, objectives, pretentions, autonomy tables, and feedback.",
+      "keywords": [
+        "candidate",
+        "dossier",
+        "evaluation",
+        "tabs",
+        "bilan",
+        "pretentions",
+        "skills",
+        "autonomie",
+        "feedback"
+      ],
+      "subcats": {
+        "shell": "Evaluation framing, criteria guidelines, autonomy and grade scale tables",
+        "tabs": "Dossier evaluation tabs including objectives, pretentions, satisfaction, and feedback"
+      },
+      "patterns": [
+        "src/components/candidate/**"
+      ]
+    },
+    "jury_deliberation": {
+      "name": "Jury Deliberation Room & Voting UI",
+      "desc": "Deliberation interface, live candidate review header, decision forms, voter controls, and deliberations log.",
+      "keywords": [
+        "jury",
+        "deliberation",
+        "jury room",
+        "decision",
+        "vote",
+        "salary table",
+        "deliberations table"
+      ],
+      "patterns": [
+        "src/components/jury/**",
+        "src/components/JuryView.tsx",
+        "src/components/SalaryTable.tsx",
+        "src/components/JuryDeliberationsTable.tsx"
+      ]
+    },
+    "user_admin": {
+      "name": "User Administration & Role Management",
+      "desc": "User management directory, modal forms for user creation/deletion, jury assignment, and user profile drawer.",
+      "keywords": [
+        "user admin",
+        "create user",
+        "delete user",
+        "constituer jury",
+        "user drawer",
+        "user roles"
+      ],
+      "patterns": [
+        "src/components/users/**",
+        "src/components/UserManagement.tsx"
+      ]
+    },
+    "navigation_views": {
+      "name": "Navigation, Layout & Application Views",
+      "desc": "Top-level views (Dashboard, Campaign Management, Consultant View, Personal Space), navigation bar, and main app container.",
+      "keywords": [
+        "navbar",
+        "layout",
+        "routing",
+        "dashboard",
+        "personal space",
+        "consultant view",
+        "campaign card"
+      ],
+      "patterns": [
+        "src/App.tsx",
+        "src/main.tsx",
+        "src/components/Navbar.tsx",
+        "src/components/Dashboard.tsx",
+        "src/components/personal/**",
+        "src/components/campaigns/**"
+      ]
+    },
+    "storage_persistence": {
+      "name": "Client Storage & Persistence Layer",
+      "desc": "IndexedDB wrapper, offline mock database operations, and local storage state persistence.",
+      "keywords": [
+        "indexeddb",
+        "database",
+        "local storage",
+        "dexie",
+        "persistence",
+        "offline store"
+      ],
+      "patterns": [
+        "src/lib/localDatabase.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/localStore.ts"
+      ]
+    },
+    "domain_types": {
+      "name": "Domain Models & TypeScript Interfaces",
+      "desc": "Centralized data models, campaign schemas, candidate dossiers, and Google Sheets integration contracts.",
+      "keywords": [
+        "types",
+        "interfaces",
+        "data contracts",
+        "models",
+        "schemas"
+      ],
+      "patterns": [
+        "src/types.ts",
+        "src/types/**"
+      ]
+    },
+    "shared_utilities": {
+      "name": "Shared Utilities & Mathematical Helpers",
+      "desc": "Formatting helpers, Tailwind class merges, percentage optimizer algorithms, PDF generation, and URL parameter encoders.",
+      "keywords": [
+        "utils",
+        "helpers",
+        "pdf",
+        "url",
+        "percentage optimizer",
+        "formatters",
+        "cn"
+      ],
+      "patterns": [
+        "src/lib/utils.ts",
+        "src/lib/percentageOptimizer.ts",
+        "src/utils/**"
+      ]
+    },
+    "data_fixtures": {
+      "name": "Data Fixtures & Seed Records",
+      "desc": "Static JSON seed files representing initial campaigns, sample candidates, mock dossiers, and default annual report fixtures.",
+      "keywords": [
+        "fixtures",
+        "seed",
+        "mock data",
+        "campaigns.json",
+        "dossiers.json",
+        "users.json"
+      ],
+      "patterns": [
+        "data/**",
+        "src/data/**"
+      ]
+    },
+    "test_suites": {
+      "name": "Automated Test Suites",
+      "desc": "End-to-end browser tests, database test suites, and campaign launch validation specifications.",
+      "keywords": [
+        "test",
+        "specs",
+        "e2e",
+        "browser test",
+        "vitest",
+        "unit test"
+      ],
+      "patterns": [
+        "tests/**"
+      ]
+    },
+    "config_project_docs": {
+      "name": "Build Configuration & Specifications",
+      "desc": "Tooling configurations (Vite, TypeScript, Tailwind), HTML entry, server runner, and project specification documentation.",
+      "keywords": [
+        "vite",
+        "tsconfig",
+        "package.json",
+        "tailwind",
+        "server",
+        "specifications",
+        "documentation"
+      ],
+      "patterns": [
+        "*.md",
+        "*.json",
+        "vite.config.ts",
+        "server.ts",
+        "index.html"
+      ]
+    }
+  },
+  "files": {
+    ".env.example": {
+      "cat": "config_project_docs",
+      "desc": "Environment variable declaration template outlining required keys without credentials.",
+      "policy": "approval_required"
+    },
+    ".gitignore": {
+      "cat": "config_project_docs",
+      "desc": "Version control exclusion list specifying temporary files, build outputs, and dependencies.",
+      "policy": "editable"
+    },
+    "CAHIER_DE_TESTS.md": {
+      "cat": "config_project_docs",
+      "desc": "Quality assurance test plan and scenario specifications for platform features.",
+      "policy": "editable"
+    },
+    "DOCUMENTATION.md": {
+      "cat": "config_project_docs",
+      "desc": "System architectural documentation, component hierarchies, and operational procedures.",
+      "policy": "editable"
+    },
+    "LOCAL_STORAGE_CHANGES.md": {
+      "cat": "config_project_docs",
+      "desc": "Changelog recording persistence schema migrations and local storage modifications.",
+      "policy": "editable"
+    },
+    "README.md": {
+      "cat": "config_project_docs",
+      "desc": "Repository introduction, architecture overview, installation steps, and development guide.",
+      "policy": "editable"
+    },
+    "SPECIFICATIONS.md": {
+      "cat": "config_project_docs",
+      "desc": "Functional specifications defining business domain rules, user roles, and workflows.",
+      "policy": "editable"
+    },
+    "blueprint.md": {
+      "cat": "config_project_docs",
+      "desc": "Architecture blueprint detailing service interfaces, data flows, and security guidelines.",
+      "policy": "editable"
+    },
+    "branding.txt": {
+      "cat": "config_project_docs",
+      "desc": "Brand identity specifications including primary colors, accent tones, and visual styling guidelines.",
+      "policy": "editable"
+    },
+    "bun.lock": {
+      "cat": "config_project_docs",
+      "desc": "Package manager lockfile pinning exact versions of third-party dependencies.",
+      "policy": "generated"
+    },
+    "data/campaignColumnsSpecifications.json": {
+      "cat": "data_fixtures",
+      "desc": "Seed specification defining spreadsheet column mapping schemas for campaign import.",
+      "policy": "approval_required"
+    },
+    "data/campaigns.json": {
+      "cat": "data_fixtures",
+      "desc": "Seed data file containing sample evaluation campaign records.",
+      "policy": "approval_required"
+    },
+    "data/dossiers.json": {
+      "cat": "data_fixtures",
+      "desc": "Seed data file containing mock candidate dossiers and evaluation scores.",
+      "policy": "approval_required"
+    },
+    "data/users.json": {
+      "cat": "data_fixtures",
+      "desc": "Seed data file containing mock user profiles and administrative roles.",
+      "policy": "approval_required"
+    },
+    "firebase-applet-config.json": {
+      "cat": "auth_security",
+      "desc": "Firebase project configuration defining client credentials and authentication domain.",
+      "policy": "never_edit"
+    },
+    "firebase-blueprint.json": {
+      "cat": "auth_security",
+      "desc": "Database blueprint specifying Firestore document structures, collections, and security constraints.",
+      "policy": "never_edit"
+    },
+    "firestore.rules": {
+      "cat": "auth_security",
+      "desc": "Database security rules enforcing role-based authorization and collection access controls.",
+      "policy": "never_edit",
+      "deps": [
+        "firebase-blueprint.json"
+      ]
+    },
+    "google-sheets-config.example.json": {
+      "cat": "config_project_docs",
+      "desc": "Template file demonstrating spreadsheet configuration options for external synchronization.",
+      "policy": "approval_required"
+    },
+    "google-sheets-config.json": {
+      "cat": "config_project_docs",
+      "desc": "Local configuration file storing active spreadsheet identifiers and sheet names.",
+      "policy": "approval_required"
+    },
+    "index.html": {
+      "cat": "config_project_docs",
+      "desc": "Single page application HTML template defining document root, title, and viewport.",
+      "policy": "approval_required"
+    },
+    "metadata.json": {
+      "cat": "config_project_docs",
+      "desc": "Platform manifest specifying application metadata, capabilities, and system parameters.",
+      "policy": "approval_required"
+    },
+    "package.json": {
+      "cat": "config_project_docs",
+      "desc": "Package definition file declaring project dependencies, build commands, and script runners.",
+      "policy": "approval_required"
+    },
+    "security_spec.md": {
+      "cat": "config_project_docs",
+      "desc": "Security specification detailing authentication protocols, authorization matrices, and protection rules.",
+      "policy": "editable"
+    },
+    "server.ts": {
+      "cat": "config_project_docs",
+      "desc": "Production HTTP server configuration serving static assets and dev proxy endpoints.",
+      "policy": "approval_required"
+    },
+    "src/App.tsx": {
+      "cat": "navigation_views",
+      "desc": "Application root component providing main view routing, authentication guarding, and header display.",
+      "policy": "editable",
+      "deps": [
+        "src/components/AuthErrorNotice.tsx",
+        "src/components/CampaignManagement.tsx",
+        "src/components/CandidateView.tsx",
+        "src/components/ConsultantView.tsx",
+        "src/components/Dashboard.tsx",
+        "src/components/JuryView.tsx",
+        "src/components/Navbar.tsx",
+        "src/components/UserManagement.tsx",
+        "src/components/admin/AdminLinksTable.tsx",
+        "src/components/personal/PersonalSpaceView.tsx",
+        "src/lib/authErrors.ts",
+        "src/lib/firebase.ts",
+        "src/lib/utils.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ]
+    },
+    "src/components/AuthErrorNotice.tsx": {
+      "cat": "auth_security",
+      "desc": "Error notification banner displayed when authentication or database connectivity encounters failures.",
+      "policy": "never_edit",
+      "deps": [
+        "firebase-applet-config.json"
+      ],
+      "exports": [
+        "AuthErrorNotice"
+      ]
+    },
+    "src/components/CampaignManagement.tsx": {
+      "cat": "navigation_views",
+      "desc": "Campaign administration view for configuring, launching, and managing deliberation campaigns.",
+      "policy": "editable",
+      "deps": [
+        "src/components/campaigns/CampaignCard.tsx",
+        "src/components/campaigns/CatchupCampaignModal.tsx",
+        "src/components/campaigns/CloseCampaignModal.tsx",
+        "src/components/campaigns/CreateCampaignModal.tsx",
+        "src/components/campaigns/DeleteAllDossiersModal.tsx",
+        "src/components/campaigns/DeleteCampaignModal.tsx",
+        "src/lib/firebase.ts",
+        "src/lib/localDatabase.ts",
+        "src/lib/utils.ts",
+        "src/services/localDatabaseService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "CampaignManagement"
+      ],
+      "tests": [
+        "tests/campaignLaunch.browser.test.ts"
+      ]
+    },
+    "src/components/CandidateView.tsx": {
+      "cat": "navigation_views",
+      "desc": "Full candidate profile view displaying comprehensive dossier evaluation tabs.",
+      "policy": "editable",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/components/candidate/tabs/BilanIntroTab.tsx",
+        "src/components/candidate/tabs/DocumentsTab.tsx",
+        "src/components/candidate/tabs/EngagementTab.tsx",
+        "src/components/candidate/tabs/ExpertisesTab.tsx",
+        "src/components/candidate/tabs/JuryFeedbacksTab.tsx",
+        "src/components/candidate/tabs/MeteosTab.tsx",
+        "src/components/candidate/tabs/ObjectivesTab.tsx",
+        "src/components/candidate/tabs/PeerFeedbacksTab.tsx",
+        "src/components/candidate/tabs/PretentionsTab.tsx",
+        "src/components/candidate/tabs/SalaryCalculatorTab.tsx",
+        "src/components/candidate/tabs/SatisfactionTab.tsx",
+        "src/components/candidate/tabs/SyntheseTab.tsx",
+        "src/data/defaultAnnualReport.ts",
+        "src/lib/firebase.ts",
+        "src/lib/localDatabase.ts",
+        "src/lib/salaryUtils.ts",
+        "src/lib/utils.ts",
+        "src/services/driveObjectivesService.ts",
+        "src/services/localDatabaseService.ts",
+        "src/types.ts",
+        "src/utils/pdfGenerator.ts"
+      ],
+      "exports": [
+        "CandidateView"
+      ]
+    },
+    "src/components/ConsultantView.tsx": {
+      "cat": "navigation_views",
+      "desc": "Consultant self-service view enabling individual review of career milestones and goals.",
+      "policy": "editable",
+      "deps": [
+        "src/components/CandidateView.tsx",
+        "src/components/jury/JuryUI.tsx",
+        "src/lib/localDatabase.ts",
+        "src/lib/utils.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "ConsultantView"
+      ]
+    },
+    "src/components/Dashboard.tsx": {
+      "cat": "navigation_views",
+      "desc": "Analytics dashboard presenting campaign summaries, salary distributions, and decision metrics.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/localDatabase.ts",
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "Dashboard"
+      ]
+    },
+    "src/components/JuryDeliberationsTable.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Summary table presenting campaign deliberation decisions, status indicators, and final grades.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/services/localDatabaseService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "JuryDeliberationsTable"
+      ]
+    },
+    "src/components/JuryView.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Live jury deliberation view coordinating candidate presentation, dossier review, and voting.",
+      "policy": "editable",
+      "deps": [
+        "src/components/SalaryTable.tsx",
+        "src/components/jury/JuryCandidateHeader.tsx",
+        "src/components/jury/JuryCandidateList.tsx",
+        "src/components/jury/JuryDossierViewer.tsx",
+        "src/components/jury/JuryUI.tsx",
+        "src/lib/utils.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "JuryView"
+      ]
+    },
+    "src/components/Navbar.tsx": {
+      "cat": "navigation_views",
+      "desc": "Application header bar providing navigation links, current user status, and logout button.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "Navbar"
+      ]
+    },
+    "src/components/SalaryTable.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Comparative salary table displaying current salaries, benchmarks, and proposed compensation.",
+      "policy": "editable",
+      "deps": [
+        "src/components/salary/OptimizerSuggestionsModal.tsx",
+        "src/lib/localDatabase.ts",
+        "src/lib/salaryUtils.ts",
+        "src/lib/utils.ts",
+        "src/services/dummyUsersGenerator.ts",
+        "src/services/googleSheetsService.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "SalaryTable"
+      ]
+    },
+    "src/components/UserManagement.tsx": {
+      "cat": "user_admin",
+      "desc": "User administration dashboard for viewing, filtering, and managing user roles and profiles.",
+      "policy": "editable",
+      "deps": [
+        "src/components/users/ConstituerJuryModal.tsx",
+        "src/components/users/CreateUserModal.tsx",
+        "src/components/users/DeleteUserModal.tsx",
+        "src/components/users/MassDeleteUsersModal.tsx",
+        "src/components/users/UserCommonUI.tsx",
+        "src/components/users/UserRowDrawer.tsx",
+        "src/data/defaultAnnualReport.ts",
+        "src/lib/localDatabase.ts",
+        "src/lib/utils.ts",
+        "src/services/dataCleansing.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "UserManagement"
+      ]
+    },
+    "src/components/admin/AdminLinksTable.tsx": {
+      "cat": "navigation_views",
+      "desc": "Administration panel managing external links to Google Drive directories and spreadsheets.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/services/appLinksService.ts",
+        "src/services/googleSheetsService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "AdminLinksTable"
+      ]
+    },
+    "src/components/campaigns/CampaignCard.tsx": {
+      "cat": "navigation_views",
+      "desc": "Card component presenting campaign summary details, status badges, and action menus.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "CampaignCard"
+      ]
+    },
+    "src/components/campaigns/CampaignDocsModal.tsx": {
+      "cat": "navigation_views",
+      "desc": "Modal displaying linked documentation and spreadsheet resources for a campaign.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "CampaignDocsModal"
+      ]
+    },
+    "src/components/campaigns/CatchupCampaignModal.tsx": {
+      "cat": "navigation_views",
+      "desc": "Modal dialog for configuring and launching multi-year compensation catchup campaigns.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/firebase.ts",
+        "src/services/appLinksService.ts",
+        "src/services/campaignCatchupService.ts",
+        "src/services/googleSheetsService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "extractSpreadsheetId",
+        "DetectedCatchupCampaign",
+        "getConnectedCatchupCampaigns",
+        "CatchupCampaignModal"
+      ]
+    },
+    "src/components/campaigns/CloseCampaignModal.tsx": {
+      "cat": "navigation_views",
+      "desc": "Confirmation dialog for closing and archiving a completed evaluation campaign.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "CloseCampaignModal"
+      ]
+    },
+    "src/components/campaigns/CreateCampaignModal.tsx": {
+      "cat": "navigation_views",
+      "desc": "Modal dialog for initiating a new deliberation campaign with target year and title.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/firebase.ts",
+        "src/services/campaignInitializationService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "CreateCampaignModal"
+      ]
+    },
+    "src/components/campaigns/DeleteAllDossiersModal.tsx": {
+      "cat": "navigation_views",
+      "desc": "Confirmation dialog for resetting and removing all dossiers within a campaign.",
+      "policy": "editable",
+      "exports": [
+        "DeleteAllDossiersModal"
+      ]
+    },
+    "src/components/campaigns/DeleteCampaignModal.tsx": {
+      "cat": "navigation_views",
+      "desc": "Confirmation dialog for permanently deleting an evaluation campaign.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "DeleteCampaignModal"
+      ]
+    },
+    "src/components/candidate/AutonomieGuidelineTable.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Reference table presenting behavioral guidelines and autonomy expectations per experience level.",
+      "policy": "editable",
+      "subcat": "shell",
+      "exports": [
+        "AutonomieGuidelineTable"
+      ]
+    },
+    "src/components/candidate/CandidateUI.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Shared UI elements, progress indicators, and status badges for candidate appraisal cards.",
+      "policy": "editable",
+      "subcat": "shell",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "openExternalUrl",
+        "RenderRichText",
+        "DataBox",
+        "Section"
+      ]
+    },
+    "src/components/candidate/GradeCriteriaTable.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Reference matrix displaying promotion requirements, competencies, and evaluation criteria per grade.",
+      "policy": "editable",
+      "subcat": "shell",
+      "exports": [
+        "GradeCriteriaTable"
+      ]
+    },
+    "src/components/candidate/tabs/BilanIntroTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab presenting consultant overview, career progression, and current assignments.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/services/appLinksService.ts"
+      ],
+      "exports": [
+        "BilanIntroTab"
+      ]
+    },
+    "src/components/candidate/tabs/DocumentsTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab displaying attached annual reports, external links, and uploaded files.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/lib/localDatabase.ts",
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "DocumentsTab"
+      ]
+    },
+    "src/components/candidate/tabs/EngagementTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab capturing consultant participation in internal initiatives and community events.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/AutonomieGuidelineTable.tsx",
+        "src/components/candidate/CandidateUI.tsx",
+        "src/components/candidate/GradeCriteriaTable.tsx",
+        "src/lib/utils.ts",
+        "src/services/referentDataService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "engagementSections",
+        "EngagementSection",
+        "isEngagementSection",
+        "EngagementTab"
+      ]
+    },
+    "src/components/candidate/tabs/ExpertisesTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab listing technical proficiencies, tools, certifications, and domain expertise.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/components/candidate/GradeCriteriaTable.tsx",
+        "src/components/candidate/tabs/SkillsDossierFields.tsx",
+        "src/types.ts"
+      ],
+      "exports": [
+        "ExpertisesTab"
+      ]
+    },
+    "src/components/candidate/tabs/IntercontratTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab tracking non-billable periods, internal projects, and training activities.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/types.ts"
+      ],
+      "exports": [
+        "IntercontratTab"
+      ]
+    },
+    "src/components/candidate/tabs/JuryFeedbacksTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab displaying feedback history, deliberation outcomes, and jury recommendations.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/lib/utils.ts",
+        "src/services/localDatabaseService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "JuryFeedbacksTab"
+      ]
+    },
+    "src/components/candidate/tabs/MeteosTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab presenting project climate ratings, consultant sentiment scores, and feedback.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/types.ts",
+        "src/utils/urlUtils.ts"
+      ],
+      "exports": [
+        "MeteosTab"
+      ]
+    },
+    "src/components/candidate/tabs/ObjectivesTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab displaying annual performance targets, key results, and achievement assessments.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "ObjectivesTab"
+      ]
+    },
+    "src/components/candidate/tabs/PeerFeedbacksTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab displaying peer reviews, 360-degree feedback, and colleague assessments.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "PeerFeedbacksTab"
+      ]
+    },
+    "src/components/candidate/tabs/PretentionsTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab capturing consultant salary expectations, requested promotions, and desires.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/types.ts"
+      ],
+      "exports": [
+        "PretentionsTab"
+      ]
+    },
+    "src/components/candidate/tabs/ReferentTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab presenting career referent evaluations, growth trajectory, and guidance notes.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/types.ts"
+      ],
+      "exports": [
+        "ReferentTab"
+      ]
+    },
+    "src/components/candidate/tabs/SalaryCalculatorTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Interactive compensation calculator generating proposed salary packages based on grade grids.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/lib/salaryUtils.ts",
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "SalaryCalculatorTab"
+      ]
+    },
+    "src/components/candidate/tabs/SatisfactionTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Evaluation tab presenting workplace satisfaction scores and feedback survey results.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "SatisfactionTab"
+      ]
+    },
+    "src/components/candidate/tabs/SkillsDossierFields.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Interactive form fields allowing review and editing of candidate competencies and tools.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/types.ts"
+      ],
+      "exports": [
+        "SkillsDossierFields"
+      ]
+    },
+    "src/components/candidate/tabs/SyntheseTab.tsx": {
+      "cat": "candidate_evaluation",
+      "desc": "Synthesis tab summarizing candidate ratings, autonomy level, and overall deliberation readiness.",
+      "policy": "editable",
+      "subcat": "tabs",
+      "deps": [
+        "src/components/candidate/CandidateUI.tsx",
+        "src/types.ts"
+      ],
+      "exports": [
+        "SyntheseTab"
+      ]
+    },
+    "src/components/jury/JuryCandidateHeader.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Header component displaying candidate identity, current salary, and target promotion in deliberation room.",
+      "policy": "editable",
+      "deps": [
+        "src/components/jury/JuryUI.tsx",
+        "src/lib/localDatabase.ts",
+        "src/lib/salaryUtils.ts",
+        "src/lib/utils.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "JuryCandidateHeader"
+      ]
+    },
+    "src/components/jury/JuryCandidateList.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Queue navigation list allowing jury members to switch between candidates awaiting deliberation.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "JuryCandidateList"
+      ]
+    },
+    "src/components/jury/JuryDecisionForm.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Deliberation decision form recording final salary decisions, promotion votes, and jury notes.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/salaryUtils.ts",
+        "src/lib/utils.ts",
+        "src/services/localDatabaseService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "JuryDecisionForm"
+      ]
+    },
+    "src/components/jury/JuryDossierViewer.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Embedded candidate dossier viewer displaying comprehensive evaluation tabs during deliberation.",
+      "policy": "editable",
+      "deps": [
+        "src/components/CandidateView.tsx",
+        "src/components/jury/JuryDecisionForm.tsx",
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "JuryDossierViewer"
+      ]
+    },
+    "src/components/jury/JuryUI.tsx": {
+      "cat": "jury_deliberation",
+      "desc": "Common UI primitives, action buttons, and status indicators tailored for the jury interface.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "AccordionSection",
+        "ReportSection",
+        "SatisfactionDisplay",
+        "SummaryCard"
+      ]
+    },
+    "src/components/personal/PersonalSpaceView.tsx": {
+      "cat": "navigation_views",
+      "desc": "Personal space dashboard visualizing career progress, salary trends, and objectives.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/firebase.ts",
+        "src/lib/utils.ts",
+        "src/services/driveObjectivesService.ts",
+        "src/services/googleSheetsService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "PersonalSpaceView"
+      ]
+    },
+    "src/components/salary/OptimizerSuggestionsModal.tsx": {
+      "cat": "navigation_views",
+      "desc": "Modal dialog displaying automated compensation adjustment recommendations.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/localDatabase.ts",
+        "src/lib/percentageOptimizer.ts",
+        "src/lib/salaryUtils.ts",
+        "src/lib/utils.ts",
+        "src/services/dummyUsersGenerator.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "OptimizerSuggestionsModal"
+      ]
+    },
+    "src/components/users/ConstituerJuryModal.tsx": {
+      "cat": "user_admin",
+      "desc": "Modal dialog for selecting jury members and assembling deliberation committees.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "ConstituerJuryModal"
+      ]
+    },
+    "src/components/users/CreateUserModal.tsx": {
+      "cat": "user_admin",
+      "desc": "Modal dialog for registering new consultants or user accounts in the application.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "CreateUserModal"
+      ]
+    },
+    "src/components/users/DeleteUserModal.tsx": {
+      "cat": "user_admin",
+      "desc": "Confirmation dialog for permanently removing a single user account.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "DeleteUserModal"
+      ]
+    },
+    "src/components/users/MassDeleteUsersModal.tsx": {
+      "cat": "user_admin",
+      "desc": "Confirmation dialog for batch removal of multiple user accounts.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "MassDeleteUsersModal"
+      ]
+    },
+    "src/components/users/UserCommonUI.tsx": {
+      "cat": "user_admin",
+      "desc": "Shared UI components, status tags, and avatar badges for user administration.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "RoleBadge",
+        "PersonneTypeBadge",
+        "ProfileField"
+      ]
+    },
+    "src/components/users/UserRowDrawer.tsx": {
+      "cat": "user_admin",
+      "desc": "Slide-over detail drawer for viewing and modifying individual user attributes and permissions.",
+      "policy": "editable",
+      "deps": [
+        "src/components/users/UserCommonUI.tsx",
+        "src/lib/localDatabase.ts",
+        "src/lib/utils.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "UserRowDrawer"
+      ]
+    },
+    "src/config/campaign_column_specifications.json": {
+      "cat": "salary_deliberation",
+      "desc": "Spreadsheet column schema mapping column headers and formats for salary deliberated data.",
+      "policy": "editable"
+    },
+    "src/data/campaignColumnsSpecifications.json": {
+      "cat": "data_fixtures",
+      "desc": "Bundled column specification definitions used for default campaign creation.",
+      "policy": "editable"
+    },
+    "src/data/campaigns.json": {
+      "cat": "data_fixtures",
+      "desc": "Bundled sample campaign records used for offline testing and initial seeding.",
+      "policy": "editable"
+    },
+    "src/data/defaultAnnualReport.ts": {
+      "cat": "data_fixtures",
+      "desc": "Default report template providing structured evaluation sections for annual interviews.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "defaultReportData"
+      ]
+    },
+    "src/data/dossiers.json": {
+      "cat": "data_fixtures",
+      "desc": "Bundled sample evaluation dossiers used for offline development and testing.",
+      "policy": "editable"
+    },
+    "src/data/users.json": {
+      "cat": "data_fixtures",
+      "desc": "Bundled sample user accounts used for offline development and testing.",
+      "policy": "editable"
+    },
+    "src/index.css": {
+      "cat": "navigation_views",
+      "desc": "Global stylesheet configuring utility typography, design theme tokens, and base layout styles.",
+      "policy": "editable"
+    },
+    "src/lib/authErrors.ts": {
+      "cat": "auth_security",
+      "desc": "Error code mapper translating authentication service exceptions into localized user feedback.",
+      "policy": "never_edit",
+      "exports": [
+        "describeAuthError"
+      ],
+      "tests": [
+        "tests/auth.browser.test.ts",
+        "tests/authErrors.test.ts"
+      ]
+    },
+    "src/lib/firebase.ts": {
+      "cat": "auth_security",
+      "desc": "Firebase SDK initialization establishing authentication service and database client connections.",
+      "policy": "never_edit",
+      "deps": [
+        "firebase-applet-config.json"
+      ],
+      "exports": [
+        "auth",
+        "getGoogleDriveAccessToken",
+        "setGoogleDriveAccessToken",
+        "getGoogleAccessToken"
+      ],
+      "tests": [
+        "tests/auth.browser.test.ts",
+        "tests/authErrors.test.ts"
+      ]
+    },
+    "src/lib/localDatabase.ts": {
+      "cat": "storage_persistence",
+      "desc": "Client-side indexed database wrapper providing offline document persistence and transaction support.",
+      "policy": "editable",
+      "deps": [
+        "src/services/localStore.ts"
+      ],
+      "exports": [
+        "db",
+        "collection",
+        "doc",
+        "where"
+      ],
+      "tests": [
+        "tests/localDatabase.test.ts"
+      ]
+    },
+    "src/lib/percentageOptimizer.ts": {
+      "cat": "shared_utilities",
+      "desc": "Optimization algorithm balancing salary adjustments to maximize target budget utilization.",
+      "policy": "editable",
+      "exports": [
+        "TARGET_M",
+        "TARGET_I",
+        "MIN_M",
+        "MAX_M"
+      ]
+    },
+    "src/lib/salaryUtils.ts": {
+      "cat": "salary_deliberation",
+      "desc": "Compensation logic calculating grade salary grids, step coefficients, and seniority bonuses.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "resolveTargetGrade",
+        "calculateYears",
+        "calculateTotalExperience",
+        "getTauxGrade"
+      ]
+    },
+    "src/lib/utils.ts": {
+      "cat": "shared_utilities",
+      "desc": "General utility helpers including conditional class concatenation and date formatters.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/firebase.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "cn",
+        "handleFirestoreError",
+        "formatCurrency",
+        "formatPercent"
+      ]
+    },
+    "src/main.tsx": {
+      "cat": "navigation_views",
+      "desc": "Client application entry point initializing React DOM rendering and error boundary.",
+      "policy": "editable",
+      "deps": [
+        "src/App.tsx",
+        "src/index.css"
+      ]
+    },
+    "src/services/appLinksService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service persisting and resolving external links for Google Sheets and Google Drive resources.",
+      "policy": "editable",
+      "exports": [
+        "AppLinkItem",
+        "INITIAL_APP_LINKS",
+        "AppLinksService",
+        "useAppLink"
+      ]
+    },
+    "src/services/campaignCatchupService.ts": {
+      "cat": "salary_deliberation",
+      "desc": "Service computing multi-year salary catchup adjustments and compensation recommendations.",
+      "policy": "editable",
+      "deps": [
+        "src/config/campaign_column_specifications.json",
+        "src/lib/localDatabase.ts",
+        "src/services/campaignColumnsSpecificationService.ts",
+        "src/services/campaignInitializationService.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "VALID_RELATION_TYPES",
+        "ProfileReferenceItem",
+        "DeliberationParsedRow",
+        "EvaluationParsedRow"
+      ]
+    },
+    "src/services/campaignColumnsSpecificationService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service loading and validating column structure specifications for imported campaign sheets.",
+      "policy": "editable",
+      "deps": [
+        "src/data/campaignColumnsSpecifications.json"
+      ],
+      "exports": [
+        "ResolvedCampaignColumn",
+        "CampaignColumnsSpecificationService"
+      ]
+    },
+    "src/services/campaignInitializationService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service orchestrating new evaluation campaign creation and initial candidate records setup.",
+      "policy": "editable",
+      "deps": [
+        "src/data/defaultAnnualReport.ts",
+        "src/lib/localDatabase.ts",
+        "src/services/localDatabaseService.ts",
+        "src/services/referentDataService.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts",
+        "src/utils/urlUtils.ts"
+      ],
+      "exports": [
+        "RawRow",
+        "SheetParsingResult",
+        "MeteoLinkItem",
+        "CandidateInitData"
+      ]
+    },
+    "src/services/dataCleansing.ts": {
+      "cat": "campaign_services",
+      "desc": "Data sanitation service normalizing candidate names, salary figures, and dates.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/localDatabase.ts"
+      ]
+    },
+    "src/services/dataReconciliationService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service reconciling differences between local candidate records and remote spreadsheet data.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/localDatabase.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "ReconciliationReport",
+        "DataReconciliationService"
+      ]
+    },
+    "src/services/driveObjectivesService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service retrieving and synchronizing annual performance objective documents from cloud storage.",
+      "policy": "editable",
+      "exports": [
+        "ExtractedObjectiveItem",
+        "DebugTableInfo",
+        "DriveDebugInfo",
+        "DriveImportResult"
+      ]
+    },
+    "src/services/dummyUsersGenerator.ts": {
+      "cat": "campaign_services",
+      "desc": "Synthetic data generator producing mock consultant profiles for local testing.",
+      "policy": "editable",
+      "deps": [
+        "src/services/localDatabaseService.ts",
+        "src/services/localStore.ts",
+        "src/services/userDirectoryService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "GeneratedDummyData",
+        "generate50DummyUsers",
+        "seed50DummyUsers",
+        "clearDummyUsers"
+      ]
+    },
+    "src/services/googleSheetsConfigService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service reading and persisting spreadsheet IDs, tab selections, and sync preferences.",
+      "policy": "editable",
+      "deps": [
+        "google-sheets-config.json",
+        "src/types/googleSheetsConfig.ts"
+      ],
+      "exports": [
+        "GoogleSheetsConfigService"
+      ]
+    },
+    "src/services/googleSheetsService.ts": {
+      "cat": "campaign_services",
+      "desc": "API client interfacing with external spreadsheets for reading and saving deliberation data.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/firebase.ts",
+        "src/lib/salaryUtils.ts",
+        "src/services/appLinksService.ts",
+        "src/services/googleSheetsConfigService.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "PREDEFINED_EXPORT_SPREADSHEET_ID",
+        "EXPORT_DRIVE_FOLDER_ID",
+        "PREDEFINED_IMPORT_SPREADSHEET_ID",
+        "DEFAULT_SHEET_TAB_NAME"
+      ]
+    },
+    "src/services/localDatabaseService.ts": {
+      "cat": "storage_persistence",
+      "desc": "High-level database access service providing CRUD operations for campaigns, users, and evaluations.",
+      "policy": "editable",
+      "deps": [
+        "src/services/localStore.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "LocalDatabaseService"
+      ],
+      "tests": [
+        "tests/localDatabase.test.ts"
+      ]
+    },
+    "src/services/localStore.ts": {
+      "cat": "storage_persistence",
+      "desc": "Low-level persistence service wrapping browser key-value storage for offline operations.",
+      "policy": "editable",
+      "deps": [
+        "src/data/campaigns.json",
+        "src/data/dossiers.json",
+        "src/data/users.json"
+      ],
+      "exports": [
+        "CollectionName",
+        "RecordData",
+        "Mutation",
+        "DATABASE_KEY"
+      ]
+    },
+    "src/services/referentDataService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service extracting and managing career referent appraisals and guidance notes.",
+      "policy": "editable",
+      "deps": [
+        "src/lib/firebase.ts"
+      ],
+      "exports": [
+        "REFERENT_SPREADSHEET_ID",
+        "ReferentMeteoItem",
+        "ReferentActionItem",
+        "ReferentMissionItem"
+      ]
+    },
+    "src/services/userDirectoryService.ts": {
+      "cat": "campaign_services",
+      "desc": "Service handling user lookup, directory queries, and role verification.",
+      "policy": "editable",
+      "deps": [
+        "src/services/localStore.ts",
+        "src/types.ts"
+      ],
+      "exports": [
+        "UserDirectoryService"
+      ]
+    },
+    "src/types.ts": {
+      "cat": "domain_types",
+      "desc": "Core type definitions specifying candidate models, campaign schemas, and deliberation data contracts.",
+      "policy": "editable",
+      "deps": [
+        "src/services/referentDataService.ts"
+      ],
+      "exports": [
+        "UserRole",
+        "DossierStatus",
+        "CampaignStatus",
+        "CampaignFile"
+      ]
+    },
+    "src/types/googleSheetsConfig.ts": {
+      "cat": "domain_types",
+      "desc": "Type definitions declaring configuration schemas and sync options for external spreadsheets.",
+      "policy": "editable",
+      "exports": [
+        "SheetPurpose",
+        "ColumnDefinition",
+        "TabConfig",
+        "SpreadsheetDefinition"
+      ]
+    },
+    "src/utils/pdfGenerator.ts": {
+      "cat": "shared_utilities",
+      "desc": "Document generator compiling candidate evaluation summaries into downloadable PDF reports.",
+      "policy": "editable",
+      "deps": [
+        "src/types.ts"
+      ],
+      "exports": [
+        "generateDossierPDF"
+      ]
+    },
+    "src/utils/urlUtils.ts": {
+      "cat": "shared_utilities",
+      "desc": "Utility functions for URL parameter extraction, encoding, and navigation helpers.",
+      "policy": "editable",
+      "exports": [
+        "extractPlainTextUrl",
+        "getValidUrl"
+      ]
+    },
+    "tests/auth.browser.test.ts": {
+      "cat": "auth_security",
+      "desc": "Browser-based integration test verifying user authentication, session persistence, and logout flow.",
+      "policy": "never_edit",
+      "exports": [
+        "getAuth",
+        "GoogleAuthProvider",
+        "onAuthStateChanged",
+        "signInWithPopup"
+      ]
+    },
+    "tests/authErrors.test.ts": {
+      "cat": "auth_security",
+      "desc": "Unit tests validating error code translation and formatting for authentication failures.",
+      "policy": "never_edit",
+      "deps": [
+        "src/components/AuthErrorNotice.tsx",
+        "src/lib/authErrors.ts"
+      ]
+    },
+    "tests/campaignLaunch.browser.test.ts": {
+      "cat": "test_suites",
+      "desc": "Browser-based end-to-end test verifying campaign creation, sheet sync, and launch lifecycle.",
+      "policy": "editable"
+    },
+    "tests/localDatabase.test.ts": {
+      "cat": "test_suites",
+      "desc": "Test suite verifying database initialization, indexing, transactions, and fallback behaviors.",
+      "policy": "editable",
+      "deps": [
+        "src/services/campaignInitializationService.ts"
+      ]
+    },
+    "tsconfig.json": {
+      "cat": "config_project_docs",
+      "desc": "TypeScript compiler configuration defining syntax flags, module resolution, and path mappings.",
+      "policy": "approval_required"
+    },
+    "untitled.tsx": {
+      "cat": "config_project_docs",
+      "desc": "Unused scratch template file kept for reference.",
+      "policy": "editable"
+    },
+    "vite.config.ts": {
+      "cat": "config_project_docs",
+      "desc": "Vite bundler configuration specifying plugins, server port settings, and build optimizations.",
+      "policy": "approval_required"
+    }
+  }
+}

@@ -220,10 +220,10 @@ export function prepareDeliberationsData(
     const currentGrade = dossier.annualReport?.currentGrade || candidate.currentGrade || 'Junior';
     const yearsExpert = currentGrade === 'Expert' ? calculateYears(candidate.expertGradeDate, referenceDate) : 0;
     const prime = getPrimeAnciennete(yearsLL);
-    const tjVendu = dossier.annualReport?.currentTJM ?? candidate.currentTJM ?? 0;
-    const currentSalary = dossier.annualReport?.currentSalary ?? candidate.currentSalary ?? 0;
+    const tjVendu = dossier.annualReport?.currentTJM ?? dossier.juryDecision?.tjVendu0107 ?? candidate.currentTJM ?? 0;
+    const currentSalary = dossier.annualReport?.currentSalary ?? dossier.juryDecision?.salaire3006 ?? candidate.currentSalary ?? 0;
 
-    const tjCible = dossier.annualReport?.targetTJM || 0;
+    const tjCible = dossier.annualReport?.targetTJM ?? dossier.juryDecision?.tjCibleDecision ?? 0;
     const salaireVendu = calculateSalaryFormule(tjVendu, currentGrade, yearsExpert, prime);
     const salaireVendu100 = calculateSalaryFormule(tjVendu + 30, currentGrade, yearsExpert, prime);
 
@@ -233,7 +233,7 @@ export function prepareDeliberationsData(
     const salaireCible100 = calculateSalaryFormule(tjCible + 30, targetGrade, targetYearsExpert, prime);
 
     const decision = (dossier.juryDecision || {}) as JuryDecision;
-    const wishedSalary = dossier.annualReport?.wishedSalary || 0;
+    const wishedSalary = dossier.annualReport?.wishedSalary || dossier.juryDecision?.wishedSalary0107 || 0;
 
     const realMargin = calculateMargin(tjVendu, currentSalary, prime);
     const wishedMargin = calculateMargin(tjVendu, wishedSalary, prime);

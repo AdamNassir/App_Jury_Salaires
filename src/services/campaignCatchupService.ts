@@ -25,6 +25,21 @@ import { cleanString, normalizeHeader, parseFrenchNumber, readImportWorkbook } f
 import { UserDirectoryService } from './userDirectoryService';
 import { LocalDatabaseService } from './localDatabaseService';
 import { CampaignColumnsSpecificationService } from './campaignColumnsSpecificationService';
+import campaignColumnSpecs from '../config/campaign_column_specifications.json';
+
+function getColumnIndexFromSpecs(sheet: 'Analyse_Jury' | 'TJ_Cible', year: number, ...fieldNames: string[]): number {
+  const yearKey = year >= 2025 ? '2025_and_later' : year === 2024 ? '2024' : year === 2023 ? '2023' : '2022_and_earlier';
+  const sheetCols = (campaignColumnSpecs as any).campaigns?.[yearKey]?.sheets?.[sheet]?.columns || {};
+  for (const fieldName of fieldNames) {
+    for (const [colKey, def] of Object.entries(sheetCols) as [string, any][]) {
+      if (def?.field === fieldName) {
+        const letter = colKey.split(' ')[0].trim().toUpperCase();
+        return letter.split('').reduce((sum, char) => sum * 26 + char.charCodeAt(0) - 64, 0) - 1;
+      }
+    }
+  }
+  return -1;
+}
 
 // Relations canoniques strictes incluant Coach et Logiclever
 export const VALID_RELATION_TYPES: EvaluationRelationType[] = [
@@ -420,10 +435,6 @@ export class CampaignCatchupService {
         colSalaire3006 = c;
       } else if (colWishedSalary === -1 && ((h.includes('salaire') || h.includes('pretention')) && (h.includes('souhaite') || h.includes('demande') || h.includes('pretention')) && !h.includes('propose') && !h.includes('max'))) {
         colWishedSalary = c;
-      } else if (colInvest === -1 && h.includes('invest')) {
-        colInvest = c;
-      } else if (colMission === -1 && h.includes('mission') && !h.includes('collegue') && !h.includes('client')) {
-        colMission = c;
       } else if (colCoachName === -1 && h.includes('coach')) {
         colCoachName = c;
       } else if (colProposedSalary === -1 && ((h.includes('propose') || h.includes('proposition')) && !h.includes('max') && !h.includes('%') && !h.includes('augm') && !h.includes('evolution') && !h.includes('pourquoi') && !h.includes('pour_avoir_plus') && !h.includes('avoir_plus') && !h.includes('ressenti') && !h.includes('referent'))) {
@@ -449,115 +460,72 @@ export class CampaignCatchupService {
     const is2023 = !is2025 && ((campaignYear === 2023) || colCoachName !== -1 || headerRow.some(h => normalizeHeader(String(h || '')).includes('coach')));
     const is2022OrEarlier = !is2025 && !is2023 && ((campaignYear !== undefined && campaignYear <= 2022) || normalizeHeader(String(headerRow[4] || '')).includes('nouveau') || colGHeader.includes('vendu') || (headerRow[18] && normalizeHeader(String(headerRow[18] || '')).includes('propose')));
 
-    // Repli sur les index documentés si non détectés par le texte d'en-tête
-    if (colMatricule === -1) colMatricule = 0;
-    if (colPrenom === -1) colPrenom = 1;
-    if (colNom === -1) colNom = 2;
-    if (colExperience === -1) colExperience = 3;
+    // Année effective de la campagne
+    const effectiveYear = campaignYear || (is2025 ? 2025 : is2023 ? 2023 : is2022OrEarlier ? 2022 : 2024);
 
-    if (is2025) {
-      if (colEntryDate === -1) colEntryDate = 4;
-      if (colExpertGradeDate === -1) colExpertGradeDate = 5;
-      if (colAncienneteLL === -1) colAncienneteLL = 6;
-      if (colYearsExpert === -1) colYearsExpert = 7;
-      colNewGrade = 8; // Colonne I (index 8) obligatoire pour 2025
-      if (colTjVendu === -1) colTjVendu = 9;
-      if (colTjCible === -1) colTjCible = 12;
-      if (colSalaire3006 === -1) colSalaire3006 = 15;
-      if (colWishedSalary === -1) colWishedSalary = 17;
-      colInvest = 20; // Colonne U (index 20) obligatoire pour 2025
-      colMission = 21; // Colonne V (index 21) obligatoire pour 2025
-      if (colProposedSalary === -1) colProposedSalary = 22;
-      if (colProposedPercent === -1) colProposedPercent = 25;
-      if (colMaxSalary === -1) colMaxSalary = 29;
-      if (colWhyThisSalary === -1) colWhyThisSalary = 31;
-      if (colWhatToDoMore === -1) colWhatToDoMore = 32;
-      if (colReferentJury === -1) colReferentJury = 33;
-      if (colConsultantFeeling === -1) colConsultantFeeling = 34;
-    } else if (is2023) {
-      colNewGrade = 4; // Colonne E (index 4) obligatoire pour 2023
-      if (colTjVendu === -1) colTjVendu = 5;
-      if (colTjCible === -1) colTjCible = 8;
-      if (colSalaire3006 === -1) colSalaire3006 = 11;
-      if (colWishedSalary === -1) colWishedSalary = 13;
-      if (colGradeChange === -1) colGradeChange = 14;
-      colInvest = 16; // Colonne Q (index 16) obligatoire pour 2023
-      colMission = 17; // Colonne R (index 17) obligatoire pour 2023
-      if (colCoachName === -1) colCoachName = 18;
-      if (colProposedSalary === -1) colProposedSalary = 21;
-      if (colProposedPercent === -1) colProposedPercent = 22;
-      if (colMaxSalary === -1) colMaxSalary = 26;
-      if (colWhyThisSalary === -1) colWhyThisSalary = 28;
-      if (colWhatToDoMore === -1) colWhatToDoMore = 29;
-      if (colReferentJury === -1) colReferentJury = 30;
-      if (colConsultantFeeling === -1) colConsultantFeeling = 31;
-    } else if (is2022OrEarlier) {
-      colNewGrade = 4; // Colonne E (index 4) obligatoire pour 2022 et antérieurs
-      if (colTjVendu === -1) colTjVendu = 5;
-      if (colTjCible === -1) colTjCible = 8;
-      if (colSalaire3006 === -1) colSalaire3006 = 11;
-      if (colWishedSalary === -1) colWishedSalary = 13;
-      if (colGradeChange === -1) colGradeChange = 14;
-      colInvest = 16; // Colonne Q (index 16) obligatoire pour 2022
-      colMission = 17; // Colonne R (index 17) obligatoire pour 2022
-      if (colProposedSalary === -1) colProposedSalary = 18;
-      if (colProposedPercent === -1) colProposedPercent = 19;
-      if (colMaxSalary === -1) colMaxSalary = 23;
-      if (colWhyThisSalary === -1) colWhyThisSalary = 25;
-      if (colWhatToDoMore === -1) colWhatToDoMore = 26;
-      if (colReferentJury === -1) colReferentJury = 27;
-      if (colConsultantFeeling === -1) colConsultantFeeling = 28;
-    } else {
-      // Format 2024 (Défaut standard)
-      if (colEntryDate === -1) colEntryDate = 4;
-      if (colExpertGradeDate === -1) colExpertGradeDate = 5;
-      colNewGrade = 6; // Colonne G (index 6) obligatoire pour 2024
-      if (colTjVendu === -1) colTjVendu = 7;
-      if (colTjCible === -1) colTjCible = 10;
-      if (colSalaire3006 === -1) colSalaire3006 = 13;
-      if (colWishedSalary === -1) colWishedSalary = 15;
-      colInvest = 18; // Colonne S (index 18) obligatoire pour 2024
-      colMission = 19; // Colonne T (index 19) obligatoire pour 2024
-      if (colProposedSalary === -1) colProposedSalary = 20;
-      if (colProposedPercent === -1) colProposedPercent = 22;
-      if (colMaxSalary === -1) colMaxSalary = 26;
-      if (colWhyThisSalary === -1) colWhyThisSalary = 28;
-      if (colWhatToDoMore === -1) colWhatToDoMore = 29;
-      if (colReferentJury === -1) colReferentJury = 30;
-      if (colConsultantFeeling === -1) colConsultantFeeling = 31;
-    }
+    // RÉSOLUTION STRICTE DE TOUTES LES COLONNES D'APRÈS campaign_column_specifications.json
+    const getCol = (...fieldNames: string[]) => getColumnIndexFromSpecs('Analyse_Jury', effectiveYear, ...fieldNames);
 
-    // When the year is known, the specification is authoritative over header guesses.
-    if (campaignYear) {
-      const configured = (field: string, fallback: number) => {
-        const index = CampaignColumnsSpecificationService.getColumnIndex('Analyse_Jury', campaignYear, field);
-        return index >= 0 ? index : fallback;
-      };
-      colMatricule = configured('matricule', colMatricule);
-      colPrenom = configured('prenom', colPrenom);
-      colNom = configured('nom', colNom);
-      colExperience = configured('experience', colExperience);
-      colEntryDate = configured('entryDate', colEntryDate);
-      colExpertGradeDate = configured('expertGradeDate', colExpertGradeDate);
-      colAncienneteLL = configured('ancienneteLL', colAncienneteLL);
-      colYearsExpert = configured('yearsExpert', colYearsExpert);
-      colNewGrade = configured('newGrade', colNewGrade);
-      colTjVendu = configured('tjVendu0107', colTjVendu);
-      colTjCible = configured('tjCible', colTjCible);
-      colSalaire3006 = configured('salaire3006', colSalaire3006);
-      colWishedSalary = configured('wishedSalary0107', colWishedSalary);
-      colGradeChange = configured('gradeChange', colGradeChange);
-      colInvest = configured('investPercent', colInvest);
-      colMission = configured('missionPercent', colMission);
-      colCoachName = configured('coachName', colCoachName);
-      colProposedSalary = configured('proposedSalary0107', colProposedSalary);
-      colProposedPercent = configured('proposedSalaryPercent0107', colProposedPercent);
-      colMaxSalary = configured('maxSalaryIfTjVenduIncreases', colMaxSalary);
-      colWhyThisSalary = configured('whyThisSalary', colWhyThisSalary);
-      colWhatToDoMore = configured('whatToDoMore', colWhatToDoMore);
-      colReferentJury = configured('referentJury', colReferentJury);
-      colConsultantFeeling = configured('consultantFeeling', colConsultantFeeling);
-    }
+    const specMatricule = getCol('matricule');
+    colMatricule = specMatricule >= 0 ? specMatricule : (colMatricule !== -1 ? colMatricule : 0);
+
+    const specPrenom = getCol('prenom');
+    colPrenom = specPrenom >= 0 ? specPrenom : (colPrenom !== -1 ? colPrenom : 1);
+
+    const specNom = getCol('nom');
+    colNom = specNom >= 0 ? specNom : (colNom !== -1 ? colNom : 2);
+
+    const specEntryDate = getCol('dateEntree', 'entryDate');
+    if (specEntryDate >= 0) colEntryDate = specEntryDate;
+
+    const specAnciennete = getCol('anciennete', 'ancienneteLL');
+    if (specAnciennete >= 0) colAncienneteLL = specAnciennete;
+
+    const specGrade = getCol('grade', 'newGrade');
+    if (specGrade >= 0) colNewGrade = specGrade;
+    else if (colNewGrade === -1) colNewGrade = (effectiveYear === 2025 ? 8 : effectiveYear === 2024 ? 6 : 4);
+
+    const specGradeChange = getCol('changementGrade', 'gradeChange');
+    if (specGradeChange >= 0) colGradeChange = specGradeChange;
+
+    const specTjVendu = getCol('tjVendu0107');
+    if (specTjVendu >= 0) colTjVendu = specTjVendu;
+
+    const specTjCible = getCol('tjCible');
+    if (specTjCible >= 0) colTjCible = specTjCible;
+
+    const specSalaire3006 = getCol('salaire3006');
+    if (specSalaire3006 >= 0) colSalaire3006 = specSalaire3006;
+
+    const specWishedSalary = getCol('salaireSouhaite', 'wishedSalary0107');
+    if (specWishedSalary >= 0) colWishedSalary = specWishedSalary;
+
+    const specInvest = getCol('pourcentInvestissement');
+    colInvest = specInvest >= 0 ? specInvest : (effectiveYear === 2025 ? 20 : effectiveYear === 2024 ? 18 : 16);
+
+    const specMission = getCol('pourcentMission');
+    colMission = specMission >= 0 ? specMission : (effectiveYear === 2025 ? 21 : effectiveYear === 2024 ? 19 : 17);
+
+    const specProposedSalary = getCol('salairePropose0107');
+    if (specProposedSalary >= 0) colProposedSalary = specProposedSalary;
+
+    const specProposedPercent = getCol('pourcentageAugmentation', 'proposedSalaryPercent0107');
+    if (specProposedPercent >= 0) colProposedPercent = specProposedPercent;
+
+    const specMaxSalary = getCol('maxSalaryIfTjVenduIncreases', 'maxSalaryIfTJIncreases');
+    if (specMaxSalary >= 0) colMaxSalary = specMaxSalary;
+
+    const specWhyThisSalary = getCol('pourquoiCeSalaire', 'whyThisSalary');
+    if (specWhyThisSalary >= 0) colWhyThisSalary = specWhyThisSalary;
+
+    const specWhatToDoMore = getCol('ceQuIlFautFairePourAvoirPlus', 'whatToDoMore');
+    if (specWhatToDoMore >= 0) colWhatToDoMore = specWhatToDoMore;
+
+    const specReferentJury = getCol('referentJury');
+    if (specReferentJury >= 0) colReferentJury = specReferentJury;
+
+    const specConsultantFeeling = getCol('ressentiConsultant', 'consultantFeeling');
+    if (specConsultantFeeling >= 0) colConsultantFeeling = specConsultantFeeling;
 
     const rows: DeliberationParsedRow[] = [];
 
@@ -609,6 +577,9 @@ export class CampaignCatchupService {
 
       let proposedSalary0107Val = colProposedSalary !== -1 ? parseFrenchNumber(rowArr[colProposedSalary]) : undefined;
       let proposedSalaryPercent0107 = colProposedPercent !== -1 ? parseFrenchNumber(rowArr[colProposedPercent]) : undefined;
+      if (proposedSalaryPercent0107 !== undefined && proposedSalaryPercent0107 > 0 && proposedSalaryPercent0107 <= 1) {
+        proposedSalaryPercent0107 = Math.round(proposedSalaryPercent0107 * 1000) / 10;
+      }
       const maxSalaryIfTjVenduIncreases = colMaxSalary !== -1 ? parseFrenchNumber(rowArr[colMaxSalary]) : undefined;
       const whyThisSalary = colWhyThisSalary !== -1 ? cleanString(rowArr[colWhyThisSalary]) : '';
       const whatToDoMore = colWhatToDoMore !== -1 ? cleanString(rowArr[colWhatToDoMore]) : '';
@@ -1389,7 +1360,10 @@ export class CampaignCatchupService {
           ...(deliberation?.investPercent !== undefined ? { investmentPercentage: deliberation.investPercent } : {}),
           ...(deliberation?.missionPercent !== undefined ? { missionPercentage: deliberation.missionPercent } : {}),
           ...(deliberation?.proposedSalary0107 !== undefined ? { proposedSalary0107: deliberation.proposedSalary0107 } : {}),
-          ...(deliberation?.maxSalaryIfTjVenduIncreases !== undefined ? { maxSalaryIfTjVenduIncreases: deliberation.maxSalaryIfTjVenduIncreases } : {}),
+          ...(deliberation?.maxSalaryIfTjVenduIncreases !== undefined ? { 
+            maxSalaryIfTjVenduIncreases: deliberation.maxSalaryIfTjVenduIncreases,
+            maxSalaryIfTJIncreases: deliberation.maxSalaryIfTjVenduIncreases 
+          } : {}),
           ...(deliberation?.whyThisSalary ? { whyThisSalary: deliberation.whyThisSalary } : {}),
           ...(deliberation?.whatToDoMore ? { whatToDoMore: deliberation.whatToDoMore } : {}),
           ...(resolvedReferentName ? { referentJury: resolvedReferentName } : {}),
@@ -1758,9 +1732,9 @@ export class CampaignCatchupService {
       colIHeader === 'date_fin' || colIHeader.includes('date') ||
       colKHeader.includes('evaluat');
 
-    const columnIndex = (field: string, fallback: number) => {
-      if (!campaignYear) return fallback;
-      const configured = CampaignColumnsSpecificationService.getColumnIndex('TJ_Cible', campaignYear, field);
+    const effectiveYearTJ = campaignYear || (is2022_2023Format ? 2023 : 2024);
+    const columnIndex = (field: string, fallback: number, ...altFields: string[]) => {
+      const configured = getColumnIndexFromSpecs('TJ_Cible', effectiveYearTJ, field, ...altFields);
       return configured >= 0 ? configured : fallback;
     };
 

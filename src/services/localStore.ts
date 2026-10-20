@@ -9,6 +9,8 @@ export type Mutation = { collection: CollectionName; id: string; kind: 'set' | '
 export const DATABASE_KEY = 'app_local_database_v2';
 const BUILTIN_USERS_VERSION_KEY = 'app_local_builtin_users_version';
 const BUILTIN_USERS_VERSION = '2';
+const BUILTIN_DOSSIERS_VERSION_KEY = 'app_local_builtin_dossiers_version_v3';
+const BUILTIN_DOSSIERS_VERSION = '3';
 const legacyKeys: Record<CollectionName, string> = {
   campaigns: 'app_local_campaigns_v1', dossiers: 'app_local_dossiers_v1',
   users: 'app_users_directory_custom_v1', personnes: 'app_local_personnes_v1',
@@ -63,6 +65,20 @@ function readDatabase(): Database {
       });
       localStorage.setItem(DATABASE_KEY, JSON.stringify(parsed));
       localStorage.setItem(BUILTIN_USERS_VERSION_KEY, BUILTIN_USERS_VERSION);
+    }
+
+    if (localStorage.getItem(BUILTIN_DOSSIERS_VERSION_KEY) !== BUILTIN_DOSSIERS_VERSION) {
+      if (!Array.isArray(parsed.dossiers)) parsed.dossiers = [];
+      (dossiers as RecordData[]).forEach(builtinDossier => {
+        const existingIndex = parsed.dossiers.findIndex((d: RecordData) => d.id === builtinDossier.id);
+        if (existingIndex < 0) {
+          parsed.dossiers.push(clone(builtinDossier));
+        } else {
+          parsed.dossiers[existingIndex] = clone(builtinDossier);
+        }
+      });
+      localStorage.setItem(DATABASE_KEY, JSON.stringify(parsed));
+      localStorage.setItem(BUILTIN_DOSSIERS_VERSION_KEY, BUILTIN_DOSSIERS_VERSION);
     }
     return parsed;
   }
